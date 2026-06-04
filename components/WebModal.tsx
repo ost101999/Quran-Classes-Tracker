@@ -51,11 +51,11 @@ const WebModal: React.FC<Props> = ({ isOpen, onClose, url, title, onOpenExternal
         if (!isOpen) return;
 
         const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === 'Control') setIsCtrlPressed(true);
+            if (e.key === 'Control' || e.key === 'Meta') setIsCtrlPressed(true);
             if (e.key === 'Escape') onClose();
         };
         const handleKeyUp = (e: KeyboardEvent) => {
-            if (e.key === 'Control') setIsCtrlPressed(false);
+            if (e.key === 'Control' || e.key === 'Meta') setIsCtrlPressed(false);
         };
         const handleBlur = () => {
             setIsCtrlPressed(false);
@@ -119,7 +119,7 @@ const WebModal: React.FC<Props> = ({ isOpen, onClose, url, title, onOpenExternal
     }, [isOpen]);
 
     const handleWheel = (e: React.WheelEvent) => {
-        if (e.ctrlKey) {
+        if (e.ctrlKey || e.metaKey) {
             // e.preventDefault(); // Moved to passive listener avoidance if needed, but React handles this.
             // Actually, we usually want to prevent browser zoom, but here we just do our custom zoom.
             const delta = e.deltaY * -0.01;
@@ -251,7 +251,7 @@ const WebModal: React.FC<Props> = ({ isOpen, onClose, url, title, onOpenExternal
                 {/* Footer Hint */}
                 <div className="bg-white border-t border-gray-100 py-1 px-4 text-center flex justify-between items-center">
                     <p className="text-[10px] text-gray-400">
-                        استخدم Ctrl + العجلة للتكبير/التصغير
+                        استخدم Ctrl/Cmd + العجلة للتكبير/التصغير
                     </p>
                     <p className="text-[10px] text-gray-400">
                         بعض المواقع (مثل Google Meet) قد لا تعمل داخل النافذة المنبثقة لأسباب أمنية. استخدم "فتح في المتصفح" إذا واجهت مشكلة.

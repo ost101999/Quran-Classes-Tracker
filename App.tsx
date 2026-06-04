@@ -4401,7 +4401,7 @@ function App() {
   useEffect(() => {
     const handleSearchShortcut = (e: KeyboardEvent) => {
       // e.code is layout-independent (works with Arabic/English keyboard)
-      if (e.ctrlKey && e.code === 'KeyF') {
+      if ((e.ctrlKey || e.metaKey) && e.code === 'KeyF') {
         // Don't intercept if a modal is open
         const anyModalOpen = isModalOpen || isSettingsOpen || !!selectedStudentForDetails || !!selectedAcademyForDetails || smartReportModal?.isOpen;
         if (anyModalOpen) return;
@@ -5580,7 +5580,7 @@ function App() {
                   if (e.key === 'Escape') { setIsSearchOpen(false); setSearchQuery(''); }
                   
                   // Ctrl + Z (Undo / Previous history)
-                  if (e.ctrlKey && e.code === 'KeyZ') {
+                  if ((e.ctrlKey || e.metaKey) && e.code === 'KeyZ') {
                     e.preventDefault();
                     if (searchHistory.length > 0) {
                       let nextIndex = searchHistoryIndex;
@@ -5595,7 +5595,7 @@ function App() {
                   }
                   
                   // Ctrl + Y (Redo / Next history)
-                  if (e.ctrlKey && e.code === 'KeyY') {
+                  if ((e.ctrlKey || e.metaKey) && e.code === 'KeyY') {
                     e.preventDefault();
                     if (searchHistory.length > 0) {
                       let nextIndex = searchHistoryIndex;
