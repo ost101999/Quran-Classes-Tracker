@@ -21,6 +21,10 @@
       "target": "nsis",
       "icon": "public/ChatGPT Image 21 يناير 2026، 04_27_04 ص.png  ( 2 ).ico"
     },
+    "mac": {
+      "target": "default",
+      "icon": "public/ChatGPT Image 21 يناير 2026، 04_27_04 ص.png  ( 2 ).png"
+    },
     "nsis": {
       "oneClick": true,
       "allowToChangeInstallationDirectory": false,

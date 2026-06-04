@@ -1239,10 +1239,19 @@ ipcMain.handle('open-external', async (event, url, options) => {
 
 
 function createWindow() {
+    if (process.platform === 'darwin') {
+        const dockIconPath = path.join(__dirname, 'public/ChatGPT Image 21 يناير 2026، 04_27_04 ص.png  ( 2 ).png');
+        if (fs.existsSync(dockIconPath)) {
+            app.dock.setIcon(dockIconPath);
+        }
+    }
+
     mainWindow = new BrowserWindow({
         width: 1200,
         height: 800,
-        icon: path.join(__dirname, 'public/Classes_Tracker_Icon_MAX.ico'),
+        icon: process.platform === 'win32'
+            ? path.join(__dirname, 'public/ChatGPT Image 21 يناير 2026، 04_27_04 ص.png  ( 2 ).ico')
+            : path.join(__dirname, 'public/ChatGPT Image 21 يناير 2026، 04_27_04 ص.png  ( 2 ).png'),
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
             contextIsolation: true,
