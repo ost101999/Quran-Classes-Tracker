@@ -199,7 +199,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-3xl shadow-2xl w-full max-w-xl overflow-hidden animate-in fade-in zoom-in duration-200"
+        className="student-modal-card bg-white rounded-3xl shadow-2xl w-full max-w-xl overflow-hidden animate-in fade-in zoom-in duration-200"
         onClick={(e) => e.stopPropagation()}
       >
         {/* === Sliding container (2 panels side by side) === */}
@@ -229,7 +229,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
               )}
             </div>
 
-            <form onSubmit={handleSubmit} className="p-8 space-y-6">
+            <form onSubmit={handleSubmit} className="p-8 space-y-6 overflow-y-auto max-h-[calc(95vh-90px)]">
               <div className="space-y-2">
                 <label className="block text-2xl font-bold text-gray-600 pr-1">اسم الطالب</label>
                 <input
@@ -396,7 +396,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
 
               <div className="space-y-2">
                 <label className="block text-2xl font-bold text-gray-600 pr-1">الأيام</label>
-                <div className="flex flex-nowrap gap-1.5 overflow-x-auto justify-center bg-gray-50 p-2 rounded-xl border border-gray-100 no-scrollbar">
+                <div className="student-modal-days-row flex flex-nowrap gap-1.5 overflow-x-auto justify-center bg-gray-50 p-2 rounded-xl border border-gray-100 no-scrollbar">
                   {[...DAYS_OF_WEEK].sort((a, b) => (a.id === 6 ? -1 : b.id === 6 ? 1 : a.id - b.id)).filter(d => d.id !== 5).map((day) => {
                     const occurrences = selectedDays.filter(d => d === day.id).length;
                     const isSelected = occurrences > 0;
@@ -598,7 +598,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
               <h2 className="text-3xl font-arabic text-gray-800 pt-2">واجهة الطالب</h2>
             </div>
 
-            <div className="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
+            <div className="p-8 space-y-6 overflow-y-auto max-h-[calc(95vh-90px)]">
               {/* Zoom Link */}
               <div className="space-y-2">
                 <label className="block text-xl font-bold text-gray-600 flex items-center gap-2">
