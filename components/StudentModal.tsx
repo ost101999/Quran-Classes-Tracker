@@ -67,11 +67,17 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
   const [dayStartDates, setDayStartDates] = useState<Record<number, string>>(student?.dayStartDates || {});
   const formRef = useRef<HTMLFormElement>(null);
 
-  // Lock body scroll while modal is open
+  // Intercept ALL wheel events while modal is open and redirect to the form
   useEffect(() => {
-    document.body.style.overflow = 'hidden';
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      if (formRef.current) {
+        formRef.current.scrollTop += e.deltaY;
+      }
+    };
+    document.addEventListener('wheel', handleWheel, { passive: false });
     return () => {
-      document.body.style.overflow = '';
+      document.removeEventListener('wheel', handleWheel);
     };
   }, []);
 
@@ -206,11 +212,6 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 font-arabic"
       onClick={onClose}
-      onWheel={(e) => {
-        if (formRef.current) {
-          formRef.current.scrollTop += e.deltaY;
-        }
-      }}
     >
       <div
         className="student-modal-card bg-white rounded-3xl shadow-2xl w-full max-w-xl overflow-hidden animate-in fade-in zoom-in duration-200"
