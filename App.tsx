@@ -387,6 +387,7 @@ function App() {
 
   const [selectedAcademy, setSelectedAcademy] = useState<string | null>(null);
   const [showMakeupLines, setShowMakeupLines] = useState<boolean>(true);
+  const [showMissedCount, setShowMissedCount] = useState<boolean>(false);
   const [confirmNonTodayAttendance, setConfirmNonTodayAttendance] = useState<boolean>(true);
   const [whatsappTarget, setWhatsappTarget] = useState<string>('');
   const [studentProgress, setStudentProgress] = useState<Record<string, LessonProgress>>({});
@@ -1997,6 +1998,13 @@ function App() {
 
       const key = String(event.key || '').toLowerCase();
       const code = event.code;
+
+      // Toggle Missed Count Display (Ctrl+D)
+      if ((event.ctrlKey || event.metaKey) && (code === 'KeyD' || key === 'd' || key === 'ي')) {
+        event.preventDefault();
+        setShowMissedCount(prev => !prev);
+        return;
+      }
 
       // Tajweed Grading Shortcut (T)
       if (code === 'KeyT' || key === 't' || key === 'ف' || key === 'ت') {
@@ -6910,7 +6918,7 @@ function App() {
                                     );
                                   })}
 
-                                  {dayNum === daysInMonth && calculateMissed(student.id) > 0 && (
+                                  {showMissedCount && dayNum === daysInMonth && calculateMissed(student.id) > 0 && (
                                     <div
                                       onClick={(e) => {
                                         e.stopPropagation();
