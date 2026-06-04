@@ -1713,15 +1713,9 @@ function App() {
         if (remoteLastUpdated && typeof remoteLastUpdated === 'number' && remoteLastUpdated > lastUpdated) {
           console.log(`Cloud state is newer (${remoteLastUpdated} > ${lastUpdated}). Fetching core updates...`);
           
-          const coreNodes = ['students', 'attendance', 'month', 'year', 'dayOff', 'academyOrder', 'academyRates', 'monthlyObligations', 'paymentStatus', 'makeupLinks', 'showMakeupLines'];
-          const fetchPromises = coreNodes.map(node => fetch(`${CLOUD_APPSTATE_BASE_URL}/${node}.json`).then(r => r.json()));
+          const fullRes = await fetch(`${CLOUD_APPSTATE_BASE_URL}.json`);
+          const fullData = await fullRes.json();
           
-          const [
-            newStudents, newAttendance, newMonth, newYear, newDayOff, 
-            newAcademyOrder, newAcademyRates, newMonthlyObligations, 
-            newPaymentStatus, newMakeupLinks, newShowMakeupLines
-          ] = await Promise.all(fetchPromises);
-
           if (isCancelled) return;
 
           // DOUBLE CHECK: Did the user make any local changes WHILE we were fetching?
@@ -1737,52 +1731,70 @@ function App() {
             return;
           }
 
-          if (newStudents) setStudents(newStudents);
-          if (newAttendance) setAttendance(newAttendance);
-          if (newMonth !== undefined && newMonth !== null) setMonth(newMonth);
-          if (newYear !== undefined && newYear !== null) setYear(newYear);
-          if (newDayOff !== undefined && newDayOff !== null) setDayOff(newDayOff);
-          if (newAcademyOrder) setAcademyOrder(newAcademyOrder);
-          if (newAcademyRates) setAcademyRates(newAcademyRates);
-          if (newMonthlyObligations) setMonthlyObligations(newMonthlyObligations);
-          if (newPaymentStatus) setPaymentStatus(newPaymentStatus);
-          if (newMakeupLinks) setMakeupLinks(newMakeupLinks);
-          if (newShowMakeupLines !== undefined && newShowMakeupLines !== null) setShowMakeupLines(newShowMakeupLines);
+          if (fullData) {
+            if (fullData.students) setStudents(fullData.students);
+            if (fullData.attendance) setAttendance(fullData.attendance);
+            if (fullData.month !== undefined && fullData.month !== null) setMonth(fullData.month);
+            if (fullData.year !== undefined && fullData.year !== null) setYear(fullData.year);
+            if (fullData.dayOff !== undefined && fullData.dayOff !== null) setDayOff(fullData.dayOff);
+            if (fullData.academyOrder) setAcademyOrder(fullData.academyOrder);
+            if (fullData.academyRates) setAcademyRates(fullData.academyRates);
+            if (fullData.monthlyObligations) setMonthlyObligations(fullData.monthlyObligations);
+            if (fullData.paymentStatus) setPaymentStatus(fullData.paymentStatus);
+            if (fullData.makeupLinks) setMakeupLinks(fullData.makeupLinks);
+            if (fullData.showMakeupLines !== undefined && fullData.showMakeupLines !== null) setShowMakeupLines(fullData.showMakeupLines);
+            
+            // New additions for full sync
+            if (fullData.savedReports) setSavedReports(fullData.savedReports);
+            if (fullData.savedReportDrafts) setSavedReportDrafts(fullData.savedReportDrafts);
+            if (fullData.lastReports) setLastReports(fullData.lastReports);
+            if (fullData.autoBackupConfig) setAutoBackupConfig(fullData.autoBackupConfig);
+            if (fullData.externalLinks) setExternalLinks(fullData.externalLinks);
+            if (fullData.dayTransitionTime) setDayTransitionTime(fullData.dayTransitionTime);
+            if (fullData.confirmNonTodayAttendance !== undefined) setConfirmNonTodayAttendance(fullData.confirmNonTodayAttendance);
+            if (fullData.whatsappTarget) setWhatsappTarget(fullData.whatsappTarget);
+            if (fullData.studentProgress) setStudentProgress(fullData.studentProgress);
+            if (fullData.preferredModes) setPreferredModes(fullData.preferredModes);
+            if (fullData.defaultNoorBook) setDefaultNoorBook(fullData.defaultNoorBook);
+            if (fullData.subscriptionSettings) setSubscriptionSettings(fullData.subscriptionSettings);
+            if (fullData.tajweedBank) setTajweedBank(fullData.tajweedBank);
+            if (fullData.tajweedAssignments) setTajweedAssignments(fullData.tajweedAssignments);
+            if (fullData.tajweedSubmissions) setTajweedSubmissions(fullData.tajweedSubmissions);
+            if (fullData.tajweedLessonEditorUiState) setTajweedLessonEditorUiState(fullData.tajweedLessonEditorUiState);
+          }
 
           setLastUpdated(remoteLastUpdated);
 
           // Force an immediate save to local disk, but skip pushing back to Firebase
-          if (window.electronAPI) {
+          if (window.electronAPI && fullData) {
             window.electronAPI.saveData({
-              students: newStudents || students,
-              attendance: newAttendance || attendance,
-              month: newMonth !== null && newMonth !== undefined ? newMonth : month,
-              year: newYear !== null && newYear !== undefined ? newYear : year,
-              dayOff: newDayOff !== null && newDayOff !== undefined ? newDayOff : dayOff,
-              academyOrder: newAcademyOrder || academyOrder,
-              academyRates: newAcademyRates || academyRates,
-              monthlyObligations: newMonthlyObligations || monthlyObligations,
-              paymentStatus: newPaymentStatus || paymentStatus,
-              makeupLinks: newMakeupLinks || makeupLinks,
-              showMakeupLines: newShowMakeupLines !== null && newShowMakeupLines !== undefined ? newShowMakeupLines : showMakeupLines,
-              
-              // Preserve all other state variables so they aren't deleted from data.json!
-              autoBackupConfig,
-              externalLinks,
-              dayTransitionTime,
-              confirmNonTodayAttendance,
-              whatsappTarget,
-              studentProgress,
-              preferredModes,
-              lastReports,
-              defaultNoorBook,
-              savedReports,
-              savedReportDrafts,
-              subscriptionSettings,
-              tajweedBank,
-              tajweedAssignments,
-              tajweedSubmissions,
-              tajweedLessonEditorUiState,
+              students: fullData.students || students,
+              attendance: fullData.attendance || attendance,
+              month: fullData.month !== null && fullData.month !== undefined ? fullData.month : month,
+              year: fullData.year !== null && fullData.year !== undefined ? fullData.year : year,
+              dayOff: fullData.dayOff !== null && fullData.dayOff !== undefined ? fullData.dayOff : dayOff,
+              academyOrder: fullData.academyOrder || academyOrder,
+              academyRates: fullData.academyRates || academyRates,
+              monthlyObligations: fullData.monthlyObligations || monthlyObligations,
+              paymentStatus: fullData.paymentStatus || paymentStatus,
+              makeupLinks: fullData.makeupLinks || makeupLinks,
+              showMakeupLines: fullData.showMakeupLines !== null && fullData.showMakeupLines !== undefined ? fullData.showMakeupLines : showMakeupLines,
+              autoBackupConfig: fullData.autoBackupConfig || autoBackupConfig,
+              externalLinks: fullData.externalLinks || externalLinks,
+              dayTransitionTime: fullData.dayTransitionTime || dayTransitionTime,
+              confirmNonTodayAttendance: fullData.confirmNonTodayAttendance !== undefined ? fullData.confirmNonTodayAttendance : confirmNonTodayAttendance,
+              whatsappTarget: fullData.whatsappTarget || whatsappTarget,
+              studentProgress: fullData.studentProgress || studentProgress,
+              preferredModes: fullData.preferredModes || preferredModes,
+              lastReports: fullData.lastReports || lastReports,
+              defaultNoorBook: fullData.defaultNoorBook || defaultNoorBook,
+              savedReports: fullData.savedReports || savedReports,
+              savedReportDrafts: fullData.savedReportDrafts || savedReportDrafts,
+              subscriptionSettings: fullData.subscriptionSettings || subscriptionSettings,
+              tajweedBank: fullData.tajweedBank || tajweedBank,
+              tajweedAssignments: fullData.tajweedAssignments || tajweedAssignments,
+              tajweedSubmissions: fullData.tajweedSubmissions || tajweedSubmissions,
+              tajweedLessonEditorUiState: fullData.tajweedLessonEditorUiState || tajweedLessonEditorUiState,
               seenUngradedTajweedVersion: SEEN_UNGRADED_TAJWEED_VERSION,
               seenUngradedTajweedAssignmentIds: Array.from(seenUngradedTajweedAssignmentIds),
               
