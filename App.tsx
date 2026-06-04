@@ -25,9 +25,30 @@ const customStyles = `
     animation: glow-green 1.5s infinite ease-in-out;
     border-width: 2px !important;
   }
-  @keyframes missedSlideIn {
-    0% { opacity: 0; transform: translateX(calc(-100% + 20px)); }
-    100% { opacity: 1; transform: translateX(-100%); }
+  /* Ensure sticky student name column is transparent normally, but becomes solid when scrolled */
+  tr.row-hover-tr td.sticky {
+    background-color: transparent !important;
+    opacity: 1 !important;
+    transition: background-color 0.2s ease-in-out;
+  }
+  tr.row-hover-tr:hover td.sticky {
+    background-color: rgba(219, 234, 254, 0.4) !important; /* light semi-transparent hover when not scrolled */
+    opacity: 1 !important;
+  }
+  /* Scrolled State: solid background to hide scrolling elements underneath */
+  .is-table-scrolled tr.row-hover-tr td.sticky {
+    background-color: #ffffff !important;
+  }
+  .is-table-scrolled tr.row-hover-tr:hover td.sticky {
+    background-color: #dbeafe !important; /* solid hover */
+  }
+  /* Dim/filter only the inner content for deleted or selected students, keeping the background 100% solid */
+  td.sticky.is-ending-cell > div {
+    opacity: 0.4 !important;
+    filter: grayscale(1) saturate(0.5) !important;
+  }
+  td.sticky.is-selected-cell > div {
+    opacity: 0.6 !important;
   }
 `;
 
@@ -1967,6 +1988,7 @@ function App() {
 
   // --- Student Search State ---
   const [searchQuery, setSearchQuery] = useState('');
+  const [isTableScrolled, setIsTableScrolled] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [searchHistoryIndex, setSearchHistoryIndex] = useState<number>(-1);
@@ -6113,7 +6135,7 @@ function App() {
         })}
         <div 
           ref={tableScrollRef}
-          className="bg-white rounded-3xl relative z-10 shadow-[0_8px_30px_-12px_rgba(0,0,0,0.1),0_-8px_30px_-12px_rgba(0,0,0,0.1)] group/table-container w-full overflow-x-auto"
+          className={`bg-white rounded-3xl relative z-10 shadow-[0_8px_30px_-12px_rgba(0,0,0,0.1),0_-8px_30px_-12px_rgba(0,0,0,0.1)] group/table-container w-full overflow-x-auto ${isTableScrolled ? 'is-table-scrolled' : ''}`}
           onScroll={(e) => {
             if (stickyHeaderRef.current) {
               stickyHeaderRef.current.scrollLeft = e.currentTarget.scrollLeft;
@@ -6122,6 +6144,11 @@ function App() {
             if (academyContextMenu.isOpen) {
               setAcademyContextMenu(prev => ({ ...prev, isOpen: false, isClosing: true }));
               setTimeout(() => setAcademyContextMenu(prev => ({ ...prev, isClosing: false })), 200);
+            }
+            // Detect horizontal scroll
+            const isScrolled = Math.abs(e.currentTarget.scrollLeft) > 5;
+            if (isScrolled !== isTableScrolled) {
+              setIsTableScrolled(isScrolled);
             }
           }}
         >
