@@ -1347,6 +1347,43 @@ function App() {
   // --- Loading State for Month Switch ---
   const [isTableLoading, setIsTableLoading] = useState(false);
   const [lastReportLanguage, setLastReportLanguage] = useState<'ar' | 'en'>('ar');
+  const [appZoomLevel, setAppZoomLevel] = useState(1);
+
+  // Custom Zoom Shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        if (e.key === '=' || e.key === '+') {
+          e.preventDefault();
+          setAppZoomLevel(prev => Math.min(prev + 0.1, 2.5));
+        } else if (e.key === '-') {
+          e.preventDefault();
+          setAppZoomLevel(prev => Math.max(prev - 0.1, 0.4));
+        } else if (e.key === '0') {
+          e.preventDefault();
+          setAppZoomLevel(1);
+        }
+      }
+    };
+
+    const handleWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        if (e.deltaY < 0) {
+          setAppZoomLevel(prev => Math.min(prev + 0.05, 2.5));
+        } else {
+          setAppZoomLevel(prev => Math.max(prev - 0.05, 0.4));
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown, { passive: false });
+    window.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('wheel', handleWheel);
+    };
+  }, []);
 
   const handleMonthChange = (newMonth: number) => {
     setIsTableLoading(true);
@@ -5518,7 +5555,7 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen pb-20">
+    <div className="min-h-screen pb-20" style={{ zoom: appZoomLevel } as any}>
       <style>{customStyles}</style>
 
       {/* Search Overlay */}
