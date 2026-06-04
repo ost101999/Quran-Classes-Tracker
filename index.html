@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quran Classes Tracker</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Acme&family=Amiri:wght@400;700&family=DecoType+Naskh&family=Tajawal:wght@400;500;700&display=swap"
+    rel="stylesheet">
+  <style>
+    /* Custom Font Classes */
+    .font-english {
+      font-family: 'Acme', sans-serif;
+    }
+
+    .font-arabic {
+      font-family: 'DecoType Naskh', cursive;
+    }
+
+    .font-quran {
+      font-family: "KFGQPC Uthman Taha Naskh", "KFGQPC Uthmanic Script HAFS", "Uthman Taha Naskh", 'Amiri', serif;
+    }
+
+    .font-grading-mixed {
+      font-family: 'Acme', "KFGQPC Uthman Taha Naskh", "KFGQPC Uthmanic Script HAFS", "Uthman Taha Naskh", 'Amiri', sans-serif;
+    }
+
+    .font-tajawal {
+      font-family: 'Tajawal', sans-serif;
+    }
+
+    .font-amiri {
+      font-family: 'Amiri', serif;
+    }
+
+    /* Smooth scrolling for anchor links */
+    html {
+      scroll-behavior: smooth;
+    }
+
+    /* Hide scrollbar for top nav but keep functionality */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+
+    /* Custom Scrollbar for Modal to preserve rounded corners */
+    .smart-report-modal-container::-webkit-scrollbar {
+      width: 10px;
+    }
+    .smart-report-modal-container::-webkit-scrollbar-track {
+      background: transparent;
+      margin-top: 24px;
+      margin-bottom: 24px;
+    }
+    .smart-report-modal-container::-webkit-scrollbar-thumb {
+      background-color: rgba(156, 163, 175, 0.5); /* gray-400 with opacity */
+      border-radius: 10px;
+      border: 3px solid transparent;
+      background-clip: padding-box;
+    }
+    .smart-report-modal-container::-webkit-scrollbar-thumb:hover {
+      background-color: rgba(107, 114, 128, 0.8); /* gray-500 */
+    }
+  </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "lucide-react": "https://esm.sh/lucide-react@^0.562.0"
+  }
+}
+</script>
+  <link rel="stylesheet" href="/index.css">
+</head>
+
+<body class="bg-gray-100 font-arabic text-gray-900">
+  <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+
+</html>

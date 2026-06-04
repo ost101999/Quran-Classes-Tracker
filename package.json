@@ -1,0 +1,54 @@
+{
+  "name": "quran-classes-tracker",
+  "private": true,
+  "version": "1.0.0",
+  "type": "commonjs",
+  "main": "main.js",
+  "scripts": {
+    "dev": "vite",
+    "preview": "vite preview",
+    "start": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
+    "build": "vite build",
+    "electron:build": "npm run build && electron-builder"
+  },
+  "build": {
+    "appId": "com.quran.tracker",
+    "productName": "Quran Classes Tracker",
+    "directories": {
+      "output": "dist_electron"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "public/ChatGPT Image 21 يناير 2026، 04_27_04 ص.png  ( 2 ).ico"
+    },
+    "nsis": {
+      "oneClick": true,
+      "allowToChangeInstallationDirectory": false,
+      "createDesktopShortcut": false,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Quran Classes Tracker"
+    }
+  },
+  "dependencies": {
+    "autoprefixer": "^10.5.0",
+    "html-to-image": "^1.11.13",
+    "lucide-react": "^0.562.0",
+    "node-fetch": "^3.3.2",
+    "postcss": "^8.5.15",
+    "puppeteer": "^24.0.0",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "tailwindcss": "^3.4.19"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "concurrently": "^9.2.1",
+    "electron": "^40.0.0",
+    "electron-builder": "^26.4.0",
+    "electron-is-dev": "^3.0.1",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.0",
+    "wait-on": "^9.0.3"
+  }
+}
