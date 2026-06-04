@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { X, Trash2, Clock, Link, Check, Phone, ChevronDown, ChevronLeft } from 'lucide-react';
 import { Student } from '../types';
 import { DAYS_OF_WEEK } from '../constants';
@@ -65,6 +65,15 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
   const [showStudentWeb, setShowStudentWeb] = useState(false);
   const [isEndingEnrollment, setIsEndingEnrollment] = useState(!!student?.deletedAt);
   const [dayStartDates, setDayStartDates] = useState<Record<number, string>>(student?.dayStartDates || {});
+  const formRef = useRef<HTMLFormElement>(null);
+
+  // Lock body scroll while modal is open
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, []);
 
   // Update dayStartDates automatically when selectedDays changes
   useEffect(() => {
@@ -197,6 +206,11 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 font-arabic"
       onClick={onClose}
+      onWheel={(e) => {
+        if (formRef.current) {
+          formRef.current.scrollTop += e.deltaY;
+        }
+      }}
     >
       <div
         className="student-modal-card bg-white rounded-3xl shadow-2xl w-full max-w-xl overflow-hidden animate-in fade-in zoom-in duration-200"
@@ -229,7 +243,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
               )}
             </div>
 
-            <form onSubmit={handleSubmit} className="p-8 space-y-6 overflow-y-auto max-h-[calc(95vh-90px)]">
+            <form ref={formRef} onSubmit={handleSubmit} className="p-8 space-y-6 overflow-y-auto overscroll-contain max-h-[calc(95vh-90px)]">
               <div className="space-y-2">
                 <label className="block text-2xl font-bold text-gray-600 pr-1">اسم الطالب</label>
                 <input
@@ -598,7 +612,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
               <h2 className="text-3xl font-arabic text-gray-800 pt-2">واجهة الطالب</h2>
             </div>
 
-            <div className="p-8 space-y-6 overflow-y-auto max-h-[calc(95vh-90px)]">
+            <div className="p-8 space-y-6 overflow-y-auto overscroll-contain max-h-[calc(95vh-90px)]">
               {/* Zoom Link */}
               <div className="space-y-2">
                 <label className="block text-xl font-bold text-gray-600 flex items-center gap-2">
