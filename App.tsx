@@ -6017,7 +6017,7 @@ function App() {
         className="px-12 pb-6 pt-10 overflow-x-auto min-h-[calc(100vh-100px)]"
       >
 
-        <div className="bg-white rounded-3xl relative shadow-[0_8px_30px_-12px_rgba(0,0,0,0.1),0_-8px_30px_-12px_rgba(0,0,0,0.1)] group/table-container">
+        <div className="bg-white rounded-3xl relative shadow-[0_8px_30px_-12px_rgba(0,0,0,0.1),0_-8px_30px_-12px_rgba(0,0,0,0.1)] group/table-container min-w-max">
           {/* Month Name Watermark - Absolute positioned */}
           <div className="absolute top-2 left-1/2 -translate-x-1/2 pointer-events-none z-10">
             <span className="font-arabic text-3xl text-slate-400">
@@ -6249,7 +6249,7 @@ function App() {
                           `}
                         >
                           <td
-                            className={`sticky right-0 z-10 p-0 text-center text-gray-800 whitespace-nowrap cursor-pointer hover:brightness-100 transition-all select-none relative group/student border-none shadow-none min-w-[220px] w-[220px] ${isEnding ? 'opacity-40 grayscale saturate-50' : ''} ${selectedStudentIds.has(student.id) ? 'opacity-60' : ''}`}
+                            className={`sticky right-0 z-[25] p-0 text-center text-gray-800 whitespace-nowrap cursor-pointer hover:brightness-100 transition-all select-none relative group/student border-none shadow-none min-w-[220px] w-[220px] backdrop-blur-[6px] ${isEnding ? 'opacity-40 grayscale saturate-50' : ''} ${selectedStudentIds.has(student.id) ? 'opacity-60' : ''}`}
                             style={{
                               background: (() => {
                                 const rgb = student.color ? {
