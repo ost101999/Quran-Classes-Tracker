@@ -6004,20 +6004,21 @@ function App() {
       {/* 2. Main Grid */}
       <main
         ref={mainRef}
-        onScroll={(e) => {
-          if (stickyHeaderRef.current) {
-            stickyHeaderRef.current.scrollLeft = e.currentTarget.scrollLeft;
-          }
-          // Close context menu on scroll
-          if (academyContextMenu.isOpen) {
-            setAcademyContextMenu(prev => ({ ...prev, isOpen: false, isClosing: true }));
-            setTimeout(() => setAcademyContextMenu(prev => ({ ...prev, isClosing: false })), 200);
-          }
-        }}
-        className="px-12 pb-6 pt-10 overflow-x-auto min-h-[calc(100vh-100px)]"
+        className="px-12 pb-6 pt-10 min-h-[calc(100vh-100px)] relative"
       >
-
-        <div className="bg-white rounded-3xl relative shadow-[0_8px_30px_-12px_rgba(0,0,0,0.1),0_-8px_30px_-12px_rgba(0,0,0,0.1)] group/table-container min-w-max">
+        <div 
+          className="bg-white rounded-3xl relative shadow-[0_8px_30px_-12px_rgba(0,0,0,0.1),0_-8px_30px_-12px_rgba(0,0,0,0.1)] group/table-container w-full overflow-x-auto"
+          onScroll={(e) => {
+            if (stickyHeaderRef.current) {
+              stickyHeaderRef.current.scrollLeft = e.currentTarget.scrollLeft;
+            }
+            // Close context menu on scroll
+            if (academyContextMenu.isOpen) {
+              setAcademyContextMenu(prev => ({ ...prev, isOpen: false, isClosing: true }));
+              setTimeout(() => setAcademyContextMenu(prev => ({ ...prev, isClosing: false })), 200);
+            }
+          }}
+        >
           {/* Month Name Watermark - Absolute positioned */}
           <div className="absolute top-2 left-1/2 -translate-x-1/2 pointer-events-none z-10">
             <span className="font-arabic text-3xl text-slate-400">
@@ -6032,7 +6033,7 @@ function App() {
           ) : (
             <table
               ref={originalTableRef}
-              className="w-full border-separate border-spacing-0 text-center"
+              className="w-full border-separate border-spacing-0 text-center min-w-max"
             >
               <thead
                 ref={originalHeaderRef}
@@ -16602,9 +16603,8 @@ const StickyHeader = React.forwardRef<HTMLDivElement, {
       className={`fixed top-[74px] left-0 right-0 z-40 px-12 pointer-events-none will-change-[transform,opacity] ${isTableLoading ? 'transition-none opacity-0 invisible' : 'transition-all duration-500 cubic-bezier(0.4, 0, 0.2, 1)'} ${show ? 'opacity-100 translate-y-0 visible' : 'opacity-0 -translate-y-2 invisible'
         }`}
     >
-      {/* Container matching main table's visual bounds exactly */}
       <div
-        className="bg-white rounded-none shadow-[0_30px_60px_rgba(0,0,0,0.25)] border-x border-t border-gray-100 relative"
+        className="bg-[#002060] shadow-md border-b border-gray-200 relative"
       >
         <div ref={ref} className="overflow-hidden">
           <table
