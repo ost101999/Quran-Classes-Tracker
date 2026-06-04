@@ -1252,7 +1252,7 @@ function createWindow() {
 
     const isDev = !app.isPackaged;
     const startUrl = isDev
-        ? 'http://localhost:4000'
+        ? 'http://localhost:3000'
         : `file://${path.join(__dirname, 'dist/index.html')}`;
 
     mainWindow.maximize();
