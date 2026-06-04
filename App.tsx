@@ -25,6 +25,10 @@ const customStyles = `
     animation: glow-green 1.5s infinite ease-in-out;
     border-width: 2px !important;
   }
+  @keyframes missedSlideIn {
+    0% { opacity: 0; transform: translateX(calc(-100% + 20px)); }
+    100% { opacity: 1; transform: translateX(-100%); }
+  }
 `;
 
 import {
@@ -388,6 +392,8 @@ function App() {
   const [selectedAcademy, setSelectedAcademy] = useState<string | null>(null);
   const [showMakeupLines, setShowMakeupLines] = useState<boolean>(true);
   const [showMissedCount, setShowMissedCount] = useState<boolean>(false);
+  const [missedCountPositions, setMissedCountPositions] = useState<Array<{ studentId: string; y: number; height: number; count: number }>>([]);
+  const tableScrollRef = useRef<HTMLDivElement>(null);
   const [confirmNonTodayAttendance, setConfirmNonTodayAttendance] = useState<boolean>(true);
   const [whatsappTarget, setWhatsappTarget] = useState<string>('');
   const [studentProgress, setStudentProgress] = useState<Record<string, LessonProgress>>({});
@@ -2055,6 +2061,7 @@ function App() {
 
   // --- Makeup Class Linking ---
   const [makeupLinks, setMakeupLinks] = useState<MakeupLink[]>([]);
+
   const [makeupLinkingMode, setMakeupLinkingMode] = useState<{
     isLoading: boolean;
     active: boolean;
@@ -5266,6 +5273,51 @@ function App() {
     return count;
   };
 
+  // --- Compute missed count row positions for fixed overlay ---
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!showMissedCount) {
+      setMissedCountPositions([]);
+      return;
+    }
+
+    const compute = () => {
+      const rows = document.querySelectorAll<HTMLTableRowElement>('tr[data-student-id]');
+      const newPositions: Array<{ studentId: string; y: number; height: number; count: number }> = [];
+
+      rows.forEach(row => {
+        const sid = row.getAttribute('data-student-id');
+        if (!sid) return;
+        // Inline count calculation to avoid stale closure
+        const student = students.find(s => s.id === sid);
+        if (!student) return;
+        let count = 0;
+        for (let i = 1; i <= daysInMonth; i++) {
+          const key = `${sid}_${i}_${month}_${year}`;
+          const status = attendance[key];
+          if (status === AttendanceStatus.ABSENCE_RED || status === AttendanceStatus.UNEXCUSED_ABSENCE) count++;
+        }
+        if (count <= 0) return;
+        const rect = row.getBoundingClientRect();
+        newPositions.push({ studentId: sid, y: rect.top, height: rect.height, count });
+      });
+
+      setMissedCountPositions(newPositions);
+    };
+
+    const raf = requestAnimationFrame(compute);
+    const onUpdate = () => requestAnimationFrame(compute);
+    window.addEventListener('scroll', onUpdate, true);
+    window.addEventListener('resize', onUpdate);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('scroll', onUpdate, true);
+      window.removeEventListener('resize', onUpdate);
+    };
+  }, [showMissedCount, students, attendance, month, year, daysInMonth]);
+
+
   const getCellColor = (status: AttendanceStatus | undefined, isDayOff: boolean) => {
     if (isDayOff) return 'bg-[#81ffea]'; // Cyan for weekend column
 
@@ -6014,8 +6066,54 @@ function App() {
         ref={mainRef}
         className="px-12 pb-6 pt-10 min-h-[calc(100vh-100px)] relative"
       >
+        {/* Missed Count Overlay - Fixed positioned, outside the scroll container */}
+        {showMissedCount && missedCountPositions.map(({ studentId, y, height, count }) => {
+          const tableLeft = tableScrollRef.current?.getBoundingClientRect().left ?? 0;
+          return (
+            <div
+              key={studentId}
+              className="fixed z-[5] pointer-events-auto"
+              style={{
+                top: `${y}px`,
+                left: `${tableLeft - 2}px`,
+                height: `${height}px`,
+                transform: 'translateX(-100%)',
+                display: 'flex',
+                alignItems: 'center',
+                animation: 'missedSlideIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both',
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                setMissedClassesMenu({
+                  isOpen: true,
+                  x: tableLeft - 60,
+                  y: y + height / 2,
+                  studentId
+                });
+              }}
+              title="نسخ تقرير الحصص الفائتة"
+            >
+              <div
+                className="flex items-center gap-1.5 px-3 py-1.5 cursor-pointer group/badge"
+                style={{
+                  background: 'linear-gradient(135deg, rgba(255,255,255,0.95), rgba(248,250,252,0.9))',
+                  borderRadius: '10px 0 0 10px',
+                  boxShadow: '-4px 2px 16px -4px rgba(0,0,0,0.18), -1px 0 0 rgba(0,0,0,0.06)',
+                  backdropFilter: 'blur(8px)',
+                  border: '1px solid rgba(0,0,0,0.07)',
+                  borderRight: 'none',
+                }}
+              >
+                <span className="text-gray-700 text-sm font-bold font-arabic leading-none group-hover/badge:text-black transition-colors">
+                  {toHindiDigits(count)}
+                </span>
+              </div>
+            </div>
+          );
+        })}
         <div 
-          className="bg-white rounded-3xl relative shadow-[0_8px_30px_-12px_rgba(0,0,0,0.1),0_-8px_30px_-12px_rgba(0,0,0,0.1)] group/table-container w-full overflow-x-auto"
+          ref={tableScrollRef}
+          className="bg-white rounded-3xl relative z-10 shadow-[0_8px_30px_-12px_rgba(0,0,0,0.1),0_-8px_30px_-12px_rgba(0,0,0,0.1)] group/table-container w-full overflow-x-auto"
           onScroll={(e) => {
             if (stickyHeaderRef.current) {
               stickyHeaderRef.current.scrollLeft = e.currentTarget.scrollLeft;
@@ -6238,6 +6336,7 @@ function App() {
                       return (
                         <tr
                           key={student.id}
+                          data-student-id={student.id}
                           draggable={true}
                           onDragStart={(e) => handleStudentDragStart(e, student.id)}
                           onDragOver={(e) => handleStudentDragOver(e, student.id)}
@@ -6918,26 +7017,7 @@ function App() {
                                     );
                                   })}
 
-                                  {showMissedCount && dayNum === daysInMonth && calculateMissed(student.id) > 0 && (
-                                    <div
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        const rect = e.currentTarget.getBoundingClientRect();
-                                        setMissedClassesMenu({
-                                          isOpen: true,
-                                          x: rect.left,
-                                          y: rect.bottom + 5,
-                                          studentId: student.id
-                                        });
-                                      }}
-                                      className="absolute left-[-35px] top-1/2 -translate-y-1/2 min-w-[20px] flex items-center justify-center z-20 opacity-20 group-hover:!opacity-100 group-hover:scale-125 transition-all duration-300 ease-out cursor-pointer hover:bg-gray-100 px-1 rounded-md"
-                                      title="نسخ تقرير الحصص الفائتة"
-                                    >
-                                      <span className="text-black text-base font-bold font-arabic drop-shadow-md">
-                                        {toHindiDigits(calculateMissed(student.id))}
-                                      </span>
-                                    </div>
-                                  )}
+                                  {/* Missed count is now rendered as a fixed overlay outside the table */}
 
                                   <div className={`
                                 w-8 h-8 mx-auto rounded-full flex items-center justify-center text-lg transition-all relative z-10 js-cell-circle
