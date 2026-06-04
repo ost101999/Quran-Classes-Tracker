@@ -6494,8 +6494,6 @@ function App() {
                                   key={dayNum}
                                   id={`cell-${student.id}-${dayNum}`}
                                   onClick={(e) => {
-                                    if ((e.metaKey || e.ctrlKey) && !e.shiftKey) return; // Handled by onMouseDown as Middle Click alternative
-
                                     if (longPressTriggeredRef.current) {
                                       longPressTriggeredRef.current = false;
                                       return;
@@ -6695,7 +6693,7 @@ function App() {
                                     setHoveredStudentId(null);
                                   }}
                                   onMouseDown={(e) => {
-                                    if (e.button === 1 || (e.button === 0 && (e.metaKey || e.ctrlKey) && !e.shiftKey)) { // Middle Click or Cmd/Ctrl + Click
+                                    if (e.button === 1) { // Middle Click
                                       e.preventDefault();
                                       cleanupBreakLink(student.id, dayNum, month, year);
                                       const key = `${student.id}_${dayNum}_${month}_${year}`;
