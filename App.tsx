@@ -5268,6 +5268,22 @@ function App() {
       if (parsed.externalLinks) setExternalLinks(parsed.externalLinks);
       if (parsed.dayTransitionTime) setDayTransitionTime(parsed.dayTransitionTime);
       if (parsed.makeupLinks) setMakeupLinks(parsed.makeupLinks);
+      if (parsed.paymentStatus) setPaymentStatus(parsed.paymentStatus);
+      if (parsed.showMakeupLines !== undefined) setShowMakeupLines(parsed.showMakeupLines);
+      if (parsed.confirmNonTodayAttendance !== undefined) setConfirmNonTodayAttendance(parsed.confirmNonTodayAttendance);
+      if (parsed.whatsappTarget) setWhatsappTarget(parsed.whatsappTarget);
+      if (parsed.studentProgress) setStudentProgress(parsed.studentProgress);
+      if (parsed.preferredModes) setPreferredModes(parsed.preferredModes);
+      if (parsed.lastReports) setLastReports(parsed.lastReports);
+      if (parsed.defaultNoorBook) setDefaultNoorBook(parsed.defaultNoorBook);
+      if (parsed.savedReports) setSavedReports(parsed.savedReports);
+      if (parsed.savedReportDrafts) setSavedReportDrafts(parsed.savedReportDrafts);
+      if (parsed.subscriptionSettings) setSubscriptionSettings(parsed.subscriptionSettings);
+      if (parsed.tajweedBank) setTajweedBank(parsed.tajweedBank);
+      if (parsed.tajweedAssignments) setTajweedAssignments(parsed.tajweedAssignments);
+      if (parsed.tajweedSubmissions) setTajweedSubmissions(parsed.tajweedSubmissions);
+      if (parsed.tajweedLessonEditorUiState) setTajweedLessonEditorUiState(parsed.tajweedLessonEditorUiState);
+      if (parsed.seenUngradedTajweedAssignmentIds) setSeenUngradedTajweedAssignmentIds(new Set(parsed.seenUngradedTajweedAssignmentIds));
       alert('تم استيراد البيانات بنجاح! ✨');
     } catch (err) {
       alert('حدث خطأ أثناء تحميل البيانات');
