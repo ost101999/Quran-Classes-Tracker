@@ -2115,6 +2115,51 @@ function App() {
     return withStudentPortalRefresh(portalUrl);
   };
 
+  const [linkAnimation, setLinkAnimation] = useState<{
+    isOpen: boolean;
+    count: number;
+    text: string;
+  } | null>(null);
+
+  const triggerLinkAnimation = (studentId: string, onComplete: () => void) => {
+    const student = students.find(s => s.id === studentId);
+    if (!student) {
+      onComplete();
+      return;
+    }
+
+    let count = 0;
+    let isSub = false;
+    let totalClasses = 0;
+
+    const sub = subscriptionSettings[studentId];
+    if (sub?.enabled) {
+      count = sub.currentClass;
+      isSub = sub.mode === 'subscription';
+      totalClasses = sub.totalClasses;
+    } else {
+      for (let d = 1; d <= daysInMonth; d++) {
+        const status = attendance[`${studentId}_${d}_${month}_${year}`];
+        if (status === AttendanceStatus.PRESENT || status === AttendanceStatus.EXTRA_DAY || status === AttendanceStatus.PAID_ABSENCE) {
+          count += 1;
+        } else if (status === AttendanceStatus.DOUBLE_CLASS || status === AttendanceStatus.EXTRA_DOUBLE) {
+          count += 2;
+        }
+      }
+    }
+
+    const text = isSub ? `حصة ${toHindiDigits(count)} من ${toHindiDigits(totalClasses)}` : `الحصة ${toHindiDigits(count)}`;
+
+    setLinkAnimation({ isOpen: true, count, text });
+
+    setTimeout(() => {
+      setLinkAnimation(null);
+      setTimeout(() => {
+        onComplete();
+      }, 200); // small delay after fade out
+    }, 1200);
+  };
+
   // Helper to check and open link after report
   const checkAndOpenLink = (studentId: string) => {
     const student = students.find(s => s.id === studentId);
@@ -2122,11 +2167,14 @@ function App() {
     if (meetingLink) {
       const refreshedMeetingLink = withStudentPortalRefresh(meetingLink);
       const shouldOpenExternally = student ? (academyRates[student.academy] as any)?.openLinksExternally : false;
-      if (shouldOpenExternally) {
-        openExternalLink(refreshedMeetingLink);
-      } else {
-        handleOpenLink(refreshedMeetingLink, `رابط الحصة: ${student?.name || ''}`);
-      }
+      
+      triggerLinkAnimation(studentId, () => {
+        if (shouldOpenExternally) {
+          openExternalLink(refreshedMeetingLink);
+        } else {
+          handleOpenLink(refreshedMeetingLink, `رابط الحصة: ${student?.name || ''}`);
+        }
+      });
     }
   };
 
@@ -6792,7 +6840,13 @@ function App() {
                                 {student.externalLink && (
                                   <button
                                     type="button"
-                                    onClick={(e) => openExternalLink(student.externalLink!, e)}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      e.preventDefault();
+                                      triggerLinkAnimation(student.id, () => {
+                                        openExternalLink(student.externalLink!);
+                                      });
+                                    }}
                                     className="text-gray-400 hover:text-[#ffe05d] transition-colors"
                                     title="فتح ملف الطالب"
                                   >
@@ -17027,6 +17081,26 @@ function App() {
         focusStudentId={tajweedGradingFocusStudentId}
         onViewStudentPage={markUngradedTajweedAssignmentsAsSeen}
       />
+      {/* Link Animation Overlay */}
+      {linkAnimation && linkAnimation.isOpen && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center pointer-events-none bg-black/40 backdrop-blur-[2px] animate-in fade-in duration-200">
+          <div className="bg-white/95 backdrop-blur-xl px-12 py-10 rounded-[40px] shadow-2xl flex flex-col items-center justify-center animate-in zoom-in-75 slide-in-from-bottom-4 duration-400 border-4 border-[#ffe05d]/50">
+            <div className="relative mb-6">
+              <div className="absolute inset-0 bg-[#ffe05d] blur-2xl opacity-40 rounded-full animate-pulse"></div>
+              <div className="bg-[#ffe05d]/10 p-6 rounded-full border-2 border-[#ffe05d]/30 shadow-inner relative z-10">
+                <Link size={56} strokeWidth={2.5} className="text-amber-500 drop-shadow-md animate-bounce" />
+              </div>
+            </div>
+            <div className="text-5xl font-extrabold font-arabic text-gray-800 drop-shadow-sm mb-3 text-center tracking-tight">
+              {linkAnimation.text}
+            </div>
+            <div className="text-2xl font-bold font-arabic text-emerald-600 mt-2 bg-emerald-50 px-6 py-2 rounded-full border border-emerald-100 shadow-sm animate-pulse">
+              جاري فتح الرابط...
+            </div>
+          </div>
+        </div>
+      )}
+
     </div >
   );
 }
