@@ -1484,7 +1484,7 @@ const performFirebaseSync = async (data) => {
                     reject(new Error(`Firebase responded with status ${res.statusCode}`));
                 } else {
                     // Update last synced state on success and write to disk
-                    lastSyncedState = JSON.parse(JSON.stringify(safeData));
+                    lastSyncedState = JSON.parse(JSON.stringify(data));
                     try {
                         fs.writeFileSync(LAST_SYNCED_PATH, JSON.stringify(lastSyncedState, null, 2));
                     } catch (err) {

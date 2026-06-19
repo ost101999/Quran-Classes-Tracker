@@ -339,6 +339,73 @@ const openExternalLink = (url: string, e?: React.MouseEvent) => {
   }
 };
 
+const desanitizeStateKeys = (
+  data: any,
+  currentStudents: Student[] = [],
+  currentAcademyOrder: string[] = []
+): any => {
+  if (!data) return data;
+
+  const originalAcademies = new Set<string>();
+  if (Array.isArray(data.academyOrder)) {
+    data.academyOrder.forEach((name: any) => {
+      if (typeof name === 'string') originalAcademies.add(name);
+    });
+  }
+  if (Array.isArray(data.students)) {
+    data.students.forEach((s: any) => {
+      if (s && typeof s.academy === 'string') originalAcademies.add(s.academy);
+    });
+  }
+  if (Array.isArray(currentStudents)) {
+    currentStudents.forEach((s) => {
+      if (s && typeof s.academy === 'string') originalAcademies.add(s.academy);
+    });
+  }
+  if (Array.isArray(currentAcademyOrder)) {
+    currentAcademyOrder.forEach((name) => {
+      if (typeof name === 'string') originalAcademies.add(name);
+    });
+  }
+
+  const sanitizedToOriginal = new Map<string, string>();
+  originalAcademies.forEach((originalName) => {
+    const sanitized = originalName.replace(/[.#$\[\]\/]/g, '_');
+    sanitizedToOriginal.set(sanitized, originalName);
+  });
+
+  // 1. Desanitize academyRates keys
+  if (data.academyRates && typeof data.academyRates === 'object' && !Array.isArray(data.academyRates)) {
+    const desanitizedRates: Record<string, any> = {};
+    Object.keys(data.academyRates).forEach((key) => {
+      const originalKey = sanitizedToOriginal.get(key) || key;
+      desanitizedRates[originalKey] = data.academyRates[key];
+    });
+    data.academyRates = desanitizedRates;
+  }
+
+  // 2. Desanitize paymentStatus keys
+  if (data.paymentStatus && typeof data.paymentStatus === 'object' && !Array.isArray(data.paymentStatus)) {
+    const desanitizedStatus: Record<string, boolean> = {};
+    Object.keys(data.paymentStatus).forEach((key) => {
+      const match = key.match(/^(.*)_(\d+)_(\d+)$/);
+      if (match) {
+        const prefix = match[1];
+        const monthStr = match[2];
+        const yearStr = match[3];
+        const originalPrefix = sanitizedToOriginal.get(prefix) || prefix;
+        const newKey = `${originalPrefix}_${monthStr}_${yearStr}`;
+        desanitizedStatus[newKey] = data.paymentStatus[key];
+      } else {
+        desanitizedStatus[key] = data.paymentStatus[key];
+      }
+    });
+    data.paymentStatus = desanitizedStatus;
+  }
+
+  return data;
+};
+
 function App() {
 
   type HistorySnapshot = {
@@ -1456,8 +1523,9 @@ function App() {
   useEffect(() => {
     async function loadInitialData() {
       if (window.electronAPI) {
-        const savedData = await window.electronAPI.loadData();
+        let savedData = await window.electronAPI.loadData();
         if (savedData) {
+          savedData = desanitizeStateKeys(savedData);
           if (savedData.students) setStudents(savedData.students);
           if (savedData.attendance) setAttendance(savedData.attendance);
           if (savedData.month !== undefined) setMonth(savedData.month);
@@ -1502,7 +1570,8 @@ function App() {
         const saved = localStorage.getItem(STORAGE_KEY);
         if (saved) {
           try {
-            const savedData = JSON.parse(saved);
+            let savedData = JSON.parse(saved);
+            savedData = desanitizeStateKeys(savedData);
             if (savedData.students) setStudents(savedData.students);
             if (savedData.attendance) setAttendance(savedData.attendance);
             if (savedData.month !== undefined) setMonth(savedData.month);
@@ -1779,9 +1848,13 @@ function App() {
           console.log(`Cloud state is newer (${remoteLastUpdated} > ${lastUpdated}). Fetching core updates...`);
           
           const fullRes = await fetch(`${CLOUD_APPSTATE_BASE_URL}.json`);
-          const fullData = await fullRes.json();
+          let fullData = await fullRes.json();
           
           if (isCancelled) return;
+
+          if (fullData) {
+            fullData = desanitizeStateKeys(fullData, students, academyOrder);
+          }
 
           // DOUBLE CHECK: Did the user make any local changes WHILE we were fetching?
           // If so, ABORT to prevent overwriting their new rapid changes!
