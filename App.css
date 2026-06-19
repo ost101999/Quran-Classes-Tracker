@@ -159,3 +159,37 @@
     transform: rotate(360deg);
   }
 }
+
+.link-anim-overlay {
+  animation: fadeIn 0.25s ease-out forwards;
+}
+.link-anim-overlay.closing {
+  animation: fadeOut 0.25s ease-in forwards;
+}
+
+.link-anim-card {
+  animation: scaleIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+.link-anim-card.closing {
+  animation: scaleOut 0.25s ease-in forwards;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; backdrop-filter: blur(0px); background-color: rgba(0, 0, 0, 0); }
+  to { opacity: 1; backdrop-filter: blur(2px); background-color: rgba(0, 0, 0, 0.35); }
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; backdrop-filter: blur(2px); background-color: rgba(0, 0, 0, 0.35); }
+  to { opacity: 0; backdrop-filter: blur(0px); background-color: rgba(0, 0, 0, 0); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes scaleOut {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(0.9); }
+}

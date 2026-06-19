@@ -2117,6 +2117,7 @@ function App() {
 
   const [linkAnimation, setLinkAnimation] = useState<{
     isOpen: boolean;
+    isClosing?: boolean;
     count: number;
     text: string;
   } | null>(null);
@@ -2153,11 +2154,12 @@ function App() {
     setLinkAnimation({ isOpen: true, count, text });
 
     setTimeout(() => {
-      setLinkAnimation(null);
+      setLinkAnimation(prev => prev ? { ...prev, isClosing: true } : null);
       setTimeout(() => {
+        setLinkAnimation(null);
         onComplete();
-      }, 200); // small delay after fade out
-    }, 1200);
+      }, 250);
+    }, 1000);
   };
 
   // Helper to check and open link after report
@@ -17083,24 +17085,14 @@ function App() {
       />
       {/* Link Animation Overlay */}
       {linkAnimation && linkAnimation.isOpen && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center pointer-events-none bg-black/40 backdrop-blur-[2px] animate-in fade-in duration-200">
-          <div className="bg-white/95 backdrop-blur-xl px-12 py-10 rounded-[40px] shadow-2xl flex flex-col items-center justify-center animate-in zoom-in-75 slide-in-from-bottom-4 duration-400 border-4 border-[#ffe05d]/50">
-            <div className="relative mb-6">
-              <div className="absolute inset-0 bg-[#ffe05d] blur-2xl opacity-40 rounded-full animate-pulse"></div>
-              <div className="bg-[#ffe05d]/10 p-6 rounded-full border-2 border-[#ffe05d]/30 shadow-inner relative z-10">
-                <Link size={56} strokeWidth={2.5} className="text-amber-500 drop-shadow-md animate-bounce" />
-              </div>
-            </div>
-            <div className="text-5xl font-extrabold font-arabic text-gray-800 drop-shadow-sm mb-3 text-center tracking-tight">
+        <div className={`fixed inset-0 z-[9999] flex items-center justify-center pointer-events-none link-anim-overlay ${linkAnimation.isClosing ? 'closing' : ''}`}>
+          <div className={`bg-white/95 backdrop-blur-md px-10 py-6 rounded-2xl shadow-xl border border-gray-100 flex items-center justify-center link-anim-card ${linkAnimation.isClosing ? 'closing' : ''}`}>
+            <div className="text-4xl font-extrabold font-arabic text-gray-800 tracking-tight">
               {linkAnimation.text}
-            </div>
-            <div className="text-2xl font-bold font-arabic text-emerald-600 mt-2 bg-emerald-50 px-6 py-2 rounded-full border border-emerald-100 shadow-sm animate-pulse">
-              جاري فتح الرابط...
             </div>
           </div>
         </div>
       )}
-
     </div >
   );
 }
