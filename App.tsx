@@ -1414,7 +1414,14 @@ function App() {
   // --- Loading State for Month Switch ---
   const [isTableLoading, setIsTableLoading] = useState(false);
   const [lastReportLanguage, setLastReportLanguage] = useState<'ar' | 'en'>('ar');
-  const [appZoomLevel, setAppZoomLevel] = useState(1);
+  const [appZoomLevel, setAppZoomLevel] = useState(() => {
+    const saved = localStorage.getItem('quran_tracker_zoom');
+    return saved ? parseFloat(saved) : 1;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('quran_tracker_zoom', appZoomLevel.toString());
+  }, [appZoomLevel]);
 
   // Custom Zoom Shortcuts
   useEffect(() => {
