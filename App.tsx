@@ -5521,6 +5521,7 @@ function App() {
   useEffect(() => {
     if (!showMissedCount) {
       setMissedCountPositions([]);
+      setStudentOptionsMenu(prev => ({ ...prev, isOpen: false }));
       return;
     }
 
