@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, clipboard, protocol } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, clipboard, protocol, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
@@ -1259,6 +1259,8 @@ function createWindow() {
         },
     });
 
+    Menu.setApplicationMenu(null);
+
     const isDev = !app.isPackaged;
     
     // Determine dynamic port
@@ -1346,6 +1348,7 @@ app.on('activate', () => {
 
 // --- Data Persistence IPC ---
 const DATA_PATH = path.join(app.getPath('userData'), 'data.json');
+const SETTINGS_PATH = path.join(app.getPath('userData'), 'settings.json');
 const TAJWEED_BANK_PATH = path.join(app.getPath('userData'), 'tajweed-bank.json');
 const TAJWEED_SUBMISSIONS_PATH = path.join(app.getPath('userData'), 'tajweed-submissions.json');
 const TAJWEED_AUDIO_DIR = process.platform === 'win32'
@@ -1549,6 +1552,40 @@ ipcMain.handle('get-sync-status', () => {
         isSyncing: isSyncing,
         hasPending: !!syncTimeout || !!pendingSyncData
     };
+});
+
+ipcMain.handle('save-zoom', async (event, zoomFactor) => {
+    try {
+        let settings = {};
+        if (fs.existsSync(SETTINGS_PATH)) {
+            try {
+                settings = JSON.parse(fs.readFileSync(SETTINGS_PATH, 'utf8'));
+            } catch (e) {
+                console.error('Failed to parse settings.json:', e);
+            }
+        }
+        settings.appZoomLevel = zoomFactor;
+        fs.writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2));
+        return { success: true };
+    } catch (error) {
+        console.error('Failed to save zoom:', error);
+        return { success: false, error: error.message };
+    }
+});
+
+ipcMain.handle('load-zoom', async () => {
+    try {
+        if (fs.existsSync(SETTINGS_PATH)) {
+            const data = fs.readFileSync(SETTINGS_PATH, 'utf8');
+            const settings = JSON.parse(data);
+            if (settings && typeof settings.appZoomLevel === 'number') {
+                return settings.appZoomLevel;
+            }
+        }
+    } catch (error) {
+        console.error('Failed to load zoom:', error);
+    }
+    return null;
 });
 
 ipcMain.handle('save-data', async (event, data, skipSync) => {

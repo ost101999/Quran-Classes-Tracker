@@ -1,8 +1,11 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webFrame } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
     saveData: (data, skipSync) => ipcRenderer.invoke('save-data', data, skipSync),
     loadData: () => ipcRenderer.invoke('load-data'),
+    saveZoom: (zoomFactor) => ipcRenderer.invoke('save-zoom', zoomFactor),
+    loadZoom: () => ipcRenderer.invoke('load-zoom'),
+    setZoomFactor: (factor) => webFrame.setZoomFactor(factor),
     saveTajweedAudio: (base64Data, fileName) => ipcRenderer.invoke('save-tajweed-audio', base64Data, fileName),
     openExternal: (url, options) => ipcRenderer.invoke('open-external', url, options),
     sendWhatsAppAuto: (targetName, message) => ipcRenderer.invoke('send-whatsapp-auto', { targetName, message }),

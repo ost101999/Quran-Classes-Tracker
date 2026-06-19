@@ -3,6 +3,8 @@ declare global {
         electronAPI: {
             saveData: (data: any) => Promise<{ success: boolean; error?: string }>;
             loadData: () => Promise<any>;
+            saveZoom?: (zoomFactor: number) => Promise<{ success: boolean; error?: string }>;
+            loadZoom?: () => Promise<number | null>;
             saveTajweedAudio: (base64Data: string, fileName: string) => Promise<{ success: boolean; localPath?: string; error?: string }>;
             openExternal: (url: string, options?: { background?: boolean }) => Promise<void>;
             sendWhatsAppAuto: (targetName: string, message: string) => Promise<{ success: boolean; error?: string }>;

@@ -1421,6 +1421,12 @@ function App() {
 
   useEffect(() => {
     localStorage.setItem('quran_tracker_zoom', appZoomLevel.toString());
+    if (window.electronAPI && window.electronAPI.saveZoom) {
+      window.electronAPI.saveZoom(appZoomLevel);
+    }
+    if (window.electronAPI && window.electronAPI.setZoomFactor) {
+      window.electronAPI.setZoomFactor(appZoomLevel);
+    }
   }, [appZoomLevel]);
 
   // Custom Zoom Shortcuts
@@ -1568,6 +1574,17 @@ function App() {
   useEffect(() => {
     async function loadInitialData() {
       if (window.electronAPI) {
+        // Load persistent zoom settings from Electron
+        if (window.electronAPI.loadZoom) {
+          try {
+            const savedZoom = await window.electronAPI.loadZoom();
+            if (savedZoom !== null && !isNaN(savedZoom)) {
+              setAppZoomLevel(savedZoom);
+            }
+          } catch (e) {
+            console.error('Failed to load persistent zoom:', e);
+          }
+        }
         let savedData = await window.electronAPI.loadData();
         if (savedData) {
           savedData = desanitizeStateKeys(savedData);
@@ -5704,7 +5721,7 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen pb-20" style={{ zoom: appZoomLevel } as any}>
+    <div className="min-h-screen pb-20">
       <style>{customStyles}</style>
 
       {/* Search Overlay */}
@@ -6685,7 +6702,7 @@ function App() {
                             )}
                             <div className="w-full h-full p-4 flex items-center justify-center relative">
                               {/* Reorder Controls - Show on Hover - Outside Frame */}
-                              <div className="absolute -right-11 top-1/2 -translate-y-1/2 flex items-center gap-0.5 bg-white/95 backdrop-blur-sm shadow-xl border border-gray-100 rounded-lg p-1 opacity-0 translate-x-2 group-hover/student:opacity-20 hover:!opacity-100 group-hover/student:translate-x-0 transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] z-50">
+                              <div className="absolute -right-11 top-1/2 -translate-y-1/2 flex items-center gap-0.5 bg-white/95 backdrop-blur-sm shadow-xl border border-gray-100 rounded-lg p-1 opacity-0 translate-x-2 group-hover/student:opacity-100 hover:!opacity-100 group-hover/student:translate-x-0 transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] z-50">
                                 {/* Invisible Bridge to prevent hover loss */}
                                 <div className="absolute -left-8 top-0 bottom-0 w-14 bg-transparent" />
 
@@ -16806,9 +16823,9 @@ function App() {
           top = Math.min(pendingToggle.y - 50, window.innerHeight - 70);
         }
 
-        // Adjust for appZoomLevel CSS zoom styling on the parent container
-        left = left / appZoomLevel;
-        top = top / appZoomLevel;
+        // Adjust for appZoomLevel styling removed, use raw coordinates
+        // left = left / appZoomLevel;
+        // top = top / appZoomLevel;
 
         return (
           <div
