@@ -6686,6 +6686,7 @@ function App() {
                               }
                             }}
                             onPointerEnter={(e) => {
+                              if (!showMissedCount) return;
                               if (studentOptionsTimeoutRef.current) clearTimeout(studentOptionsTimeoutRef.current);
                               const rect = e.currentTarget.getBoundingClientRect();
                               setStudentOptionsMenu({
