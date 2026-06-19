@@ -1519,7 +1519,7 @@ function App() {
     return () => window.removeEventListener('mouseup', handleMouseUp);
   }, [navigateMonth]);
 
-  // Keyboard F11/F12 Navigation (Back/Forward)
+  // Keyboard F10/F11/F12 Navigation (Current/Back/Forward)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
@@ -1539,6 +1539,17 @@ function App() {
       } else if (e.key === 'F12') {
         e.preventDefault();
         navigateMonth('next');
+      } else if (e.key === 'F10') {
+        e.preventDefault();
+        const now = new Date();
+        setIsTableLoading(true);
+        setTimeout(() => {
+          setMonth(now.getMonth());
+          setYear(now.getFullYear());
+          setTimeout(() => {
+            setIsTableLoading(false);
+          }, 50);
+        }, 50);
       }
     };
 
