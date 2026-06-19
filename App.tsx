@@ -2133,6 +2133,15 @@ function App() {
     academy: string;
   }>({ isOpen: false, isClosing: false, x: 0, y: 0, academy: '' });
 
+  const [studentOptionsMenu, setStudentOptionsMenu] = useState<{
+    isOpen: boolean;
+    isClosing: boolean;
+    x: number;
+    y: number;
+    student: Student | null;
+  }>({ isOpen: false, isClosing: false, x: 0, y: 0, student: null });
+  const studentOptionsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   // --- Student Drag & Drop State ---
   const [draggedStudentId, setDraggedStudentId] = useState<string | null>(null);
   const [studentDragOverId, setStudentDragOverId] = useState<string | null>(null);
@@ -3645,6 +3654,13 @@ function App() {
         }
         return prev;
       });
+      setStudentOptionsMenu(prev => {
+        if (prev.isOpen) {
+          setTimeout(() => setStudentOptionsMenu(curr => ({ ...curr, isClosing: false, student: null })), 200);
+          return { ...prev, isOpen: false, isClosing: true };
+        }
+        return prev;
+      });
 
       setMissedClassesMenu(null);
     };
@@ -3720,6 +3736,10 @@ function App() {
       if (academyContextMenu.isOpen && !(e.target as Element).closest('.context-menu')) {
         setAcademyContextMenu(prev => ({ ...prev, isOpen: false, isClosing: true }));
         setTimeout(() => setAcademyContextMenu(prev => ({ ...prev, isClosing: false })), 200);
+      }
+      if (studentOptionsMenu.isOpen && !(e.target as Element).closest('.student-options-menu')) {
+        setStudentOptionsMenu(prev => ({ ...prev, isOpen: false, isClosing: true }));
+        setTimeout(() => setStudentOptionsMenu(prev => ({ ...prev, isClosing: false, student: null })), 200);
       }
     };
     window.addEventListener('click', handleClick);
@@ -6348,6 +6368,10 @@ function App() {
               setAcademyContextMenu(prev => ({ ...prev, isOpen: false, isClosing: true }));
               setTimeout(() => setAcademyContextMenu(prev => ({ ...prev, isClosing: false })), 200);
             }
+            if (studentOptionsMenu.isOpen) {
+              setStudentOptionsMenu(prev => ({ ...prev, isOpen: false, isClosing: true }));
+              setTimeout(() => setStudentOptionsMenu(prev => ({ ...prev, isClosing: false, student: null })), 200);
+            }
             // Detect horizontal scroll
             const isScrolled = Math.abs(e.currentTarget.scrollLeft) > 5;
             if (isScrolled !== isTableScrolled) {
@@ -6664,12 +6688,30 @@ function App() {
                                 longPressTimerRef.current = null;
                               }
                             }}
-                            onPointerLeave={() => {
+                            onPointerEnter={(e) => {
+                              if (studentOptionsTimeoutRef.current) clearTimeout(studentOptionsTimeoutRef.current);
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              setStudentOptionsMenu({
+                                isOpen: true,
+                                isClosing: false,
+                                x: rect.right + 5,
+                                y: rect.top + rect.height / 2,
+                                student: student
+                              });
+                            }}
+                            onPointerLeave={(e) => {
                               // Cancel long-press timer if pointer leaves
                               if (longPressTimerRef.current) {
                                 clearTimeout(longPressTimerRef.current);
                                 longPressTimerRef.current = null;
                               }
+                              // Hide options menu
+                              if (studentOptionsTimeoutRef.current) clearTimeout(studentOptionsTimeoutRef.current);
+                              // We only close if moving outside the menu. The global menu handles staying open.
+                              studentOptionsTimeoutRef.current = setTimeout(() => {
+                                setStudentOptionsMenu(prev => ({ ...prev, isOpen: false, isClosing: true }));
+                                setTimeout(() => setStudentOptionsMenu(prev => ({ ...prev, isClosing: false, student: null })), 200);
+                              }, 150);
                             }}
                             onContextMenu={(e) => {
                               e.preventDefault();
@@ -6701,38 +6743,6 @@ function App() {
                               />
                             )}
                             <div className="w-full h-full p-4 flex items-center justify-center relative">
-                              {/* Reorder Controls - Show on Hover - Outside Frame */}
-                              <div className="absolute -right-11 top-1/2 -translate-y-1/2 flex items-center gap-0.5 bg-white/95 backdrop-blur-sm shadow-xl border border-gray-100 rounded-lg p-1 opacity-0 translate-x-2 group-hover/student:opacity-100 hover:!opacity-100 group-hover/student:translate-x-0 transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] z-50">
-                                {/* Invisible Bridge to prevent hover loss */}
-                                <div className="absolute -left-8 top-0 bottom-0 w-14 bg-transparent" />
-
-                                {/* Separator Buttons Stack */}
-                                <div className="flex flex-col gap-0.5 pl-1 ml-0.5">
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); toggleTopSeparator(student.id); }}
-                                    className={`p-0.5 rounded hover:bg-gray-50 text-gray-400 hover:text-blue-500 transition-colors relative z-10 ${student.hasTopSeparator ? 'text-blue-500 bg-blue-50' : ''}`}
-                                    title="إضافة/إزالة خط علوي"
-                                  >
-                                    <Minus size={12} strokeWidth={3} />
-                                  </button>
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); toggleBottomSeparator(student.id); }}
-                                    className={`p-0.5 rounded hover:bg-gray-50 text-gray-400 hover:text-blue-500 transition-colors relative z-10 ${student.hasBottomSeparator ? 'text-blue-500 bg-blue-50' : ''}`}
-                                    title="إضافة/إزالة خط سفلي"
-                                  >
-                                    <Minus size={12} strokeWidth={3} />
-                                  </button>
-                                </div>
-
-                                {/* Pin Button */}
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); togglePinToEnd(student.id); }}
-                                  className={`p-1 rounded hover:bg-gray-50 text-gray-400 hover:text-red-400 transition-colors relative z-10 border-l border-gray-100 pl-1.5 ml-0.5 ${student.isPinnedToEnd ? 'text-red-400 bg-red-50/50' : ''}`}
-                                  title={student.isPinnedToEnd ? "إلغاء التثبيت" : "تثبيت في النهاية"}
-                                >
-                                  <Pin size={12} strokeWidth={1.5} className={student.isPinnedToEnd ? "" : "-rotate-45"} />
-                                </button>
-                              </div>
 
                               <div className={`flex items-center justify-center gap-2 ${/[a-zA-Z]/.test(student.name) ? 'font-english text-xl' : 'font-arabic text-2xl'}`}>
                                 <span className={searchQuery.trim() && searchMatches(student.name) ? 'text-amber-600' : ''}>{student.name}</span>
@@ -7727,6 +7737,63 @@ function App() {
       />
 
 
+
+      {/* Student Options Overlay */}
+      {
+        (studentOptionsMenu.isOpen || studentOptionsMenu.isClosing) && studentOptionsMenu.student && (
+          <div
+            className={`fixed z-[100] flex items-center gap-0.5 bg-white/95 backdrop-blur-sm shadow-xl border border-gray-100 rounded-lg p-1 transition-all duration-300 ease-out student-options-menu
+            ${studentOptionsMenu.isOpen && !studentOptionsMenu.isClosing
+                ? 'opacity-100 scale-100 translate-x-0 blur-none'
+                : 'opacity-0 scale-95 translate-x-2 blur-sm pointer-events-none'
+              }`}
+            style={{
+              top: studentOptionsMenu.y,
+              left: studentOptionsMenu.x,
+              transform: 'translate(0, -50%)'
+            }}
+            onPointerEnter={() => {
+              if (studentOptionsTimeoutRef.current) clearTimeout(studentOptionsTimeoutRef.current);
+            }}
+            onPointerLeave={() => {
+              studentOptionsTimeoutRef.current = setTimeout(() => {
+                setStudentOptionsMenu(prev => ({ ...prev, isOpen: false, isClosing: true }));
+                setTimeout(() => setStudentOptionsMenu(prev => ({ ...prev, isClosing: false, student: null })), 200);
+              }, 150);
+            }}
+          >
+            {/* Invisible Bridge to prevent hover loss */}
+            <div className="absolute -left-10 top-0 bottom-0 w-16 bg-transparent" />
+
+            {/* Separator Buttons Stack */}
+            <div className="flex flex-col gap-0.5 pl-1 ml-0.5">
+              <button
+                onClick={(e) => { e.stopPropagation(); toggleTopSeparator(studentOptionsMenu.student!.id); }}
+                className={`p-0.5 rounded hover:bg-gray-50 text-gray-400 hover:text-blue-500 transition-colors relative z-10 ${studentOptionsMenu.student.hasTopSeparator ? 'text-blue-500 bg-blue-50' : ''}`}
+                title="إضافة/إزالة خط علوي"
+              >
+                <Minus size={12} strokeWidth={3} />
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); toggleBottomSeparator(studentOptionsMenu.student!.id); }}
+                className={`p-0.5 rounded hover:bg-gray-50 text-gray-400 hover:text-blue-500 transition-colors relative z-10 ${studentOptionsMenu.student.hasBottomSeparator ? 'text-blue-500 bg-blue-50' : ''}`}
+                title="إضافة/إزالة خط سفلي"
+              >
+                <Minus size={12} strokeWidth={3} />
+              </button>
+            </div>
+
+            {/* Pin Button */}
+            <button
+              onClick={(e) => { e.stopPropagation(); togglePinToEnd(studentOptionsMenu.student!.id); }}
+              className={`p-1 rounded hover:bg-gray-50 text-gray-400 hover:text-red-400 transition-colors relative z-10 border-l border-gray-100 pl-1.5 ml-0.5 ${studentOptionsMenu.student.isPinnedToEnd ? 'text-red-400 bg-red-50/50' : ''}`}
+              title={studentOptionsMenu.student.isPinnedToEnd ? "إلغاء التثبيت" : "تثبيت في النهاية"}
+            >
+              <Pin size={12} strokeWidth={1.5} className={studentOptionsMenu.student.isPinnedToEnd ? "" : "-rotate-45"} />
+            </button>
+          </div>
+        )
+      }
 
       {/* Academy Context Menu */}
       {
