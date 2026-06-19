@@ -33,6 +33,7 @@ export interface AcademyRate {
   disableReports?: boolean; // If true, reports are disabled for all students in this academy
   whatsappNumber?: string; // WhatsApp number/group for this academy
   openLinksExternally?: boolean; // If true, session links open in external browser
+  showAnimationBeforeLink?: boolean; // If true, display the class number animation overlay before opening
 }
 
 export interface Student {

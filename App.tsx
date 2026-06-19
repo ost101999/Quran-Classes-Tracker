@@ -2129,6 +2129,12 @@ function App() {
       return;
     }
 
+    const academySetting = academyRates[student.academy] as any;
+    if (academySetting?.showAnimationBeforeLink === false) {
+      onComplete();
+      return;
+    }
+
     let count = 0;
     let isSub = false;
     let totalClasses = 0;
@@ -3971,19 +3977,15 @@ function App() {
     });
   }, [selectedAcademy]);
 
-  const handleUpdateAcademy = useCallback((oldName: string, newName: string, rate: number, currency: string, monthlyDeductions: Record<string, number> = {}, billingStartDay: number = 1, externalLink: string = '', holidays: number[] = [], receiveInEGP: boolean = false, disableReports: boolean = false, whatsappNumber: string = '', openLinksExternally: boolean = false, includeReportHeader: boolean = true) => {
+  const handleUpdateAcademy = useCallback((oldName: string, newName: string, rate: number, currency: string, monthlyDeductions: Record<string, number> = {}, billingStartDay: number = 1, externalLink: string = '', holidays: number[] = [], receiveInEGP: boolean = false, disableReports: boolean = false, whatsappNumber: string = '', openLinksExternally: boolean = false, includeReportHeader: boolean = true, showAnimationBeforeLink: boolean = true) => {
     if (!oldName) {
       // Add Mode
       setAcademyOrder(prev => prev.includes(newName) ? prev : [...prev, newName]);
-      setAcademyRates(prev => ({ ...prev, [newName]: { rate, currency, monthlyDeductions, billingStartDay, externalLink, holidays, receiveInEGP, disableReports, whatsappNumber, openLinksExternally, includeReportHeader } }));
+      setAcademyRates(prev => ({ ...prev, [newName]: { rate, currency, monthlyDeductions, billingStartDay, externalLink, holidays, receiveInEGP, disableReports, whatsappNumber, openLinksExternally, includeReportHeader, showAnimationBeforeLink } }));
       setIsAddingAcademy(false);
       return;
     }
 
-    // ... (rest of filtering/student update logic omitted for brevity, but I need to include it in the real replacement)
-    // Actually I should provide the full block to be safe.
-
-    // Previous code:
     const is30Min = (d?: string) => d === '30' || d === '٣٠';
 
     setStudents(prev => prev.map(s => {
@@ -4014,7 +4016,7 @@ function App() {
     setAcademyRates(prev => {
       const next = { ...prev };
       delete next[oldName];
-      next[newName] = { rate, currency, monthlyDeductions, billingStartDay, externalLink, holidays, receiveInEGP, disableReports, whatsappNumber, openLinksExternally, includeReportHeader };
+      next[newName] = { rate, currency, monthlyDeductions, billingStartDay, externalLink, holidays, receiveInEGP, disableReports, whatsappNumber, openLinksExternally, includeReportHeader, showAnimationBeforeLink };
       return next;
     });
 

@@ -14,11 +14,12 @@ interface Props {
         disableReports?: boolean;
         whatsappNumber?: string;
         openLinksExternally?: boolean;
+        showAnimationBeforeLink?: boolean;
         monthlyDeductions?: Record<string, number>;
         includeReportHeader?: boolean;
     };
     onClose: () => void;
-    onSave: (oldName: string, newName: string, rate: number, currency: string, monthlyDeductions: Record<string, number>, billingStartDay?: number, externalLink?: string, holidays?: number[], receiveInEGP?: boolean, disableReports?: boolean, whatsappNumber?: string, openLinksExternally?: boolean, includeReportHeader?: boolean) => void;
+    onSave: (oldName: string, newName: string, rate: number, currency: string, monthlyDeductions: Record<string, number>, billingStartDay?: number, externalLink?: string, holidays?: number[], receiveInEGP?: boolean, disableReports?: boolean, whatsappNumber?: string, openLinksExternally?: boolean, includeReportHeader?: boolean, showAnimationBeforeLink?: boolean) => void;
     onDelete?: () => void;
     isAdd?: boolean;
 }
@@ -58,6 +59,7 @@ const AcademyEditModal: React.FC<Props> = ({ academyName, academyRate, onClose, 
     const [receiveInEGP, setReceiveInEGP] = useState(academyRate?.receiveInEGP || false);
     const [disableReports, setDisableReports] = useState(academyRate?.disableReports || false);
     const [openLinksExternally, setOpenLinksExternally] = useState(academyRate?.openLinksExternally || false);
+    const [showAnimationBeforeLink, setShowAnimationBeforeLink] = useState(academyRate?.showAnimationBeforeLink ?? true);
     const [includeReportHeader, setIncludeReportHeader] = useState(academyRate?.includeReportHeader !== false);
     const [showReportSettings, setShowReportSettings] = useState(false);
 
@@ -73,7 +75,7 @@ const AcademyEditModal: React.FC<Props> = ({ academyName, academyRate, onClose, 
 
         const finalRate = Number(toWesternDigits(rate).replace(',', '.'));
         const finalStartDay = Number(toWesternDigits(billingStartDay));
-        onSave(academyName, name, isNaN(finalRate) ? 0 : finalRate, currency, academyRate?.monthlyDeductions || {}, isNaN(finalStartDay) ? 1 : finalStartDay, externalLink, holidays, currency === 'دولار' ? receiveInEGP : false, disableReports, whatsappNumber, openLinksExternally, includeReportHeader);
+        onSave(academyName, name, isNaN(finalRate) ? 0 : finalRate, currency, academyRate?.monthlyDeductions || {}, isNaN(finalStartDay) ? 1 : finalStartDay, externalLink, holidays, currency === 'دولار' ? receiveInEGP : false, disableReports, whatsappNumber, openLinksExternally, includeReportHeader, showAnimationBeforeLink);
         onClose();
     };
 
@@ -292,6 +294,22 @@ const AcademyEditModal: React.FC<Props> = ({ academyName, academyRate, onClose, 
                         </label>
                         <span className="text-sm text-gray-400 font-medium mr-auto">
                             (يفتح رابط الحصة في المتصفح الخارجي)
+                        </span>
+                    </div>
+
+                    <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl border border-gray-100 cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => setShowAnimationBeforeLink(!showAnimationBeforeLink)}>
+                        <input
+                            type="checkbox"
+                            checked={showAnimationBeforeLink}
+                            onChange={(e) => setShowAnimationBeforeLink(e.target.checked)}
+                            className="w-5 h-5 rounded accent-gray-600 cursor-pointer"
+                            id="showAnimationBeforeLinkParam"
+                        />
+                        <label htmlFor="showAnimationBeforeLinkParam" className="cursor-pointer select-none text-xl font-bold text-gray-600">
+                            عرض الرقم قبل فتح الرابط
+                        </label>
+                        <span className="text-sm text-gray-400 font-medium mr-auto">
+                            (يعرض أنميشن رقم الحصة قبل الدخول)
                         </span>
                     </div>
                     <div className="pt-6 flex gap-3">
