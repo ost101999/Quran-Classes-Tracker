@@ -3656,8 +3656,7 @@ function App() {
       });
       setStudentOptionsMenu(prev => {
         if (prev.isOpen) {
-          setTimeout(() => setStudentOptionsMenu(curr => ({ ...curr, isClosing: false, student: null })), 200);
-          return { ...prev, isOpen: false, isClosing: true };
+          return { ...prev, isOpen: false };
         }
         return prev;
       });
@@ -3738,8 +3737,7 @@ function App() {
         setTimeout(() => setAcademyContextMenu(prev => ({ ...prev, isClosing: false })), 200);
       }
       if (studentOptionsMenu.isOpen && !(e.target as Element).closest('.student-options-menu')) {
-        setStudentOptionsMenu(prev => ({ ...prev, isOpen: false, isClosing: true }));
-        setTimeout(() => setStudentOptionsMenu(prev => ({ ...prev, isClosing: false, student: null })), 200);
+        setStudentOptionsMenu(prev => ({ ...prev, isOpen: false }));
       }
     };
     window.addEventListener('click', handleClick);
@@ -6369,8 +6367,7 @@ function App() {
               setTimeout(() => setAcademyContextMenu(prev => ({ ...prev, isClosing: false })), 200);
             }
             if (studentOptionsMenu.isOpen) {
-              setStudentOptionsMenu(prev => ({ ...prev, isOpen: false, isClosing: true }));
-              setTimeout(() => setStudentOptionsMenu(prev => ({ ...prev, isClosing: false, student: null })), 200);
+              setStudentOptionsMenu(prev => ({ ...prev, isOpen: false }));
             }
             // Detect horizontal scroll
             const isScrolled = Math.abs(e.currentTarget.scrollLeft) > 5;
@@ -6694,7 +6691,7 @@ function App() {
                               setStudentOptionsMenu({
                                 isOpen: true,
                                 isClosing: false,
-                                x: rect.right + 5,
+                                x: rect.right - 35,
                                 y: rect.top + rect.height / 2,
                                 student: student
                               });
@@ -6709,8 +6706,7 @@ function App() {
                               if (studentOptionsTimeoutRef.current) clearTimeout(studentOptionsTimeoutRef.current);
                               // We only close if moving outside the menu. The global menu handles staying open.
                               studentOptionsTimeoutRef.current = setTimeout(() => {
-                                setStudentOptionsMenu(prev => ({ ...prev, isOpen: false, isClosing: true }));
-                                setTimeout(() => setStudentOptionsMenu(prev => ({ ...prev, isClosing: false, student: null })), 200);
+                                setStudentOptionsMenu(prev => ({ ...prev, isOpen: false }));
                               }, 150);
                             }}
                             onContextMenu={(e) => {
@@ -7739,29 +7735,28 @@ function App() {
 
 
       {/* Student Options Overlay */}
-      {
-        (studentOptionsMenu.isOpen || studentOptionsMenu.isClosing) && studentOptionsMenu.student && (
-          <div
-            className={`fixed z-[100] flex items-center gap-0.5 bg-white/95 backdrop-blur-sm shadow-xl border border-gray-100 rounded-lg p-1 transition-all duration-300 ease-out student-options-menu
-            ${studentOptionsMenu.isOpen && !studentOptionsMenu.isClosing
-                ? 'opacity-100 scale-100 translate-x-0 blur-none'
-                : 'opacity-0 scale-95 translate-x-2 blur-sm pointer-events-none'
-              }`}
-            style={{
-              top: studentOptionsMenu.y,
-              left: studentOptionsMenu.x,
-              transform: 'translate(0, -50%)'
-            }}
-            onPointerEnter={() => {
-              if (studentOptionsTimeoutRef.current) clearTimeout(studentOptionsTimeoutRef.current);
-            }}
-            onPointerLeave={() => {
-              studentOptionsTimeoutRef.current = setTimeout(() => {
-                setStudentOptionsMenu(prev => ({ ...prev, isOpen: false, isClosing: true }));
-                setTimeout(() => setStudentOptionsMenu(prev => ({ ...prev, isClosing: false, student: null })), 200);
-              }, 150);
-            }}
-          >
+      <div
+        className={`fixed z-[100] flex items-center gap-0.5 bg-white/95 backdrop-blur-sm shadow-xl border border-gray-100 rounded-lg p-1 transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] student-options-menu hover:!opacity-100
+        ${studentOptionsMenu.isOpen
+            ? 'opacity-20 scale-100 translate-x-0 blur-none'
+            : 'opacity-0 scale-95 translate-x-2 blur-sm pointer-events-none'
+          }`}
+        style={{
+          top: studentOptionsMenu.y,
+          left: studentOptionsMenu.x,
+          transform: 'translate(0, -50%)'
+        }}
+        onPointerEnter={() => {
+          if (studentOptionsTimeoutRef.current) clearTimeout(studentOptionsTimeoutRef.current);
+        }}
+        onPointerLeave={() => {
+          studentOptionsTimeoutRef.current = setTimeout(() => {
+            setStudentOptionsMenu(prev => ({ ...prev, isOpen: false }));
+          }, 150);
+        }}
+      >
+        {studentOptionsMenu.student && (
+          <>
             {/* Invisible Bridge to prevent hover loss */}
             <div className="absolute -left-10 top-0 bottom-0 w-16 bg-transparent" />
 
@@ -7791,9 +7786,9 @@ function App() {
             >
               <Pin size={12} strokeWidth={1.5} className={studentOptionsMenu.student.isPinnedToEnd ? "" : "-rotate-45"} />
             </button>
-          </div>
-        )
-      }
+          </>
+        )}
+      </div>
 
       {/* Academy Context Menu */}
       {
