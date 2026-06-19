@@ -512,6 +512,7 @@ function App() {
   });
 
   const [sendViaWhatsapp, setSendViaWhatsapp] = useState(false);
+  const [manualWhatsappMode, setManualWhatsappMode] = useState(false);
 
   // Per-Student Last Report State
   const [lastReports, setLastReports] = useState<Record<string, {
@@ -554,6 +555,7 @@ function App() {
     };
     activeSection?: 'quran' | 'noor' | 'tajweed';
     sendViaWhatsapp?: boolean;
+    manualWhatsappMode?: boolean;
     mergeWithQuran?: boolean;
     isRedoMode?: boolean;
     isRedoModeRev?: boolean;
@@ -2520,6 +2522,13 @@ function App() {
         setSendViaWhatsapp(false);
       }
 
+      // Restore Manual WhatsApp Toggle
+      if (typeof lastReport?.manualWhatsappMode === 'boolean') {
+        setManualWhatsappMode(lastReport.manualWhatsappMode);
+      } else {
+        setManualWhatsappMode(false);
+      }
+
       // Restore Merge with Quran Toggle (per student)
       if (typeof lastReport?.mergeWithQuran === 'boolean') {
         setMergeWithQuran(lastReport.mergeWithQuran);
@@ -4473,6 +4482,30 @@ function App() {
   }, [isMultiSelectMode, selectedStudentIds, students]);
 
   // --- Close Modals/Menus on Escape ---
+  const handleClipboardCopy = useCallback(async (studentId: string, reportText: string, onCopied: () => void) => {
+    if (manualWhatsappMode) {
+      const student = students.find(s => s.id === studentId);
+      const studentWhatsapp = student?.whatsappNumber;
+      const academyWhatsapp = student ? academyRates[student.academy]?.whatsappNumber : undefined;
+      const finalTarget = studentWhatsapp || academyWhatsapp || student?.name || '';
+      
+      try {
+        await navigator.clipboard.writeText(reportText);
+        setTimeout(() => {
+          navigator.clipboard.writeText(finalTarget).then(() => {
+             onCopied();
+          }).catch(() => { onCopied(); });
+        }, 150);
+      } catch {
+        onCopied();
+      }
+    } else {
+      navigator.clipboard.writeText(reportText).then(() => {
+         onCopied();
+      }).catch(() => { onCopied(); });
+    }
+  }, [manualWhatsappMode, students, academyRates]);
+
   const closeAllModals = useCallback((isCommit = false) => {
     if (!isCommit && smartReportModal?.undoSnapshot) {
       const backup = smartReportModal.undoSnapshot;
@@ -4488,6 +4521,7 @@ function App() {
       if (backup.selectedTajweedTopicGroup !== undefined) setSelectedTajweedTopicGroup(backup.selectedTajweedTopicGroup);
       if (backup.selectedTajweedTopic !== undefined) setSelectedTajweedTopic(backup.selectedTajweedTopic);
       if (backup.sendViaWhatsapp !== undefined) setSendViaWhatsapp(backup.sendViaWhatsapp);
+      if (backup.manualWhatsappMode !== undefined) setManualWhatsappMode(backup.manualWhatsappMode);
       if (backup.mergeWithQuran !== undefined) setMergeWithQuran(backup.mergeWithQuran);
 
       if (backup.isRedoMode !== undefined) setIsRedoMode(backup.isRedoMode);
@@ -4640,6 +4674,7 @@ function App() {
     selectedTajweedTopicGroup,
     selectedTajweedTopic,
     sendViaWhatsapp,
+    manualWhatsappMode,
     mergeWithQuran,
     isRedoMode,
     isRedoModeRev,
@@ -4673,6 +4708,7 @@ function App() {
     selectedTajweedTopicGroup,
     selectedTajweedTopic,
     sendViaWhatsapp,
+    manualWhatsappMode,
     mergeWithQuran,
     isRedoMode,
     isRedoModeRev,
@@ -13723,6 +13759,7 @@ function App() {
                           onChange={(e) => {
                             const isChecked = e.target.checked;
                             setSendViaWhatsapp(isChecked);
+                            if (isChecked) setManualWhatsappMode(false);
                             setLastReports(prev => {
                               const studentId = smartReportModal?.studentId;
                               if (!studentId) return prev;
@@ -13730,7 +13767,8 @@ function App() {
                                 ...prev,
                                 [studentId]: {
                                   ...prev[studentId],
-                                  sendViaWhatsapp: isChecked
+                                  sendViaWhatsapp: isChecked,
+                                  ...(isChecked ? { manualWhatsappMode: false } : {})
                                 }
                               };
                             });
@@ -13738,6 +13776,31 @@ function App() {
                           className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
                         />
                         <span className="text-base font-medium text-gray-700 dark:text-gray-200">إرسال عبر واتساب</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer bg-gray-50 dark:bg-gray-700/50 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700">
+                        <input
+                          type="checkbox"
+                          checked={manualWhatsappMode}
+                          onChange={(e) => {
+                            const isChecked = e.target.checked;
+                            setManualWhatsappMode(isChecked);
+                            if (isChecked) setSendViaWhatsapp(false);
+                            setLastReports(prev => {
+                              const studentId = smartReportModal?.studentId;
+                              if (!studentId) return prev;
+                              return {
+                                ...prev,
+                                [studentId]: {
+                                  ...prev[studentId],
+                                  manualWhatsappMode: isChecked,
+                                  ...(isChecked ? { sendViaWhatsapp: false } : {})
+                                }
+                              };
+                            });
+                          }}
+                          className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
+                        />
+                        <span className="text-base font-medium text-gray-700 dark:text-gray-200">تجهيز للواتساب</span>
                       </label>
                       <label className="flex items-center gap-2 cursor-pointer bg-gray-50 dark:bg-gray-700/50 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700">
                         <input
@@ -14071,7 +14134,7 @@ function App() {
                                 showToast('حدث خطأ في الإرسال ❌');
                               });
                             } else {
-                              navigator.clipboard.writeText(report).then(() => {
+                              handleClipboardCopy(smartReportModal.studentId, report, () => {
                                 saveReportForDay(_tajweedStudentId, _tajweedDayNum, report, {
                                   ...noorConfigPart,
                                   noorDetails,
@@ -14215,7 +14278,7 @@ function App() {
                                 showToast('حدث خطأ في الإرسال ❌');
                               });
                             } else {
-                              navigator.clipboard.writeText(report).then(() => {
+                              handleClipboardCopy(smartReportModal.studentId, report, () => {
                                 saveReportForDay(_studentIdNoor1, _dayNumNoor1, report, {
                                   ...noorConfigPart,
                                   noorDetails,
@@ -15048,7 +15111,7 @@ function App() {
                             const _arCopyStudentId = smartReportModal.studentId;
                             const _arCopyDayNum = smartReportModal.dayNum;
                             closeAllModals(true);
-                            navigator.clipboard.writeText(report).then(() => {
+                            handleClipboardCopy(smartReportModal.studentId, report, () => {
                               saveReportForDay(_arCopyStudentId, _arCopyDayNum, report, {
                                 ...noorConfigPart,
                                 noorDetails,
@@ -15361,7 +15424,7 @@ function App() {
                                   showToast('Failed to send ❌');
                                 });
                               } else {
-                                navigator.clipboard.writeText(report).then(() => {
+                                handleClipboardCopy(smartReportModal.studentId, report, () => {
                                     saveReportForDay(_noorEngStudentId, _noorEngDayNum, report, {
                                       ...noorConfigPart,
                                       noorDetails,
@@ -16582,7 +16645,7 @@ function App() {
                               showToast('Failed to send ❌');
                             });
                           } else {
-                            navigator.clipboard.writeText(report).then(() => {
+                            handleClipboardCopy(smartReportModal.studentId, report, () => {
                               saveReportForDay(_engStudentId, _engDayNum, report, {
                                 ...noorConfigPart,
                                 noorDetails,
