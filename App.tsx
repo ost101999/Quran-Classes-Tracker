@@ -2330,6 +2330,21 @@ function App() {
     y: number;
   } | null>(null);
 
+  const [confirmScrollToggle, setConfirmScrollToggle] = useState(0);
+
+  useEffect(() => {
+    if (!pendingToggle) return;
+    const handleScrollResize = () => {
+      setConfirmScrollToggle(prev => prev + 1);
+    };
+    window.addEventListener('scroll', handleScrollResize, true); // true for capture (handles container scroll!)
+    window.addEventListener('resize', handleScrollResize);
+    return () => {
+      window.removeEventListener('scroll', handleScrollResize, true);
+      window.removeEventListener('resize', handleScrollResize);
+    };
+  }, [pendingToggle]);
+
   // Effect: Handle Enter/Escape for pending attendance confirmation
   useEffect(() => {
     if (!pendingToggle) return;
@@ -16725,33 +16740,59 @@ function App() {
       })()}
 
       {/* --- Pending Attendance Confirmation Popup --- */}
-      {pendingToggle && (
-        <div
-          className="fixed inset-0 z-[300]"
-          onClick={() => setPendingToggle(null)}
-        >
+      {pendingToggle && (() => {
+        const cellId = `cell-${pendingToggle.studentId}-${pendingToggle.dayNum}`;
+        const cellEl = document.getElementById(cellId);
+        let left = pendingToggle.x;
+        let top = pendingToggle.y - 50;
+
+        if (cellEl) {
+          const rect = cellEl.getBoundingClientRect();
+          // Center the popup above the cell.
+          left = rect.left + rect.width / 2 - 110; // 110 is half of the estimated width (220px)
+          top = rect.top - 44; // 44px above the cell top
+
+          // Constrain within viewport boundaries
+          left = Math.max(10, Math.min(left, window.innerWidth - 230));
+          top = Math.max(10, Math.min(top, window.innerHeight - 80));
+        } else {
+          // Fallback to click coordinates
+          left = Math.min(pendingToggle.x, window.innerWidth - 220);
+          top = Math.min(pendingToggle.y - 50, window.innerHeight - 70);
+        }
+
+        // Adjust for appZoomLevel CSS zoom styling on the parent container
+        left = left / appZoomLevel;
+        top = top / appZoomLevel;
+
+        return (
           <div
-            className="absolute bg-white rounded-2xl shadow-2xl px-5 py-3 border border-gray-200 animate-in zoom-in fade-in duration-150 flex items-center gap-3"
-            style={{
-              left: `${Math.min(pendingToggle.x, window.innerWidth - 220)}px`,
-              top: `${Math.min(pendingToggle.y - 50, window.innerHeight - 70)}px`,
-            }}
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-[300]"
+            onClick={() => setPendingToggle(null)}
           >
-            <p className="text-lg font-arabic text-gray-700 whitespace-nowrap" dir="rtl">هل أنت متأكد؟</p>
-            <button
-              onClick={() => {
-                const { studentId, dayNum, isShift, isAlt, isCtrl } = pendingToggle;
-                setPendingToggle(null);
-                toggleStatusConfirmed(studentId, dayNum, isShift, isAlt, isCtrl);
+            <div
+              className="fixed bg-white rounded-2xl shadow-2xl px-5 py-3 border border-gray-200 animate-in zoom-in fade-in duration-150 flex items-center gap-3"
+              style={{
+                left: `${left}px`,
+                top: `${top}px`,
               }}
-              className="w-8 h-8 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white flex items-center justify-center transition-colors shadow-sm active:scale-90"
+              onClick={(e) => e.stopPropagation()}
             >
-              <Check size={18} strokeWidth={3} />
-            </button>
+              <p className="text-lg font-arabic text-gray-700 whitespace-nowrap" dir="rtl">هل أنت متأكد؟</p>
+              <button
+                onClick={() => {
+                  const { studentId, dayNum, isShift, isAlt, isCtrl } = pendingToggle;
+                  setPendingToggle(null);
+                  toggleStatusConfirmed(studentId, dayNum, isShift, isAlt, isCtrl);
+                }}
+                className="w-8 h-8 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white flex items-center justify-center transition-colors shadow-sm active:scale-90"
+              >
+                <Check size={18} strokeWidth={3} />
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* --- Multi-Student Details Modal --- */}
       {selectedStudentsForCombinedReport && (
