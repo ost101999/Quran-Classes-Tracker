@@ -1519,6 +1519,33 @@ function App() {
     return () => window.removeEventListener('mouseup', handleMouseUp);
   }, [navigateMonth]);
 
+  // Keyboard F11/F12 Navigation (Back/Forward)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable ||
+          target.tagName === 'SELECT')
+      ) {
+        return;
+      }
+
+      if (e.key === 'F11') {
+        e.preventDefault();
+        navigateMonth('prev');
+      } else if (e.key === 'F12') {
+        e.preventDefault();
+        navigateMonth('next');
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [navigateMonth]);
+
   // --- Initial Load ---
   useEffect(() => {
     async function loadInitialData() {
