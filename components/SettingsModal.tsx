@@ -23,6 +23,7 @@ interface Props {
         dayTransitionTime?: string;
         showMakeupLines?: boolean;
         confirmNonTodayAttendance?: boolean;
+        whatsappMode?: 'auto' | 'manual';
 
     };
     onImport: (data: any) => void;
@@ -34,9 +35,10 @@ interface Props {
     onUpdateShowMakeupLines: (show: boolean) => void;
     onUpdateConfirmNonToday: (confirm: boolean) => void;
     onSelectBackupFolder?: () => void;
+    onUpdateWhatsappMode: (mode: 'auto' | 'manual') => void;
 }
 
-const SettingsModal: React.FC<Props> = ({ isOpen, onClose, data, onImport, onClearAll, onExport, onUpdateAutoBackup, onUpdateDayTransitionTime, onUpdateShowMakeupLines, onUpdateConfirmNonToday, onSelectBackupFolder }) => {
+const SettingsModal: React.FC<Props> = ({ isOpen, onClose, data, onImport, onClearAll, onExport, onUpdateAutoBackup, onUpdateDayTransitionTime, onUpdateShowMakeupLines, onUpdateConfirmNonToday, onSelectBackupFolder, onUpdateWhatsappMode }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isInfoOpen, setIsInfoOpen] = React.useState(false);
     const [isAutoBackupExpanded, setIsAutoBackupExpanded] = React.useState(false);
@@ -274,6 +276,41 @@ const SettingsModal: React.FC<Props> = ({ isOpen, onClose, data, onImport, onCle
                                     </button>
                                 </div>
                             </div>
+
+                            {/* WhatsApp Sending Mode */}
+                            <div className="p-4 bg-purple-50/50 border border-purple-100 rounded-2xl space-y-4">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-10 h-10 bg-purple-500 text-white rounded-xl flex items-center justify-center shadow-lg shadow-purple-200">
+                                        <MessageCircle size={20} />
+                                    </div>
+                                    <div className="text-right space-y-1">
+                                        <div className="font-bold text-gray-800 text-2xl">آلية إرسال الواتساب</div>
+                                        <div className="text-lg text-purple-800 opacity-50 whitespace-nowrap">طريقة إرسال التقرير عند التفعيل</div>
+                                    </div>
+                                </div>
+
+                                <div className="flex flex-col gap-3 pt-2 border-t border-purple-100/50">
+                                    <button
+                                        onClick={() => onUpdateWhatsappMode('auto')}
+                                        className={`flex items-center justify-between p-3 rounded-xl border transition-all ${data.whatsappMode !== 'manual' ? 'bg-purple-100 border-purple-300' : 'bg-white border-purple-100 hover:bg-purple-50'}`}
+                                    >
+                                        <span className={`text-lg font-bold ${data.whatsappMode !== 'manual' ? 'text-purple-800' : 'text-gray-600'}`}>إرسال تلقائي (آلي)</span>
+                                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${data.whatsappMode !== 'manual' ? 'border-purple-600 bg-purple-600' : 'border-gray-300'}`}>
+                                            {data.whatsappMode !== 'manual' && <div className="w-2 h-2 bg-white rounded-full" />}
+                                        </div>
+                                    </button>
+                                    <button
+                                        onClick={() => onUpdateWhatsappMode('manual')}
+                                        className={`flex items-center justify-between p-3 rounded-xl border transition-all ${data.whatsappMode === 'manual' ? 'bg-purple-100 border-purple-300' : 'bg-white border-purple-100 hover:bg-purple-50'}`}
+                                    >
+                                        <span className={`text-lg font-bold ${data.whatsappMode === 'manual' ? 'text-purple-800' : 'text-gray-600'}`}>تجهيز للحافظة (يدوي)</span>
+                                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${data.whatsappMode === 'manual' ? 'border-purple-600 bg-purple-600' : 'border-gray-300'}`}>
+                                            {data.whatsappMode === 'manual' && <div className="w-2 h-2 bg-white rounded-full" />}
+                                        </div>
+                                    </button>
+                                </div>
+                            </div>
+
 
 
 

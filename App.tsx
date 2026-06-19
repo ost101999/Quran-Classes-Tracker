@@ -484,6 +484,7 @@ function App() {
   const tableScrollRef = useRef<HTMLDivElement>(null);
   const [confirmNonTodayAttendance, setConfirmNonTodayAttendance] = useState<boolean>(true);
   const [whatsappTarget, setWhatsappTarget] = useState<string>('');
+  const [whatsappMode, setWhatsappMode] = useState<'auto' | 'manual'>('auto');
   const [studentProgress, setStudentProgress] = useState<Record<string, LessonProgress>>({});
 
   // Persistent Mode State
@@ -512,7 +513,6 @@ function App() {
   });
 
   const [sendViaWhatsapp, setSendViaWhatsapp] = useState(false);
-  const [manualWhatsappMode, setManualWhatsappMode] = useState(false);
 
   // Per-Student Last Report State
   const [lastReports, setLastReports] = useState<Record<string, {
@@ -555,7 +555,6 @@ function App() {
     };
     activeSection?: 'quran' | 'noor' | 'tajweed';
     sendViaWhatsapp?: boolean;
-    manualWhatsappMode?: boolean;
     mergeWithQuran?: boolean;
     isRedoMode?: boolean;
     isRedoModeRev?: boolean;
@@ -1606,6 +1605,7 @@ function App() {
           if (savedData.makeupLinks) setMakeupLinks(savedData.makeupLinks);
           if (savedData.showMakeupLines !== undefined) setShowMakeupLines(savedData.showMakeupLines);
           if (savedData.whatsappTarget) setWhatsappTarget(savedData.whatsappTarget);
+          if (savedData.whatsappMode) setWhatsappMode(savedData.whatsappMode);
           if (savedData.studentProgress) setStudentProgress(savedData.studentProgress);
           if (savedData.preferredModes) setPreferredModes(savedData.preferredModes);
           if (savedData.lastReports) setLastReports(savedData.lastReports);
@@ -1651,6 +1651,7 @@ function App() {
             if (savedData.makeupLinks) setMakeupLinks(savedData.makeupLinks);
             if (savedData.showMakeupLines !== undefined) setShowMakeupLines(savedData.showMakeupLines);
             if (savedData.whatsappTarget) setWhatsappTarget(savedData.whatsappTarget);
+            if (savedData.whatsappMode) setWhatsappMode(savedData.whatsappMode);
             if (savedData.studentProgress) setStudentProgress(savedData.studentProgress);
             if (savedData.preferredModes) setPreferredModes(savedData.preferredModes);
             if (savedData.lastReports) setLastReports(savedData.lastReports);
@@ -1955,6 +1956,7 @@ function App() {
             if (fullData.dayTransitionTime) setDayTransitionTime(fullData.dayTransitionTime);
             if (fullData.confirmNonTodayAttendance !== undefined) setConfirmNonTodayAttendance(fullData.confirmNonTodayAttendance);
             if (fullData.whatsappTarget) setWhatsappTarget(fullData.whatsappTarget);
+            if (fullData.whatsappMode) setWhatsappMode(fullData.whatsappMode);
             if (fullData.studentProgress) setStudentProgress(fullData.studentProgress);
             if (fullData.preferredModes) setPreferredModes(fullData.preferredModes);
             if (fullData.defaultNoorBook) setDefaultNoorBook(fullData.defaultNoorBook);
@@ -1986,6 +1988,7 @@ function App() {
               dayTransitionTime: fullData.dayTransitionTime || dayTransitionTime,
               confirmNonTodayAttendance: fullData.confirmNonTodayAttendance !== undefined ? fullData.confirmNonTodayAttendance : confirmNonTodayAttendance,
               whatsappTarget: fullData.whatsappTarget || whatsappTarget,
+              whatsappMode: fullData.whatsappMode || whatsappMode,
               studentProgress: fullData.studentProgress || studentProgress,
               preferredModes: fullData.preferredModes || preferredModes,
               lastReports: fullData.lastReports || lastReports,
@@ -2518,16 +2521,13 @@ function App() {
       // Restore WhatsApp Toggle
       if (typeof lastReport?.sendViaWhatsapp === 'boolean') {
         setSendViaWhatsapp(lastReport.sendViaWhatsapp);
+      } else if (typeof lastReport?.manualWhatsappMode === 'boolean') {
+        setSendViaWhatsapp(lastReport.manualWhatsappMode);
       } else {
         setSendViaWhatsapp(false);
       }
 
-      // Restore Manual WhatsApp Toggle
-      if (typeof lastReport?.manualWhatsappMode === 'boolean') {
-        setManualWhatsappMode(lastReport.manualWhatsappMode);
-      } else {
-        setManualWhatsappMode(false);
-      }
+
 
       // Restore Merge with Quran Toggle (per student)
       if (typeof lastReport?.mergeWithQuran === 'boolean') {
@@ -4222,6 +4222,7 @@ function App() {
       showMakeupLines,
       confirmNonTodayAttendance,
       whatsappTarget,
+      whatsappMode,
       studentProgress,
       preferredModes,
       lastReports,
@@ -4241,7 +4242,7 @@ function App() {
     } else {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
     }
-  }, [students, attendance, month, year, dayOff, academyOrder, academyRates, monthlyObligations, paymentStatus, autoBackupConfig, externalLinks, dayTransitionTime, makeupLinks, showMakeupLines, confirmNonTodayAttendance, whatsappTarget, studentProgress, preferredModes, lastReports, savedReports, savedReportDrafts, subscriptionSettings, tajweedBank, tajweedAssignments, tajweedSubmissions, tajweedLessonEditorUiState, seenUngradedTajweedAssignmentIds, isLoaded]);
+  }, [students, attendance, month, year, dayOff, academyOrder, academyRates, monthlyObligations, paymentStatus, autoBackupConfig, externalLinks, dayTransitionTime, makeupLinks, showMakeupLines, confirmNonTodayAttendance, whatsappTarget, whatsappMode, studentProgress, preferredModes, lastReports, savedReports, savedReportDrafts, subscriptionSettings, tajweedBank, tajweedAssignments, tajweedSubmissions, tajweedLessonEditorUiState, seenUngradedTajweedAssignmentIds, isLoaded]);
 
 
 
@@ -4263,6 +4264,7 @@ function App() {
       showMakeupLines,
       confirmNonTodayAttendance,
       whatsappTarget,
+      whatsappMode,
       studentProgress,
       preferredModes,
       lastReports,
@@ -4483,7 +4485,8 @@ function App() {
 
   // --- Close Modals/Menus on Escape ---
   const handleClipboardCopy = useCallback(async (studentId: string, reportText: string, onCopied: () => void) => {
-    if (manualWhatsappMode) {
+    const isManualWhatsapp = whatsappMode === 'manual' && sendViaWhatsapp;
+    if (isManualWhatsapp) {
       const student = students.find(s => s.id === studentId);
       const studentWhatsapp = student?.whatsappNumber;
       const academyWhatsapp = student ? academyRates[student.academy]?.whatsappNumber : undefined;
@@ -4495,7 +4498,7 @@ function App() {
           navigator.clipboard.writeText(finalTarget).then(() => {
              onCopied();
           }).catch(() => { onCopied(); });
-        }, 150);
+        }, 800);
       } catch {
         onCopied();
       }
@@ -4504,7 +4507,7 @@ function App() {
          onCopied();
       }).catch(() => { onCopied(); });
     }
-  }, [manualWhatsappMode, students, academyRates]);
+  }, [whatsappMode, sendViaWhatsapp, students, academyRates]);
 
   const closeAllModals = useCallback((isCommit = false) => {
     if (!isCommit && smartReportModal?.undoSnapshot) {
@@ -4521,7 +4524,6 @@ function App() {
       if (backup.selectedTajweedTopicGroup !== undefined) setSelectedTajweedTopicGroup(backup.selectedTajweedTopicGroup);
       if (backup.selectedTajweedTopic !== undefined) setSelectedTajweedTopic(backup.selectedTajweedTopic);
       if (backup.sendViaWhatsapp !== undefined) setSendViaWhatsapp(backup.sendViaWhatsapp);
-      if (backup.manualWhatsappMode !== undefined) setManualWhatsappMode(backup.manualWhatsappMode);
       if (backup.mergeWithQuran !== undefined) setMergeWithQuran(backup.mergeWithQuran);
 
       if (backup.isRedoMode !== undefined) setIsRedoMode(backup.isRedoMode);
@@ -4674,7 +4676,6 @@ function App() {
     selectedTajweedTopicGroup,
     selectedTajweedTopic,
     sendViaWhatsapp,
-    manualWhatsappMode,
     mergeWithQuran,
     isRedoMode,
     isRedoModeRev,
@@ -4708,7 +4709,6 @@ function App() {
     selectedTajweedTopicGroup,
     selectedTajweedTopic,
     sendViaWhatsapp,
-    manualWhatsappMode,
     mergeWithQuran,
     isRedoMode,
     isRedoModeRev,
@@ -5476,6 +5476,7 @@ function App() {
       if (parsed.showMakeupLines !== undefined) setShowMakeupLines(parsed.showMakeupLines);
       if (parsed.confirmNonTodayAttendance !== undefined) setConfirmNonTodayAttendance(parsed.confirmNonTodayAttendance);
       if (parsed.whatsappTarget) setWhatsappTarget(parsed.whatsappTarget);
+      if (parsed.whatsappMode) setWhatsappMode(parsed.whatsappMode);
       if (parsed.studentProgress) setStudentProgress(parsed.studentProgress);
       if (parsed.preferredModes) setPreferredModes(parsed.preferredModes);
       if (parsed.lastReports) setLastReports(parsed.lastReports);
@@ -7536,7 +7537,8 @@ function App() {
           dayTransitionTime,
           showMakeupLines,
           confirmNonTodayAttendance,
-          whatsappTarget
+          whatsappTarget,
+          whatsappMode
         }}
         onImport={handleImport}
         onClearAll={clearAllData}
@@ -7546,6 +7548,7 @@ function App() {
         onUpdateShowMakeupLines={setShowMakeupLines}
         onUpdateConfirmNonToday={setConfirmNonTodayAttendance}
         onUpdateWhatsappTarget={setWhatsappTarget}
+        onUpdateWhatsappMode={setWhatsappMode}
         onSelectBackupFolder={async () => {
           if (window.electronAPI?.selectBackupFolder) {
             const folder = await window.electronAPI.selectBackupFolder();
@@ -13759,7 +13762,6 @@ function App() {
                           onChange={(e) => {
                             const isChecked = e.target.checked;
                             setSendViaWhatsapp(isChecked);
-                            if (isChecked) setManualWhatsappMode(false);
                             setLastReports(prev => {
                               const studentId = smartReportModal?.studentId;
                               if (!studentId) return prev;
@@ -13767,40 +13769,20 @@ function App() {
                                 ...prev,
                                 [studentId]: {
                                   ...prev[studentId],
-                                  sendViaWhatsapp: isChecked,
-                                  ...(isChecked ? { manualWhatsappMode: false } : {})
+                                  sendViaWhatsapp: isChecked
                                 }
                               };
                             });
                           }}
-                          className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                          className={`w-4 h-4 rounded ${
+                            whatsappMode === 'manual' 
+                              ? 'text-purple-600 focus:ring-purple-500' 
+                              : 'text-blue-600 focus:ring-blue-500'
+                          }`}
                         />
-                        <span className="text-base font-medium text-gray-700 dark:text-gray-200">إرسال عبر واتساب</span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer bg-gray-50 dark:bg-gray-700/50 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700">
-                        <input
-                          type="checkbox"
-                          checked={manualWhatsappMode}
-                          onChange={(e) => {
-                            const isChecked = e.target.checked;
-                            setManualWhatsappMode(isChecked);
-                            if (isChecked) setSendViaWhatsapp(false);
-                            setLastReports(prev => {
-                              const studentId = smartReportModal?.studentId;
-                              if (!studentId) return prev;
-                              return {
-                                ...prev,
-                                [studentId]: {
-                                  ...prev[studentId],
-                                  manualWhatsappMode: isChecked,
-                                  ...(isChecked ? { sendViaWhatsapp: false } : {})
-                                }
-                              };
-                            });
-                          }}
-                          className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
-                        />
-                        <span className="text-base font-medium text-gray-700 dark:text-gray-200">تجهيز للواتساب</span>
+                        <span className="text-base font-medium text-gray-700 dark:text-gray-200">
+                          {whatsappMode === 'manual' ? 'تجهيز للواتساب' : 'إرسال عبر واتساب'}
+                        </span>
                       </label>
                       <label className="flex items-center gap-2 cursor-pointer bg-gray-50 dark:bg-gray-700/50 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700">
                         <input
@@ -14081,7 +14063,7 @@ function App() {
 
                             const _tajweedStudentId = smartReportModal.studentId;
                             const _tajweedDayNum = smartReportModal.dayNum;
-                            if (sendViaWhatsapp) {
+                            if (sendViaWhatsapp && whatsappMode !== 'manual') {
                               const student = students.find(s => s.id === smartReportModal.studentId);
                               const studentWhatsapp = student?.whatsappNumber;
                               const academyWhatsapp = student ? academyRates[student.academy]?.whatsappNumber : undefined;
@@ -14230,7 +14212,7 @@ function App() {
                             const _studentIdNoor1 = smartReportModal.studentId;
                             const _dayNumNoor1 = smartReportModal.dayNum;
 
-                            if (sendViaWhatsapp) {
+                            if (sendViaWhatsapp && whatsappMode !== 'manual') {
                               // Resolve WhatsApp Target (Hierarchy: Student > Academy ONLY)
                               const student = students.find(s => s.id === smartReportModal.studentId);
                               const studentWhatsapp = student?.whatsappNumber;
@@ -14968,7 +14950,7 @@ function App() {
                             }
                           }));
 
-                          if (sendViaWhatsapp) {
+                          if (sendViaWhatsapp && whatsappMode !== 'manual') {
                             // Resolve WhatsApp Target (Hierarchy: Student > Academy ONLY)
                             const student = students.find(s => s.id === smartReportModal.studentId);
                             const studentWhatsapp = student?.whatsappNumber;
@@ -15381,7 +15363,7 @@ function App() {
                               const _noorEngStudentId = smartReportModal.studentId;
                               const _noorEngDayNum = smartReportModal.dayNum;
 
-                              if (sendViaWhatsapp) {
+                              if (sendViaWhatsapp && whatsappMode !== 'manual') {
                                 // Resolve WhatsApp Target (Hierarchy: Student > Academy ONLY)
                                 const student = students.find(s => s.id === smartReportModal.studentId);
                                 const studentWhatsapp = student?.whatsappNumber;
@@ -16504,7 +16486,7 @@ function App() {
                           const _engStudentId = smartReportModal.studentId;
                           const _engDayNum = smartReportModal.dayNum;
 
-                          if (sendViaWhatsapp) {
+                          if (sendViaWhatsapp && whatsappMode !== 'manual') {
                             // Resolve WhatsApp Target (Hierarchy: Student > Academy ONLY)
                             // 1. Get Student specific number
                             const student = students.find(s => s.id === smartReportModal.studentId);
