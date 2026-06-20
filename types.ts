@@ -86,6 +86,8 @@ export interface AppState {
   tajweedAssignments?: Record<string, TajweedAssignment>; // key is assignmentId
   tajweedSubmissions?: Record<string, TajweedSubmission>; // key is submissionId
 
+  studentNotesHistory?: Record<string, string[]>; // History of custom notes per student
+
   lastUpdated?: number; // Tracks remote sync timestamp
 }
 

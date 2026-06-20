@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { Settings, Plus, Download, Upload, Trash2, Calendar, ArrowLeft, ArrowRight, ChevronDown, ChevronUp, Link, History, Clock, Users2, Banknote, BarChart3, Minus, Pin, Phone, MessageCircle, Copy, UserX, UserCheck, Shield, Wand2, Check, ArrowDown, Repeat, Eye, EyeOff, Bell } from 'lucide-react';
+import { Settings, Plus, Download, Upload, Trash2, Calendar, ArrowLeft, ArrowRight, ChevronDown, ChevronUp, Link, History, Clock, Users2, Banknote, BarChart3, Minus, Pin, Phone, MessageCircle, Copy, UserX, UserCheck, Shield, Wand2, Check, ArrowDown, Repeat, Eye, EyeOff, Bell, X } from 'lucide-react';
 
 // Custom animation styles
 const customStyles = `
@@ -575,6 +575,9 @@ function App() {
     customNotes?: string;
     audioLink?: string;
   }>>({});
+
+  // Notes History per Student
+  const [studentNotesHistory, setStudentNotesHistory] = useState<Record<string, string[]>>({});
 
   // Report Path State
   const [reportPath, setReportPath] = useState<'quran' | 'noor' | 'tajweed'>('quran');
@@ -1609,6 +1612,7 @@ function App() {
           if (savedData.studentProgress) setStudentProgress(savedData.studentProgress);
           if (savedData.preferredModes) setPreferredModes(savedData.preferredModes);
           if (savedData.lastReports) setLastReports(savedData.lastReports);
+          if (savedData.studentNotesHistory) setStudentNotesHistory(savedData.studentNotesHistory);
           if (savedData.defaultNoorBook) setDefaultNoorBook(savedData.defaultNoorBook);
           if (savedData.savedReports) setSavedReports(savedData.savedReports);
           if (savedData.savedReportDrafts) setSavedReportDrafts(savedData.savedReportDrafts);
@@ -4250,6 +4254,27 @@ function App() {
   const [hadithIndex, setHadithIndex] = useState(0);
 
   // --- Effects ---
+  
+  // Harvest custom notes to history
+  useEffect(() => {
+    if (!lastReports) return;
+    setStudentNotesHistory(prev => {
+      let changed = false;
+      const next = { ...prev };
+      Object.entries(lastReports).forEach(([studentId, reportData]) => {
+        const note = reportData.customNotes?.trim();
+        if (note) {
+          const history = next[studentId] || [];
+          if (!history.includes(note)) {
+            next[studentId] = [note, ...history].slice(0, 10);
+            changed = true;
+          }
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [lastReports]);
+
   // Save to Electron AppData whenever data changes
   useEffect(() => {
     if (!isLoaded) return;
@@ -4278,6 +4303,7 @@ function App() {
       studentProgress,
       preferredModes,
       lastReports,
+      studentNotesHistory,
       defaultNoorBook,
       savedReports,
       savedReportDrafts,
@@ -4294,7 +4320,7 @@ function App() {
     } else {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
     }
-  }, [students, attendance, month, year, dayOff, academyOrder, academyRates, monthlyObligations, paymentStatus, autoBackupConfig, externalLinks, dayTransitionTime, makeupLinks, showMakeupLines, confirmNonTodayAttendance, whatsappTarget, whatsappMode, studentProgress, preferredModes, lastReports, savedReports, savedReportDrafts, subscriptionSettings, tajweedBank, tajweedAssignments, tajweedSubmissions, tajweedLessonEditorUiState, seenUngradedTajweedAssignmentIds, isLoaded]);
+  }, [students, attendance, month, year, dayOff, academyOrder, academyRates, monthlyObligations, paymentStatus, autoBackupConfig, externalLinks, dayTransitionTime, makeupLinks, showMakeupLines, confirmNonTodayAttendance, whatsappTarget, whatsappMode, studentProgress, preferredModes, lastReports, studentNotesHistory, savedReports, savedReportDrafts, subscriptionSettings, tajweedBank, tajweedAssignments, tajweedSubmissions, tajweedLessonEditorUiState, seenUngradedTajweedAssignmentIds, isLoaded]);
 
 
 
@@ -13779,7 +13805,7 @@ function App() {
                       {showNotesInput ? <Minus size={18} /> : <Plus size={18} />}
                       {showNotesInput ? 'إخفاء الملاحظات' : 'إضافة ملاحظات'}
                     </button>
-                    <div className={`w-2/3 max-w-md flex justify-center transition-all duration-300 ${showNotesInput ? 'opacity-100 scale-100 h-auto mb-4' : 'opacity-0 scale-95 h-0 overflow-hidden pointer-events-none'}`}>
+                    <div className={`w-2/3 max-w-md flex flex-col items-center transition-all duration-300 ${showNotesInput ? 'opacity-100 scale-100 h-auto mb-4' : 'opacity-0 scale-95 h-0 overflow-hidden pointer-events-none'}`}>
                       <textarea
                         id="custom-notes-input"
                         dir="auto"
@@ -13789,6 +13815,33 @@ function App() {
                         onWheel={(e) => e.stopPropagation()}
                         className="w-full p-3 border border-gray-200 rounded-xl bg-gray-50 text-xl font-arabic font-semibold focus:ring-2 focus:ring-blue-300 focus:border-blue-300 transition-all placeholder-gray-300 custom-scrollbar resize-y"
                       />
+                      {studentNotesHistory[smartReportModal.studentId] && studentNotesHistory[smartReportModal.studentId].length > 0 && (
+                        <div className="w-full flex flex-wrap justify-center gap-2 mt-3">
+                          {studentNotesHistory[smartReportModal.studentId].map((note, idx) => (
+                            <div key={idx} className="flex items-center gap-1 bg-blue-50/80 border border-blue-100 text-blue-700 pl-1 pr-3 py-1 rounded-full text-sm font-arabic transition-all hover:bg-blue-100/80 group">
+                              <span 
+                                className="cursor-pointer max-w-[180px] truncate"
+                                onClick={() => setCustomNotesText(note)}
+                                title={note}
+                              >
+                                {note}
+                              </span>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setStudentNotesHistory(prev => ({
+                                    ...prev,
+                                    [smartReportModal.studentId]: prev[smartReportModal.studentId].filter((_, i) => i !== idx)
+                                  }));
+                                }}
+                                className="text-blue-400 hover:text-red-500 hover:bg-red-50 rounded-full p-1 transition-colors"
+                              >
+                                <X size={14} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
 
