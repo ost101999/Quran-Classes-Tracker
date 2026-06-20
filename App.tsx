@@ -6603,7 +6603,7 @@ function App() {
                             className={`absolute -top-8 left-1/2 -translate-x-1/2 min-w-[20px] h-5 flex items-center justify-center z-20 transition-all duration-300 cursor-pointer hover:scale-125 active:scale-95 ${isToday ? 'opacity-100' : 'opacity-0 group-hover/header:opacity-100 translate-y-2 group-hover/header:translate-y-0'}`}
                             title="انقر للذهاب لأول حصة متبقية"
                           >
-                            <span className="text-[#ffe05d] text-[1.15rem] font-bold font-arabic drop-shadow-md">{toHindiDigits(remainingCount)}</span>
+                            <span className="text-[#ff7a00] text-[1.15rem] font-bold font-arabic drop-shadow-md">{toHindiDigits(remainingCount)}</span>
                           </div>
                         )}
 
@@ -17282,7 +17282,7 @@ const StickyHeader = React.forwardRef<HTMLDivElement, {
                           className={`absolute -top-8 left-1/2 -translate-x-1/2 min-w-[20px] h-5 flex items-center justify-center z-20 transition-all duration-300 cursor-pointer hover:scale-125 active:scale-95 pointer-events-auto ${isToday ? 'opacity-100' : 'opacity-0 group-hover/header:opacity-100 translate-y-2 group-hover/header:translate-y-0'}`}
                           title="انقر للذهاب لأول حصة متبقية"
                         >
-                          <span className="text-[#ffe05d] text-[1.15rem] font-bold font-arabic drop-shadow-md">{toHindiDigits(getRemainingClasses(dayNum))}</span>
+                          <span className="text-[#ff7a00] text-[1.15rem] font-bold font-arabic drop-shadow-md">{toHindiDigits(getRemainingClasses(dayNum))}</span>
                         </div>
                       )}
                       <div
