@@ -5780,12 +5780,11 @@ function App() {
         AttendanceStatus.UNEXCUSED_ABSENCE,
         AttendanceStatus.ABSENCE_RED, // Assumed dense red is "marked absent" thus done
         AttendanceStatus.DOUBLE_CLASS,
-        AttendanceStatus.EXTRA_DOUBLE,
         AttendanceStatus.TRANSFERRED,
         AttendanceStatus.TRANSFERRED_ABSENT
       ].includes(status as AttendanceStatus);
 
-      // Pending Statuses: undefined, null, or EXTRA_DAY
+      // Pending Statuses: undefined, null, EXTRA_DAY, or EXTRA_DOUBLE
       const isPending = !isExempt && !isDone;
 
       const isMakeupTarget = makeupLinks.some(l =>
@@ -5795,9 +5794,12 @@ function App() {
         l.year === year
       );
 
-      if (status === AttendanceStatus.EXTRA_DAY || (isMakeupTarget && isPending)) {
-        count++;
-      } else if (isScheduled && !isHoliday && isPending) {
+      if (
+        status === AttendanceStatus.EXTRA_DAY ||
+        status === AttendanceStatus.EXTRA_DOUBLE ||
+        (isScheduled && !isHoliday && isPending) ||
+        (isMakeupTarget && isPending)
+      ) {
         count++;
       }
     });
@@ -5835,7 +5837,6 @@ function App() {
         AttendanceStatus.UNEXCUSED_ABSENCE,
         AttendanceStatus.ABSENCE_RED,
         AttendanceStatus.DOUBLE_CLASS,
-        AttendanceStatus.EXTRA_DOUBLE,
         AttendanceStatus.TRANSFERRED,
         AttendanceStatus.TRANSFERRED_ABSENT
       ].includes(status as AttendanceStatus);
@@ -5849,7 +5850,12 @@ function App() {
         l.year === year
       );
 
-      if (status === AttendanceStatus.EXTRA_DAY || (isScheduled && !isHoliday && isPending) || (isMakeupTarget && isPending)) {
+      if (
+        status === AttendanceStatus.EXTRA_DAY ||
+        status === AttendanceStatus.EXTRA_DOUBLE ||
+        (isScheduled && !isHoliday && isPending) ||
+        (isMakeupTarget && isPending)
+      ) {
         // Found the first pending one!
         const element = document.getElementById(`cell-${student.id}-${dayNum}`);
         if (element) {
@@ -6594,10 +6600,10 @@ function App() {
                         {remainingCount > 0 && (
                           <div
                             onClick={(e) => { e.stopPropagation(); scrollToFirstPending(dayNum); }}
-                            className={`absolute -top-8 left-1/2 -translate-x-1/2 min-w-[16px] h-4 flex items-center justify-center z-20 transition-all duration-300 cursor-pointer hover:scale-125 active:scale-95 ${isToday ? 'opacity-100' : 'opacity-0 group-hover/header:opacity-100 translate-y-2 group-hover/header:translate-y-0'}`}
+                            className={`absolute -top-8 left-1/2 -translate-x-1/2 min-w-[20px] h-5 flex items-center justify-center z-20 transition-all duration-300 cursor-pointer hover:scale-125 active:scale-95 ${isToday ? 'opacity-100' : 'opacity-0 group-hover/header:opacity-100 translate-y-2 group-hover/header:translate-y-0'}`}
                             title="انقر للذهاب لأول حصة متبقية"
                           >
-                            <span className="text-[#ffe05d] text-base font-bold font-arabic drop-shadow-md">{toHindiDigits(remainingCount)}</span>
+                            <span className="text-[#ffe05d] text-[1.15rem] font-bold font-arabic drop-shadow-md">{toHindiDigits(remainingCount)}</span>
                           </div>
                         )}
 
@@ -17273,10 +17279,10 @@ const StickyHeader = React.forwardRef<HTMLDivElement, {
                       {getRemainingClasses(dayNum) > 0 && (
                         <div
                           onClick={(e) => { e.stopPropagation(); scrollToFirstPending(dayNum); }}
-                          className={`absolute -top-8 left-1/2 -translate-x-1/2 min-w-[16px] h-4 flex items-center justify-center z-20 transition-all duration-300 cursor-pointer hover:scale-125 active:scale-95 pointer-events-auto ${isToday ? 'opacity-100' : 'opacity-0 group-hover/header:opacity-100 translate-y-2 group-hover/header:translate-y-0'}`}
+                          className={`absolute -top-8 left-1/2 -translate-x-1/2 min-w-[20px] h-5 flex items-center justify-center z-20 transition-all duration-300 cursor-pointer hover:scale-125 active:scale-95 pointer-events-auto ${isToday ? 'opacity-100' : 'opacity-0 group-hover/header:opacity-100 translate-y-2 group-hover/header:translate-y-0'}`}
                           title="انقر للذهاب لأول حصة متبقية"
                         >
-                          <span className="text-[#ffe05d] text-base font-bold font-arabic drop-shadow-md">{toHindiDigits(getRemainingClasses(dayNum))}</span>
+                          <span className="text-[#ffe05d] text-[1.15rem] font-bold font-arabic drop-shadow-md">{toHindiDigits(getRemainingClasses(dayNum))}</span>
                         </div>
                       )}
                       <div
