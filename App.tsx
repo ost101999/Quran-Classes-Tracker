@@ -1689,6 +1689,33 @@ function App() {
     loadInitialData();
   }, []);
 
+  // Center the current day column after initial load
+  useEffect(() => {
+    if (isLoaded && tableScrollRef.current) {
+      let attempts = 0;
+      
+      // Prevent onScroll from doing any weird side effects during auto-scroll
+      (window as any).isRestoringScroll = true;
+      
+      const interval = setInterval(() => {
+        const todayCol = document.getElementById('today-column');
+        if (tableScrollRef.current && todayCol) {
+          todayCol.scrollIntoView({ behavior: 'auto', inline: 'center', block: 'nearest' });
+          
+          // Since scrollIntoView handles the math, we just try it a few times to ensure layout is settled
+          if (attempts > 5) {
+            clearInterval(interval);
+            setTimeout(() => { (window as any).isRestoringScroll = false; }, 500);
+          }
+        } else if (attempts > 15) {
+          clearInterval(interval);
+          (window as any).isRestoringScroll = false;
+        }
+        attempts++;
+      }, 100);
+    }
+  }, [isLoaded]);
+
   // Pull Tajweed submissions from cloud portal and merge into local app state.
   useEffect(() => {
     if (!isLoaded) return;
@@ -3690,6 +3717,12 @@ function App() {
   const [studentWidth, setStudentWidth] = useState<number>(150);
   const [tableWidth, setTableWidth] = useState<number>(0);
 
+  // Sync sticky header scroll position when it appears
+  useEffect(() => {
+    if (showStickyHeader && stickyHeaderRef.current && tableScrollRef.current) {
+      stickyHeaderRef.current.scrollLeft = tableScrollRef.current.scrollLeft;
+    }
+  }, [showStickyHeader]);
   const scrollIntervalRef = React.useRef<NodeJS.Timeout | null>(null);
 
   const stopAutoScroll = useCallback(() => {
@@ -6478,6 +6511,7 @@ function App() {
             if (stickyHeaderRef.current) {
               stickyHeaderRef.current.scrollLeft = e.currentTarget.scrollLeft;
             }
+            
             // Close context menu on scroll
             if (academyContextMenu.isOpen) {
               setAcademyContextMenu(prev => ({ ...prev, isOpen: false, isClosing: true }));
@@ -6543,6 +6577,7 @@ function App() {
                     return (
                       <th
                         key={dayNum}
+                        id={isToday ? 'today-column' : undefined}
                         className={`p-3 min-w-[70px] antialiased relative`}
                         style={{
                           backgroundColor: isToday ? 'rgba(255, 224, 93, 0.4)' : isWknd ? 'rgba(129, 255, 234, 0.1)' : 'transparent'
