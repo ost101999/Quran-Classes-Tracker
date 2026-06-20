@@ -3178,6 +3178,7 @@ function App() {
   const [excludeNoorSayatim, setExcludeNoorSayatim] = useState<boolean>(false);
   const [excludeQuranTajweed, setExcludeQuranTajweed] = useState<boolean>(false);
   const [showNotesInput, setShowNotesInput] = useState<boolean>(false);
+  const [isNotesFocused, setIsNotesFocused] = useState<boolean>(false);
   const [customNotesText, setCustomNotesText] = useState<string>('');
   const [audioLinkText, setAudioLinkText] = useState<string>('');
 
@@ -13805,41 +13806,53 @@ function App() {
                       {showNotesInput ? <Minus size={18} /> : <Plus size={18} />}
                       {showNotesInput ? 'إخفاء الملاحظات' : 'إضافة ملاحظات'}
                     </button>
-                    <div className={`w-2/3 max-w-md flex flex-col items-center transition-all duration-300 ${showNotesInput ? 'opacity-100 scale-100 h-auto mb-4' : 'opacity-0 scale-95 h-0 overflow-hidden pointer-events-none'}`}>
+                    <div className={`w-2/3 max-w-md relative flex flex-col items-center transition-all duration-300 ${showNotesInput ? 'opacity-100 scale-100 h-auto mb-4' : 'opacity-0 scale-95 h-0 overflow-hidden pointer-events-none'}`}>
                       <textarea
                         id="custom-notes-input"
                         dir="auto"
                         rows={3}
                         value={customNotesText}
                         onChange={(e) => setCustomNotesText(e.target.value)}
+                        onFocus={() => setIsNotesFocused(true)}
+                        onBlur={() => setIsNotesFocused(false)}
                         onWheel={(e) => e.stopPropagation()}
-                        className="w-full p-3 border border-gray-200 rounded-xl bg-gray-50 text-xl font-arabic font-semibold focus:ring-2 focus:ring-blue-300 focus:border-blue-300 transition-all placeholder-gray-300 custom-scrollbar resize-y"
+                        className="w-full p-3 border border-gray-200 rounded-xl bg-gray-50 text-xl font-arabic font-semibold focus:ring-2 focus:ring-blue-300 focus:border-blue-300 transition-all placeholder-gray-300 custom-scrollbar resize-y relative z-10"
                       />
-                      {studentNotesHistory[smartReportModal.studentId] && studentNotesHistory[smartReportModal.studentId].length > 0 && (
-                        <div className="w-full flex flex-wrap justify-center gap-2 mt-3">
-                          {studentNotesHistory[smartReportModal.studentId].map((note, idx) => (
-                            <div key={idx} className="flex items-center gap-1 bg-blue-50/80 border border-blue-100 text-blue-700 pl-1 pr-3 py-1 rounded-full text-sm font-arabic transition-all hover:bg-blue-100/80 group">
-                              <span 
-                                className="cursor-pointer max-w-[180px] truncate"
-                                onClick={() => setCustomNotesText(note)}
-                                title={note}
-                              >
-                                {note}
-                              </span>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setStudentNotesHistory(prev => ({
-                                    ...prev,
-                                    [smartReportModal.studentId]: prev[smartReportModal.studentId].filter((_, i) => i !== idx)
-                                  }));
+                      
+                      {/* History Dropdown */}
+                      {isNotesFocused && customNotesText.trim() === '' && studentNotesHistory[smartReportModal.studentId] && studentNotesHistory[smartReportModal.studentId].length > 0 && (
+                        <div 
+                          className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-100 rounded-xl shadow-lg z-50 overflow-hidden animate-in slide-in-from-top-2 fade-in duration-200"
+                          onMouseDown={(e) => e.preventDefault()}
+                        >
+                          <div className="max-h-48 overflow-y-auto custom-scrollbar">
+                            {studentNotesHistory[smartReportModal.studentId].map((note, idx) => (
+                              <div 
+                                key={idx} 
+                                className="flex items-center justify-between px-4 py-3 hover:bg-blue-50/50 border-b border-gray-50 last:border-0 cursor-pointer transition-colors group" 
+                                onClick={() => {
+                                  setCustomNotesText(note);
+                                  setIsNotesFocused(false);
                                 }}
-                                className="text-blue-400 hover:text-red-500 hover:bg-red-50 rounded-full p-1 transition-colors"
                               >
-                                <X size={14} />
-                              </button>
-                            </div>
-                          ))}
+                                <span className="font-arabic text-gray-700 text-right flex-1 ml-4 truncate" title={note}>
+                                  {note}
+                                </span>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setStudentNotesHistory(prev => ({
+                                      ...prev,
+                                      [smartReportModal.studentId]: prev[smartReportModal.studentId].filter((_, i) => i !== idx)
+                                    }));
+                                  }}
+                                  className="text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full p-1.5 transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
+                                >
+                                  <X size={16} />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       )}
                     </div>
