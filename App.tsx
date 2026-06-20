@@ -482,6 +482,32 @@ function App() {
   const [showMissedCount, setShowMissedCount] = useState<boolean>(false);
   const [missedCountPositions, setMissedCountPositions] = useState<Array<{ studentId: string; y: number; height: number; count: number }>>([]);
   const tableScrollRef = useRef<HTMLDivElement>(null);
+
+  // Center the current day column horizontally on demand
+  const triggerCenterToday = useCallback(() => {
+    if (!tableScrollRef.current) return;
+    let attempts = 0;
+    
+    // Prevent onScroll from doing any weird side effects during auto-scroll
+    (window as any).isRestoringScroll = true;
+    
+    const interval = setInterval(() => {
+      const todayCol = document.getElementById('today-column');
+      if (tableScrollRef.current && todayCol) {
+        todayCol.scrollIntoView({ behavior: 'auto', inline: 'center', block: 'nearest' });
+        
+        // Since scrollIntoView handles the math, we just try it a few times to ensure layout is settled
+        if (attempts > 5) {
+          clearInterval(interval);
+          setTimeout(() => { (window as any).isRestoringScroll = false; }, 500);
+        }
+      } else if (attempts > 15) {
+        clearInterval(interval);
+        (window as any).isRestoringScroll = false;
+      }
+      attempts++;
+    }, 100);
+  }, []);
   const [confirmNonTodayAttendance, setConfirmNonTodayAttendance] = useState<boolean>(true);
   const [whatsappTarget, setWhatsappTarget] = useState<string>('');
   const [whatsappMode, setWhatsappMode] = useState<'auto' | 'manual'>('auto');
@@ -1565,6 +1591,7 @@ function App() {
           setYear(now.getFullYear());
           setTimeout(() => {
             setIsTableLoading(false);
+            triggerCenterToday();
           }, 50);
         }, 50);
       }
@@ -1572,7 +1599,7 @@ function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [navigateMonth]);
+  }, [navigateMonth, triggerCenterToday]);
 
   // --- Initial Load ---
   useEffect(() => {
@@ -1691,30 +1718,10 @@ function App() {
 
   // Center the current day column after initial load
   useEffect(() => {
-    if (isLoaded && tableScrollRef.current) {
-      let attempts = 0;
-      
-      // Prevent onScroll from doing any weird side effects during auto-scroll
-      (window as any).isRestoringScroll = true;
-      
-      const interval = setInterval(() => {
-        const todayCol = document.getElementById('today-column');
-        if (tableScrollRef.current && todayCol) {
-          todayCol.scrollIntoView({ behavior: 'auto', inline: 'center', block: 'nearest' });
-          
-          // Since scrollIntoView handles the math, we just try it a few times to ensure layout is settled
-          if (attempts > 5) {
-            clearInterval(interval);
-            setTimeout(() => { (window as any).isRestoringScroll = false; }, 500);
-          }
-        } else if (attempts > 15) {
-          clearInterval(interval);
-          (window as any).isRestoringScroll = false;
-        }
-        attempts++;
-      }, 100);
+    if (isLoaded) {
+      triggerCenterToday();
     }
-  }, [isLoaded]);
+  }, [isLoaded, triggerCenterToday]);
 
   // Pull Tajweed submissions from cloud portal and merge into local app state.
   useEffect(() => {
@@ -5488,6 +5495,7 @@ function App() {
             setYear(now.getFullYear());
             setTimeout(() => {
               setIsTableLoading(false);
+              triggerCenterToday();
             }, 50);
           }, 50);
         } else {
@@ -5497,7 +5505,7 @@ function App() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [undo, redo, smartReportModal?.isOpen, isTajweedBankModalOpen, isTajweedGradingModalOpen]);
+  }, [undo, redo, smartReportModal?.isOpen, isTajweedBankModalOpen, isTajweedGradingModalOpen, triggerCenterToday]);
 
   const handleAddStudent = (student: Student) => {
     const existingStudent = students.find(s => s.id === student.id);

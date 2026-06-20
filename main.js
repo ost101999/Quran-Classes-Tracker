@@ -1259,7 +1259,42 @@ function createWindow() {
         },
     });
 
-    Menu.setApplicationMenu(null);
+    const template = [
+        ...(process.platform === 'darwin' ? [{
+            label: app.name,
+            submenu: [
+                { role: 'about' },
+                { type: 'separator' },
+                { role: 'services' },
+                { type: 'separator' },
+                { role: 'hide' },
+                { role: 'hideOthers' },
+                { role: 'unhide' },
+                { type: 'separator' },
+                { role: 'quit' }
+            ]
+        }] : []),
+        {
+            label: 'Edit',
+            submenu: [
+                { role: 'undo' },
+                { role: 'redo' },
+                { type: 'separator' },
+                { role: 'cut' },
+                { role: 'copy' },
+                { role: 'paste' },
+                { role: 'selectAll' }
+            ]
+        }
+    ];
+
+    const menu = Menu.buildFromTemplate(template);
+    Menu.setApplicationMenu(menu);
+
+    if (process.platform !== 'darwin') {
+        mainWindow.setAutoHideMenuBar(true);
+        mainWindow.setMenuBarVisibility(false);
+    }
 
     const isDev = !app.isPackaged;
     
@@ -1284,8 +1319,36 @@ function createWindow() {
     mainWindow.on('closed', () => (mainWindow = null));
 
     mainWindow.webContents.on('before-input-event', (event, input) => {
-        if (input.key === 'Escape') {
-            mainWindow.webContents.send('escape-pressed');
+        if (input.type === 'keyDown') {
+            const hasCmdOrCtrl = input.control || input.meta;
+            const isR = input.code === 'KeyR';
+            const isF5 = input.code === 'F5';
+
+            // Refresh shortcuts: F5 (without shift), Ctrl+R, Cmd+R
+            if (isF5 || (hasCmdOrCtrl && isR)) {
+                if (input.shift) {
+                    if (isR) {
+                        mainWindow.webContents.reloadIgnoringCache();
+                        event.preventDefault();
+                    }
+                    // For Shift+F5, let it pass through to React
+                } else {
+                    mainWindow.webContents.reload();
+                    event.preventDefault();
+                }
+            }
+
+            // DevTools: Ctrl+Shift+I / Cmd+Option+I
+            const isDevTools = (process.platform === 'darwin' && input.alt && input.meta && input.code === 'KeyI') ||
+                               (process.platform !== 'darwin' && input.control && input.shift && input.code === 'KeyI');
+            if (isDevTools) {
+                mainWindow.webContents.toggleDevTools();
+                event.preventDefault();
+            }
+
+            if (input.key === 'Escape') {
+                mainWindow.webContents.send('escape-pressed');
+            }
         }
     });
 
