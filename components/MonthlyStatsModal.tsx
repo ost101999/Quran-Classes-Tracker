@@ -107,7 +107,7 @@ const MonthlyStatsModal: React.FC<Props> = ({ students, attendance, month, year,
                 for (let d = billingStartDay; d <= daysInPrevMonth; d++) {
                     const key = `${student.id}_${d}_${prevMonth}_${prevYear}`;
                     const status = attendance[key];
-                    if (status === AttendanceStatus.PRESENT || status === AttendanceStatus.PAID_ABSENCE || status === AttendanceStatus.UNEXCUSED_ABSENCE || status === AttendanceStatus.ABSENCE_RED) {
+                    if (status === AttendanceStatus.PRESENT || status === AttendanceStatus.PAID_ABSENCE) {
                         currentCycleClasses++;
                     } else if (status === AttendanceStatus.DOUBLE_CLASS) {
                         currentCycleClasses += 2;

@@ -104,9 +104,7 @@ export default function StudentDetailsModal({ student, attendance, onClose, mont
                                   (billingStartDay > 1 && d >= billingStartDay && (
                                       status === AttendanceStatus.PRESENT || 
                                       status === AttendanceStatus.PAID_ABSENCE || 
-                                      status === AttendanceStatus.DOUBLE_CLASS ||
-                                      status === AttendanceStatus.UNEXCUSED_ABSENCE ||
-                                      status === AttendanceStatus.ABSENCE_RED
+                                      status === AttendanceStatus.DOUBLE_CLASS
                                   ));
 
             if (isTransferred) {

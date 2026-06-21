@@ -6951,7 +6951,7 @@ function App() {
                                 if (!status) return status;
                                 if (isDeferredDay) {
                                   if (status === AttendanceStatus.PRESENT) return AttendanceStatus.TRANSFERRED;
-                                  if (status === AttendanceStatus.ABSENCE_RED || status === AttendanceStatus.UNEXCUSED_ABSENCE || status === AttendanceStatus.PAID_ABSENCE) {
+                                  if (status === AttendanceStatus.PAID_ABSENCE) {
                                     return AttendanceStatus.TRANSFERRED_ABSENT;
                                   }
                                 }
@@ -7236,7 +7236,7 @@ function App() {
                                       } else if (currentStatus === AttendanceStatus.ABSENCE_RED) {
                                         newStat = AttendanceStatus.UNEXCUSED_ABSENCE;
                                       } else if (currentStatus === AttendanceStatus.UNEXCUSED_ABSENCE) {
-                                        newStat = AttendanceStatus.TRANSFERRED_ABSENT;
+                                        newStat = AttendanceStatus.ABSENT;
                                       } else if (currentStatus === AttendanceStatus.PAID_ABSENCE) {
                                         newStat = AttendanceStatus.TRANSFERRED_ABSENT;
                                       } else if (currentStatus === AttendanceStatus.TRANSFERRED_ABSENT) {
@@ -7250,7 +7250,7 @@ function App() {
                                           }
                                           return undefined;
                                         })();
-                                        newStat = prevStatus || AttendanceStatus.UNEXCUSED_ABSENCE;
+                                        newStat = prevStatus || AttendanceStatus.PAID_ABSENCE;
                                       } else {
                                         newStat = AttendanceStatus.ABSENCE_RED;
                                       }
