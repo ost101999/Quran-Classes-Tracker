@@ -2160,7 +2160,7 @@ function App() {
     text: string;
   } | null>(null);
 
-  const triggerLinkAnimation = (studentId: string, onComplete: () => void) => {
+  const triggerLinkAnimation = (studentId: string, onComplete: () => void, countOffset: number = 0) => {
     const student = students.find(s => s.id === studentId);
     if (!student) {
       onComplete();
@@ -2183,16 +2183,51 @@ function App() {
       isSub = sub.mode === 'subscription';
       totalClasses = sub.totalClasses;
     } else {
+      const billingStartDay = academySetting?.billingStartDay || 1;
+      let prevMonth = month - 1;
+      let prevYear = year;
+      if (prevMonth < 0) {
+          prevMonth = 11;
+          prevYear = year - 1;
+      }
+      const daysInPrevMonth = new Date(prevYear, prevMonth + 1, 0).getDate();
+
+      if (billingStartDay > 1) {
+          for (let d = billingStartDay; d <= daysInPrevMonth; d++) {
+              const status = attendance[`${studentId}_${d}_${prevMonth}_${prevYear}`];
+              if (status === AttendanceStatus.PRESENT || status === AttendanceStatus.PAID_ABSENCE) {
+                  count += 1;
+              } else if (status === AttendanceStatus.DOUBLE_CLASS || status === AttendanceStatus.EXTRA_DOUBLE) {
+                  count += 2;
+              }
+          }
+      }
+
+      for (let d = 1; d <= daysInPrevMonth; d++) {
+          const status = attendance[`${studentId}_${d}_${prevMonth}_${prevYear}`];
+          if (status === AttendanceStatus.TRANSFERRED || status === AttendanceStatus.TRANSFERRED_ABSENT) {
+              count += 1;
+          }
+      }
+
       for (let d = 1; d <= daysInMonth; d++) {
         const status = attendance[`${studentId}_${d}_${month}_${year}`];
+        let classValue = 0;
         if (status === AttendanceStatus.PRESENT || status === AttendanceStatus.EXTRA_DAY || status === AttendanceStatus.PAID_ABSENCE) {
-          count += 1;
+          classValue = 1;
         } else if (status === AttendanceStatus.DOUBLE_CLASS || status === AttendanceStatus.EXTRA_DOUBLE) {
-          count += 2;
+          classValue = 2;
+        }
+
+        if (classValue > 0) {
+            if (!(billingStartDay > 1 && d >= billingStartDay)) {
+                count += classValue;
+            }
         }
       }
     }
 
+    count += countOffset;
     const text = isSub ? `حصة ${toHindiDigits(count)} من ${toHindiDigits(totalClasses)}` : `الحصة ${toHindiDigits(count)}`;
 
     setLinkAnimation({ isOpen: true, count, text });
@@ -2207,7 +2242,7 @@ function App() {
   };
 
   // Helper to check and open link after report
-  const checkAndOpenLink = (studentId: string) => {
+  const checkAndOpenLink = (studentId: string, countOffset: number = 0) => {
     const student = students.find(s => s.id === studentId);
     const meetingLink = student?.externalLink || (student ? academyRates[student.academy]?.externalLink : null);
     if (meetingLink) {
@@ -2220,7 +2255,7 @@ function App() {
         } else {
           handleOpenLink(refreshedMeetingLink, `رابط الحصة: ${student?.name || ''}`);
         }
-      });
+      }, countOffset);
     }
   };
 
@@ -7369,7 +7404,9 @@ function App() {
                                       showToast(lang === 'ar' ? 'تم نسخ التقرير (غياب) 📋' : 'Absent report copied 📋');
 
                                       // Auto-open link when marking absence (always, regardless of report settings)
-                                      checkAndOpenLink(student.id);
+                                      const wasCounted = [AttendanceStatus.PRESENT, AttendanceStatus.DOUBLE_CLASS, AttendanceStatus.EXTRA_DOUBLE, AttendanceStatus.PAID_ABSENCE, AttendanceStatus.EXTRA_DAY, AttendanceStatus.TRANSFERRED, AttendanceStatus.TRANSFERRED_ABSENT].includes(currentStatus as AttendanceStatus);
+                                      const offset = wasCounted ? 0 : 1;
+                                      checkAndOpenLink(student.id, offset);
 
                                       // Clear search when taking action
                                       setSearchQuery('');
