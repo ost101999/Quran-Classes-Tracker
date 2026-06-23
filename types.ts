@@ -1,6 +1,7 @@
 export enum AttendanceStatus {
   PRESENT = '1',
   PAID_ABSENCE = '!',
+  PAID_ABSENCE_DOUBLE = '!2', // Grey with ! and Red Dot (Count as two classes)
   POSTPONED = 'م',
   UNEXCUSED_ABSENCE = 'x', // Red with white dash
   ABSENCE_RED = 'r', // Completely red

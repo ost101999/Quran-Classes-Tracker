@@ -21,6 +21,7 @@ interface Student {
   academy: string;
   zoomLink?: string;
   duration?: string;
+  days?: number[];
 }
 
 interface TajweedQuestion {
@@ -472,8 +473,11 @@ function App() {
       const [id, day, month, year] = key.split('_');
       if (id !== student.id) return;
       if (Number(month) !== selectedMonth || Number(year) !== selectedYear) return;
-      if (status === '1' || status === '!' || status === '2' || status === 'e' || status === 'ed') {
-        visitsCount += status === '2' || status === 'ed' ? 2 : 1;
+      if (['1', '!', '!2', '2', 'e', 'ed'].includes(status)) {
+        const dayOfWeek = new Date(Number(year), Number(month), Number(day)).getDay();
+        const isDoubleScheduled = student.days?.filter(d => d === dayOfWeek).length === 2;
+        const isDouble = status === '2' || status === 'ed' || status === '!2' || (status === '!' && isDoubleScheduled);
+        visitsCount += isDouble ? 2 : 1;
         presentDays.push(Number(day));
       }
     });

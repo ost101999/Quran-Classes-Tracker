@@ -26,6 +26,27 @@ const toHindiDigits = (num: number | string): string => {
         .replace('،', ",");
 };
 
+const getScheduledCountOnDate = (student: Student, d: number, m: number, y: number) => {
+    const dow = new Date(y, m, d).getDay();
+    const count = student.days?.filter(day => day === dow).length || 0;
+    if (count === 0) return 0;
+    const startDate = student.dayStartDates?.[dow];
+    if (!startDate) return count;
+    const currentStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    return currentStr >= startDate ? count : 0;
+};
+
+const getStatusSessionValue = (status: AttendanceStatus | undefined, student: Student, d: number, m: number, y: number) => {
+    if (!status) return 0;
+    if (status === AttendanceStatus.DOUBLE_CLASS || status === AttendanceStatus.EXTRA_DOUBLE || status === AttendanceStatus.PAID_ABSENCE_DOUBLE) return 2;
+    if (status === AttendanceStatus.PAID_ABSENCE) {
+        const isDouble = getScheduledCountOnDate(student, d, m, y) === 2;
+        return isDouble ? 2 : 1;
+    }
+    if ([AttendanceStatus.PRESENT, AttendanceStatus.EXTRA_DAY, AttendanceStatus.TRANSFERRED, AttendanceStatus.TRANSFERRED_ABSENT].includes(status)) return 1;
+    return 0;
+};
+
 const getHoursPlural = (num: number): string => {
     const n = Math.floor(Math.abs(num));
     if (n === 1) return 'ساعة';
@@ -71,14 +92,13 @@ const MultiStudentDetailsModal: React.FC<Props> = ({ students, attendance, onClo
 
             // Count sessions for this student
             Object.entries(attendance).forEach(([key, status]) => {
-                const [id, , keyMonth, keyYear] = key.split('_');
+                const [id, dayStr, keyMonth, keyYear] = key.split('_');
+                const dayNum = parseInt(dayStr);
                 if (id === student.id && parseInt(keyMonth) === month && parseInt(keyYear) === year) {
-                    if (status === AttendanceStatus.PRESENT || status === AttendanceStatus.PAID_ABSENCE) {
+                    const sessionVal = getStatusSessionValue(status, student, dayNum, month, year);
+                    if (sessionVal > 0) {
                         sessionCount++;
-                        unitsCount++;
-                    } else if (status === AttendanceStatus.DOUBLE_CLASS) {
-                        sessionCount++;    // 1 Visit
-                        unitsCount += 2;   // 2 Units
+                        unitsCount += sessionVal;
                     }
                 }
             });
@@ -165,14 +185,13 @@ const MultiStudentDetailsModal: React.FC<Props> = ({ students, attendance, onClo
             let unitsCount = 0;  // Units for billing/hours calculation
 
             Object.entries(attendance).forEach(([key, status]) => {
-                const [id, , keyMonth, keyYear] = key.split('_');
+                const [id, dayStr, keyMonth, keyYear] = key.split('_');
+                const dayNum = parseInt(dayStr);
                 if (id === student.id && parseInt(keyMonth) === month && parseInt(keyYear) === year) {
-                    if (status === AttendanceStatus.PRESENT || status === AttendanceStatus.PAID_ABSENCE) {
+                    const sessionVal = getStatusSessionValue(status, student, dayNum, month, year);
+                    if (sessionVal > 0) {
                         visitsCount++;
-                        unitsCount++;
-                    } else if (status === AttendanceStatus.DOUBLE_CLASS) {
-                        visitsCount++;
-                        unitsCount += 2;
+                        unitsCount += sessionVal;
                     }
                 }
             });
@@ -621,16 +640,16 @@ const MultiStudentDetailsModal: React.FC<Props> = ({ students, attendance, onClo
                         <div className="space-y-2">
                             {students.map(student => {
                                 let sessionCount = 0;
-                                Object.entries(attendance).forEach(([key, status]) => {
-                                    const [id, , keyMonth, keyYear] = key.split('_');
-                                    if (id === student.id && parseInt(keyMonth) === month && parseInt(keyYear) === year) {
-                                        if (status === AttendanceStatus.PRESENT || status === AttendanceStatus.PAID_ABSENCE) {
-                                            sessionCount++;
-                                        } else if (status === AttendanceStatus.DOUBLE_CLASS) {
-                                            sessionCount++; // Count as 1 visit
-                                        }
-                                    }
-                                });
+                                 Object.entries(attendance).forEach(([key, status]) => {
+                                     const [id, dayStr, keyMonth, keyYear] = key.split('_');
+                                     const dayNum = parseInt(dayStr);
+                                     if (id === student.id && parseInt(keyMonth) === month && parseInt(keyYear) === year) {
+                                         const sessionVal = getStatusSessionValue(status, student, dayNum, month, year);
+                                         if (sessionVal > 0) {
+                                             sessionCount++;
+                                         }
+                                     }
+                                 });
                                 return (
                                     <div key={student.id} className="flex items-center justify-between text-gray-500 text-base">
                                         <span className="font-arabic">{student.name}</span>

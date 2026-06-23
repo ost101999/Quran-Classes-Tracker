@@ -2195,11 +2195,7 @@ function App() {
       if (billingStartDay > 1) {
           for (let d = billingStartDay; d <= daysInPrevMonth; d++) {
               const status = attendance[`${studentId}_${d}_${prevMonth}_${prevYear}`];
-              if (status === AttendanceStatus.PRESENT || status === AttendanceStatus.PAID_ABSENCE) {
-                  count += 1;
-              } else if (status === AttendanceStatus.DOUBLE_CLASS || status === AttendanceStatus.EXTRA_DOUBLE) {
-                  count += 2;
-              }
+              count += getStatusSessionValue(status, student, d, prevMonth, prevYear);
           }
       }
 
@@ -2212,12 +2208,7 @@ function App() {
 
       for (let d = 1; d <= daysInMonth; d++) {
         const status = attendance[`${studentId}_${d}_${month}_${year}`];
-        let classValue = 0;
-        if (status === AttendanceStatus.PRESENT || status === AttendanceStatus.EXTRA_DAY || status === AttendanceStatus.PAID_ABSENCE) {
-          classValue = 1;
-        } else if (status === AttendanceStatus.DOUBLE_CLASS || status === AttendanceStatus.EXTRA_DOUBLE) {
-          classValue = 2;
-        }
+        let classValue = getStatusSessionValue(status, student, d, month, year);
 
         if (classValue > 0) {
             if (!(billingStartDay > 1 && d >= billingStartDay)) {
@@ -4533,6 +4524,17 @@ function App() {
     return getScheduledCountOnDate(student, d, m, y) > 0;
   }, [getScheduledCountOnDate]);
 
+  const getStatusSessionValue = useCallback((status: AttendanceStatus | undefined, student?: Student, d?: number, m: number = month, y: number = year) => {
+    if (!status) return 0;
+    if (status === AttendanceStatus.DOUBLE_CLASS || status === AttendanceStatus.EXTRA_DOUBLE || status === AttendanceStatus.PAID_ABSENCE_DOUBLE) return 2;
+    if (status === AttendanceStatus.PAID_ABSENCE) {
+      const isDouble = student && d !== undefined ? getScheduledCountOnDate(student, d, m, y) === 2 : false;
+      return isDouble ? 2 : 1;
+    }
+    if ([AttendanceStatus.PRESENT, AttendanceStatus.EXTRA_DAY, AttendanceStatus.TRANSFERRED, AttendanceStatus.TRANSFERRED_ABSENT].includes(status)) return 1;
+    return 0;
+  }, [month, year, getScheduledCountOnDate]);
+
   // --- Grouping ---
   const groupedStudents = useMemo(() => {
     const groups: { [key: string]: Student[] } = {};
@@ -5353,42 +5355,20 @@ function App() {
       });
     }
 
-    // Auto-decrement subscription counter when removing a counted status
-    const sessionStatuses = [AttendanceStatus.PRESENT, AttendanceStatus.DOUBLE_CLASS, AttendanceStatus.EXTRA_DOUBLE, AttendanceStatus.PAID_ABSENCE, AttendanceStatus.EXTRA_DAY, AttendanceStatus.TRANSFERRED, AttendanceStatus.TRANSFERRED_ABSENT];
-    if (current && sessionStatuses.includes(current as AttendanceStatus) && next === AttendanceStatus.ABSENT) {
+    // Auto-update subscription counter when changing attendance status
+    const wasVal = getStatusSessionValue(current, student, dayNum, month, year);
+    const isVal = getStatusSessionValue(next, student, dayNum, month, year);
+    const diff = isVal - wasVal;
+    if (diff !== 0) {
       const studentSub = subscriptionSettings[studentId];
-      if (studentSub?.enabled && studentSub.currentClass > 0) {
-        // Determine decrement amount: shift+click DOUBLE_CLASS = 2, others = 1
-        const decrement = (current === AttendanceStatus.DOUBLE_CLASS && isShift) ? 2 : 1;
+      if (studentSub?.enabled) {
         setSubscriptionSettings(prev => ({
           ...prev,
           [studentId]: {
             ...prev[studentId],
-            currentClass: Math.max(0, prev[studentId].currentClass - decrement)
+            currentClass: Math.max(0, (prev[studentId].currentClass || 0) + diff)
           }
         }));
-      }
-    }
-
-    // Auto-increment subscription counter when marking a session status
-    if (next && sessionStatuses.includes(next as AttendanceStatus)) {
-      const studentSub = subscriptionSettings[studentId];
-      if (studentSub?.enabled) {
-        // Manual shift+click DOUBLE_CLASS counts as 2 sessions
-        const increment = (next === AttendanceStatus.DOUBLE_CLASS && isShift) ? 2 : 1;
-        setSubscriptionSettings(prev => {
-          const cur = prev[studentId].currentClass;
-          const total = prev[studentId].totalClasses;
-          // In subscription mode, keep incrementing globally to maintain sequence history
-          let newClass = cur + increment;
-          return {
-            ...prev,
-            [studentId]: {
-              ...prev[studentId],
-              currentClass: newClass
-            }
-          };
-        });
       }
     }
 
@@ -5679,13 +5659,10 @@ function App() {
   // --- Render Helpers ---
   const calculateTotal = (studentId: string) => {
     let count = 0;
+    const student = students.find(s => s.id === studentId);
     for (let i = 1; i <= daysInMonth; i++) {
       const status = attendance[`${studentId}_${i}_${month}_${year}`];
-      if (status === AttendanceStatus.PRESENT || status === AttendanceStatus.PAID_ABSENCE) {
-        count++;
-      } else if (status === AttendanceStatus.DOUBLE_CLASS) {
-        count += 2;
-      }
+      count += getStatusSessionValue(status, student, i, month, year);
     }
     return count;
   };
@@ -5761,7 +5738,9 @@ function App() {
       case AttendanceStatus.PRESENT: return 'bg-emerald-500 text-white';
       case AttendanceStatus.TRANSFERRED: return 'bg-emerald-500 text-white';
       case AttendanceStatus.TRANSFERRED_ABSENT: return 'bg-gray-400 text-white';
-      case AttendanceStatus.PAID_ABSENCE: return 'bg-gray-400 text-white';
+      case AttendanceStatus.PAID_ABSENCE:
+      case AttendanceStatus.PAID_ABSENCE_DOUBLE:
+        return 'bg-gray-400 text-white';
       case AttendanceStatus.POSTPONED: return 'bg-yellow-400 text-black';
       default: return 'bg-red-50 hover:bg-red-100'; // Default Empty/Absent
     }
@@ -5772,7 +5751,9 @@ function App() {
       case AttendanceStatus.PRESENT: return '✓';
       case AttendanceStatus.TRANSFERRED: return <ArrowRight size={16} strokeWidth={3} className="text-white" />;
       case AttendanceStatus.TRANSFERRED_ABSENT: return <ArrowRight size={16} strokeWidth={3} className="text-white" />;
-      case AttendanceStatus.PAID_ABSENCE: return '!';
+      case AttendanceStatus.PAID_ABSENCE:
+      case AttendanceStatus.PAID_ABSENCE_DOUBLE:
+        return '!';
       case AttendanceStatus.POSTPONED: return 'م';
       case AttendanceStatus.UNEXCUSED_ABSENCE: return '–';
       case AttendanceStatus.ABSENCE_RED: return '';
@@ -7293,27 +7274,13 @@ function App() {
                                       // Update subscription counter if enabled
                                       const studentSub = subscriptionSettings[student.id];
                                       if (studentSub?.enabled) {
-                                        const sessionStatuses = [
-                                          AttendanceStatus.PRESENT,
-                                          AttendanceStatus.DOUBLE_CLASS,
-                                          AttendanceStatus.EXTRA_DOUBLE,
-                                          AttendanceStatus.PAID_ABSENCE,
-                                          AttendanceStatus.EXTRA_DAY,
-                                          AttendanceStatus.TRANSFERRED,
-                                          AttendanceStatus.TRANSFERRED_ABSENT
-                                        ];
-                                        const wasClass = sessionStatuses.includes(currentStatus as AttendanceStatus);
-                                        const isClass = sessionStatuses.includes(newStat);
-
-                                        if (isClass && !wasClass) {
+                                        const wasVal = getStatusSessionValue(currentStatus as AttendanceStatus, student, dayNum, month, year);
+                                        const isVal = getStatusSessionValue(newStat, student, dayNum, month, year);
+                                        const diff = isVal - wasVal;
+                                        if (diff !== 0) {
                                           setSubscriptionSettings(prev => ({
                                             ...prev,
-                                            [student.id]: { ...prev[student.id], currentClass: (prev[student.id].currentClass || 0) + 1 }
-                                          }));
-                                        } else if (!isClass && wasClass) {
-                                          setSubscriptionSettings(prev => ({
-                                            ...prev,
-                                            [student.id]: { ...prev[student.id], currentClass: Math.max(0, (prev[student.id].currentClass || 0) - 1) }
+                                            [student.id]: { ...prev[student.id], currentClass: Math.max(0, (prev[student.id].currentClass || 0) + diff) }
                                           }));
                                         }
                                       }
@@ -7330,44 +7297,43 @@ function App() {
                                     // Save history
                                     pushHistorySnapshot();
 
-                                    // Toggle between PAID_ABSENCE and POSTPONED
-                                    const newStatus = currentStatus === AttendanceStatus.PAID_ABSENCE
+                                    // Toggle between PAID_ABSENCE / PAID_ABSENCE_DOUBLE and POSTPONED
+                                    const isDouble = currentStatus === AttendanceStatus.DOUBLE_CLASS ||
+                                                     currentStatus === AttendanceStatus.EXTRA_DOUBLE ||
+                                                     currentStatus === AttendanceStatus.PAID_ABSENCE_DOUBLE ||
+                                                     (isDoubleScheduled && (currentStatus === undefined || currentStatus === null || currentStatus === AttendanceStatus.ABSENT || currentStatus === AttendanceStatus.PAID_ABSENCE));
+                                    
+                                    const newStatus = currentStatus === AttendanceStatus.PAID_ABSENCE || currentStatus === AttendanceStatus.PAID_ABSENCE_DOUBLE
                                       ? AttendanceStatus.POSTPONED
-                                      : AttendanceStatus.PAID_ABSENCE;
+                                      : (isDouble ? AttendanceStatus.PAID_ABSENCE_DOUBLE : AttendanceStatus.PAID_ABSENCE);
 
-                                    // Auto-decrement when switching FROM paid_absence to postponed
-                                    if (currentStatus === AttendanceStatus.PAID_ABSENCE && newStatus === AttendanceStatus.POSTPONED) {
+                                    // Auto-update subscription counter when changing attendance status
+                                    const wasVal = getStatusSessionValue(currentStatus as AttendanceStatus, student, dayNum, month, year);
+                                    const isVal = getStatusSessionValue(newStatus, student, dayNum, month, year);
+                                    const diff = isVal - wasVal;
+                                    if (diff !== 0) {
                                       const studentSub = subscriptionSettings[student.id];
-                                      if (studentSub?.enabled && studentSub.currentClass > 0) {
+                                      if (studentSub?.enabled) {
                                         setSubscriptionSettings(prev => ({
                                           ...prev,
                                           [student.id]: {
                                             ...prev[student.id],
-                                            currentClass: prev[student.id].currentClass - 1
+                                            currentClass: Math.max(0, (prev[student.id].currentClass || 0) + diff)
                                           }
                                         }));
                                       }
                                     }
 
-                                    // Auto-increment subscription counter when marking PAID_ABSENCE
-                                    if (newStatus === AttendanceStatus.PAID_ABSENCE) {
+                                    if (newStatus === AttendanceStatus.PAID_ABSENCE || newStatus === AttendanceStatus.PAID_ABSENCE_DOUBLE) {
                                       const studentSub = subscriptionSettings[student.id];
                                       let currentClassNum = null;
 
                                       if (studentSub?.enabled) {
                                         const cur = studentSub.currentClass;
                                         const total = studentSub.totalClasses;
-                                        // In subscription mode, wrap around when reaching totalClasses
-                                        const nextClass = (studentSub.mode === 'subscription' && total > 0 && cur >= total) ? 1 : cur + 1;
+                                        // local preview of the incremented number
+                                        const nextClass = (studentSub.mode === 'subscription' && total > 0 && cur >= total) ? 1 : cur + diff;
                                         currentClassNum = nextClass;
-
-                                        setSubscriptionSettings(prev => ({
-                                          ...prev,
-                                          [student.id]: {
-                                            ...prev[student.id],
-                                            currentClass: nextClass
-                                          }
-                                        }));
                                       }
 
                                       // GENERATE ABSENT REPORT using Last Language
@@ -7391,10 +7357,12 @@ function App() {
                                       if (currentClassNum) {
                                         const studentSub2 = subscriptionSettings[student.id];
                                         const totalStr = studentSub2?.mode === 'subscription' && studentSub2.totalClasses > 0;
+                                        const isDoubleReport = newStatus === AttendanceStatus.PAID_ABSENCE_DOUBLE;
+                                        const classNumStr = isDoubleReport ? `${currentClassNum - 1} - ${currentClassNum}` : `${currentClassNum}`;
                                         if (lang === 'ar') {
-                                          report += `رقم الحصة: ${toHindiDigits(currentClassNum)}${totalStr ? ` من ${toHindiDigits(studentSub2.totalClasses)}` : ''}\n\n(غياب)\n`;
+                                          report += `رقم الحصة: ${toHindiDigits(classNumStr)}${totalStr ? ` من ${toHindiDigits(studentSub2.totalClasses)}` : ''}\n\n(غياب)\n`;
                                         } else {
-                                          report += `Class No: ${currentClassNum}${totalStr ? ` of ${studentSub2.totalClasses}` : ''}\n\n(Absent)\n`;
+                                          report += `Class No: ${classNumStr}${totalStr ? ` of ${studentSub2.totalClasses}` : ''}\n\n(Absent)\n`;
                                         }
                                       } else {
                                         report += `${lang === 'ar' ? 'الحالة: غياب' : 'Status: Absent'}\n`;
@@ -7404,8 +7372,17 @@ function App() {
                                       showToast(lang === 'ar' ? 'تم نسخ التقرير (غياب) 📋' : 'Absent report copied 📋');
 
                                       // Auto-open link when marking absence (always, regardless of report settings)
-                                      const wasCounted = [AttendanceStatus.PRESENT, AttendanceStatus.DOUBLE_CLASS, AttendanceStatus.EXTRA_DOUBLE, AttendanceStatus.PAID_ABSENCE, AttendanceStatus.EXTRA_DAY, AttendanceStatus.TRANSFERRED, AttendanceStatus.TRANSFERRED_ABSENT].includes(currentStatus as AttendanceStatus);
-                                      const offset = wasCounted ? 0 : 1;
+                                      const wasCounted = [
+                                        AttendanceStatus.PRESENT,
+                                        AttendanceStatus.DOUBLE_CLASS,
+                                        AttendanceStatus.EXTRA_DOUBLE,
+                                        AttendanceStatus.PAID_ABSENCE,
+                                        AttendanceStatus.PAID_ABSENCE_DOUBLE,
+                                        AttendanceStatus.EXTRA_DAY,
+                                        AttendanceStatus.TRANSFERRED,
+                                        AttendanceStatus.TRANSFERRED_ABSENT
+                                      ].includes(currentStatus as AttendanceStatus);
+                                      const offset = wasCounted ? 0 : diff;
                                       checkAndOpenLink(student.id, offset);
 
                                       // Clear search when taking action
@@ -7471,7 +7448,7 @@ function App() {
                                 ${(visualStatus === AttendanceStatus.TRANSFERRED) ? 'bg-emerald-400 text-white shadow-md shadow-emerald-200 scale-100 font-english' : ''}
                                 ${(visualStatus === AttendanceStatus.TRANSFERRED_ABSENT) ? 'bg-gray-400 text-white shadow-md shadow-gray-200 scale-100 font-english' : ''}
                                 ${visualStatus === AttendanceStatus.DOUBLE_CLASS ? (isEditReportShortcutPressed && hoveredCellKey === key ? 'bg-red-500 scale-110 shadow-lg shadow-red-200' : 'bg-emerald-400 scale-100 shadow-md shadow-emerald-200') + ' text-white font-tajawal font-bold' : ''}
-                                ${visualStatus === AttendanceStatus.PAID_ABSENCE ? 'bg-gray-400 text-white font-english' : ''}
+                                ${(visualStatus === AttendanceStatus.PAID_ABSENCE || visualStatus === AttendanceStatus.PAID_ABSENCE_DOUBLE) ? 'bg-gray-400 text-white font-english' : ''}
                                 ${visualStatus === AttendanceStatus.POSTPONED ? 'bg-amber-300 text-black font-amiri font-bold text-2xl pb-2' : ''}
                                 ${visualStatus === AttendanceStatus.UNEXCUSED_ABSENCE ? 'bg-red-500 text-white font-english' : ''}
                                 ${visualStatus === AttendanceStatus.ABSENCE_RED ? 'bg-red-500 text-transparent font-english' : ''}
@@ -7491,7 +7468,7 @@ function App() {
                                     onMouseLeave={() => setHoveredMakeupLink(null)}
                                   >
                                     {/* Prepaid Indicator (Arabic, hover only, refined) */}
-                                    {subscriptionSettings[student.id]?.enabled && (visualStatus === AttendanceStatus.PRESENT || visualStatus === AttendanceStatus.DOUBLE_CLASS || visualStatus === AttendanceStatus.EXTRA_DOUBLE || visualStatus === AttendanceStatus.PAID_ABSENCE || visualStatus === AttendanceStatus.TRANSFERRED || visualStatus === AttendanceStatus.TRANSFERRED_ABSENT || visualStatus === AttendanceStatus.EXTRA_DAY) && (
+                                    {subscriptionSettings[student.id]?.enabled && (visualStatus === AttendanceStatus.PRESENT || visualStatus === AttendanceStatus.DOUBLE_CLASS || visualStatus === AttendanceStatus.EXTRA_DOUBLE || visualStatus === AttendanceStatus.PAID_ABSENCE || visualStatus === AttendanceStatus.PAID_ABSENCE_DOUBLE || visualStatus === AttendanceStatus.TRANSFERRED || visualStatus === AttendanceStatus.TRANSFERRED_ABSENT || visualStatus === AttendanceStatus.EXTRA_DAY) && (
                                       <div className="absolute -top-[3.2rem] left-1/2 -translate-x-1/2 whitespace-nowrap text-lg font-bold text-emerald-800 bg-white px-2 py-0.5 rounded-lg shadow-md border border-emerald-100 opacity-0 group-hover:opacity-100 transition-opacity duration-300 delay-500 z-[60] pointer-events-none font-arabic" dir="rtl">
                                         {(() => {
                                           const sub = subscriptionSettings[student.id];
@@ -7499,10 +7476,8 @@ function App() {
                                           let totalAfter = 0;
                                           for (let d = dayNum + 1; d <= 31; d++) {
                                             const s = attendance[`${student.id}_${d}_${month}_${year}`];
-                                            // Count all statuses that visually represent a session
-                                            if (s === AttendanceStatus.PRESENT || s === AttendanceStatus.PAID_ABSENCE || s === AttendanceStatus.EXTRA_DOUBLE || s === AttendanceStatus.TRANSFERRED || s === AttendanceStatus.TRANSFERRED_ABSENT || s === AttendanceStatus.EXTRA_DAY) totalAfter += 1;
-                                            else if (s === AttendanceStatus.DOUBLE_CLASS) totalAfter += 2;
-                                          }
+                                             totalAfter += getStatusSessionValue(s, student, d, month, year);
+                                           }
                                           
                                           // IMPROVED: If currentClass shows 2 but we have 2 marks, and we are on the first mark,
                                           // sub.currentClass - totalAfter = 2 - 1 = 1.
@@ -7535,8 +7510,11 @@ function App() {
                                           }`}
                                       />
                                     )}
-                                    {/* Pending Double Indicator (Dot) - only show when still pending, not after confirmed */}
-                                    {((isMakeupTarget && (status === AttendanceStatus.EXTRA_DAY || (!status && isDaySelected))) || status === AttendanceStatus.EXTRA_DOUBLE) && (
+                                    {/* Pending Double Indicator (Dot) - only show when still pending, not after confirmed, or for Double Paid Absence */}
+                                    {((isMakeupTarget && (status === AttendanceStatus.EXTRA_DAY || (!status && isDaySelected))) || 
+                                      status === AttendanceStatus.EXTRA_DOUBLE || 
+                                      status === AttendanceStatus.PAID_ABSENCE_DOUBLE || 
+                                      (status === AttendanceStatus.PAID_ABSENCE && isDoubleScheduled)) && (
                                       <span className="absolute -bottom-0.5 -right-0.5 w-1 h-1 bg-red-500 rounded-full shadow-[0_0_2px_rgba(239,68,68,0.8)] z-20" />
                                     )}
                                   </div>

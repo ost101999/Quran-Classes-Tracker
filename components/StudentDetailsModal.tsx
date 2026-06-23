@@ -28,6 +28,27 @@ const toHindiDigits = (num: number | string): string => {
         .replace('،', ",");
 };
 
+const getScheduledCountOnDate = (student: Student, d: number, m: number, y: number) => {
+    const dow = new Date(y, m, d).getDay();
+    const count = student.days?.filter(day => day === dow).length || 0;
+    if (count === 0) return 0;
+    const startDate = student.dayStartDates?.[dow];
+    if (!startDate) return count;
+    const currentStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    return currentStr >= startDate ? count : 0;
+};
+
+const getStatusSessionValue = (status: AttendanceStatus | undefined, student: Student, d: number, m: number, y: number) => {
+    if (!status) return 0;
+    if (status === AttendanceStatus.DOUBLE_CLASS || status === AttendanceStatus.EXTRA_DOUBLE || status === AttendanceStatus.PAID_ABSENCE_DOUBLE) return 2;
+    if (status === AttendanceStatus.PAID_ABSENCE) {
+        const isDouble = getScheduledCountOnDate(student, d, m, y) === 2;
+        return isDouble ? 2 : 1;
+    }
+    if ([AttendanceStatus.PRESENT, AttendanceStatus.EXTRA_DAY, AttendanceStatus.TRANSFERRED, AttendanceStatus.TRANSFERRED_ABSENT].includes(status)) return 1;
+    return 0;
+};
+
 const getHoursPlural = (num: number): string => {
     const n = Math.floor(Math.abs(num));
     if (n === 1) return 'ساعة';
@@ -76,12 +97,10 @@ export default function StudentDetailsModal({ student, attendance, onClose, mont
                 if (billingStartDay > 1 && dayNum >= billingStartDay) {
                     return; // Skip, transferred to next month
                 }
-                if (status === AttendanceStatus.PRESENT || status === AttendanceStatus.PAID_ABSENCE) {
+                const sessionVal = getStatusSessionValue(status, student, dayNum, month, year);
+                if (sessionVal > 0) {
                     visitsCount++;
-                    unitsCount++;
-                } else if (status === AttendanceStatus.DOUBLE_CLASS) {
-                    visitsCount++;     // Counts as 1 visit
-                    unitsCount += 2;   // Counts as 2 units for billing/time
+                    unitsCount += sessionVal;
                 }
             }
         });
@@ -104,11 +123,15 @@ export default function StudentDetailsModal({ student, attendance, onClose, mont
                                   (billingStartDay > 1 && d >= billingStartDay && (
                                       status === AttendanceStatus.PRESENT || 
                                       status === AttendanceStatus.PAID_ABSENCE || 
-                                      status === AttendanceStatus.DOUBLE_CLASS
+                                      status === AttendanceStatus.PAID_ABSENCE_DOUBLE ||
+                                      status === AttendanceStatus.DOUBLE_CLASS ||
+                                      status === AttendanceStatus.EXTRA_DOUBLE
                                   ));
 
             if (isTransferred) {
-                const count = (status === AttendanceStatus.DOUBLE_CLASS) ? 2 : 1;
+                const count = (status === AttendanceStatus.TRANSFERRED || status === AttendanceStatus.TRANSFERRED_ABSENT)
+                    ? 1
+                    : getStatusSessionValue(status, student, d, prevMonth, prevYear);
                 visitsCount++;
                 unitsCount += count;
                 transferredCount += count;

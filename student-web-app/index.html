@@ -448,6 +448,7 @@
     const STATUS = {
       PRESENT: '1',
       PAID_ABSENCE: '!',
+      PAID_ABSENCE_DOUBLE: '!2',
       DOUBLE_CLASS: '2',
       EXTRA_DOUBLE: 'ed',
       EXTRA_DAY: 'e',
@@ -4389,11 +4390,14 @@ https://is.gd/oL6gEO`;
         const attendanceKey = `${student.id}_${d}_${effectiveMonth}_${effectiveYear}`;
         const st = attendance?.[attendanceKey];
 
+        const isDoubleScheduled = student.days?.filter(day => day === dayOfWeek).length === 2;
+
         if ([STATUS.PRESENT, STATUS.DOUBLE_CLASS, STATUS.EXTRA_DOUBLE].includes(st)) {
           presentCount++;
           if (st === STATUS.DOUBLE_CLASS || st === STATUS.EXTRA_DOUBLE) presentCount++;
-        } else if ([STATUS.UNEXCUSED_ABSENCE, STATUS.ABSENCE_RED, STATUS.PAID_ABSENCE].includes(st)) {
-          absentCount++;
+        } else if ([STATUS.UNEXCUSED_ABSENCE, STATUS.ABSENCE_RED, STATUS.PAID_ABSENCE, STATUS.PAID_ABSENCE_DOUBLE].includes(st)) {
+          const isDouble = st === STATUS.PAID_ABSENCE_DOUBLE || (st === STATUS.PAID_ABSENCE && isDoubleScheduled);
+          absentCount += isDouble ? 2 : 1;
         }
       }
 
@@ -4407,6 +4411,7 @@ https://is.gd/oL6gEO`;
         const dayOfWeek = dateObj.getDay();
 
         const isScheduled = student.days?.includes(dayOfWeek);
+        const isDoubleScheduled = student.days?.filter(d => d === dayOfWeek).length === 2;
         const attendanceKey = `${student.id}_${day}_${effectiveMonth}_${effectiveYear}`;
         const status = attendance?.[attendanceKey];
         const rawReport = savedReports?.[attendanceKey];
@@ -4432,7 +4437,7 @@ https://is.gd/oL6gEO`;
           isAbsent = true;
         }
         // Regular Paid Absence (Right click)
-        else if (status === STATUS.PAID_ABSENCE) {
+        else if (status === STATUS.PAID_ABSENCE || status === STATUS.PAID_ABSENCE_DOUBLE) {
           isAbsent = true;
         }
 
@@ -4459,6 +4464,9 @@ https://is.gd/oL6gEO`;
             className={`relative flex flex-col items-center justify-center p-2 rounded-xl border ${bgColor} ${borderColor} ${opacityClass} transition-all duration-300 hover:border-islamic-gold/70 group aspect-square ${glowReportDay === day ? 'animate-report-glow' : ''}`}
           >
             {statusIndicator}
+            {(status === STATUS.DOUBLE_CLASS || status === STATUS.EXTRA_DOUBLE || status === STATUS.PAID_ABSENCE_DOUBLE || (status === STATUS.PAID_ABSENCE && isDoubleScheduled)) && (
+              <div className="absolute bottom-1 right-1 w-1.5 h-1.5 bg-red-500 rounded-full shadow-[0_0_2px_rgba(239,68,68,0.8)] z-20" />
+            )}
             <span className={`text-lg font-semibold ${isScheduled ? 'text-white' : 'text-slate-400'} ${reportText ? '-translate-y-1 md:translate-y-0' : ''}`}>
               {toArabicNums(day)}
             </span>
