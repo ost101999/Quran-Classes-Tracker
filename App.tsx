@@ -4526,12 +4526,12 @@ function App() {
 
   const getStatusSessionValue = useCallback((status: AttendanceStatus | undefined, student?: Student, d?: number, m: number = month, y: number = year) => {
     if (!status) return 0;
-    if (status === AttendanceStatus.DOUBLE_CLASS || status === AttendanceStatus.EXTRA_DOUBLE || status === AttendanceStatus.PAID_ABSENCE_DOUBLE) return 2;
+    if (status === AttendanceStatus.DOUBLE_CLASS || status === AttendanceStatus.PAID_ABSENCE_DOUBLE) return 2;
     if (status === AttendanceStatus.PAID_ABSENCE) {
       const isDouble = student && d !== undefined ? getScheduledCountOnDate(student, d, m, y) === 2 : false;
       return isDouble ? 2 : 1;
     }
-    if ([AttendanceStatus.PRESENT, AttendanceStatus.EXTRA_DAY, AttendanceStatus.TRANSFERRED, AttendanceStatus.TRANSFERRED_ABSENT].includes(status)) return 1;
+    if ([AttendanceStatus.PRESENT, AttendanceStatus.TRANSFERRED, AttendanceStatus.TRANSFERRED_ABSENT].includes(status)) return 1;
     return 0;
   }, [month, year, getScheduledCountOnDate]);
 

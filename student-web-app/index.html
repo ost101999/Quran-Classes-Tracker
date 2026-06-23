@@ -4392,9 +4392,9 @@ https://is.gd/oL6gEO`;
 
         const isDoubleScheduled = student.days?.filter(day => day === dayOfWeek).length === 2;
 
-        if ([STATUS.PRESENT, STATUS.DOUBLE_CLASS, STATUS.EXTRA_DOUBLE].includes(st)) {
+        if ([STATUS.PRESENT, STATUS.DOUBLE_CLASS].includes(st)) {
           presentCount++;
-          if (st === STATUS.DOUBLE_CLASS || st === STATUS.EXTRA_DOUBLE) presentCount++;
+          if (st === STATUS.DOUBLE_CLASS) presentCount++;
         } else if ([STATUS.UNEXCUSED_ABSENCE, STATUS.ABSENCE_RED, STATUS.PAID_ABSENCE, STATUS.PAID_ABSENCE_DOUBLE].includes(st)) {
           const isDouble = st === STATUS.PAID_ABSENCE_DOUBLE || (st === STATUS.PAID_ABSENCE && isDoubleScheduled);
           absentCount += isDouble ? 2 : 1;

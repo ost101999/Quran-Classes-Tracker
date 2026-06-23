@@ -473,10 +473,10 @@ function App() {
       const [id, day, month, year] = key.split('_');
       if (id !== student.id) return;
       if (Number(month) !== selectedMonth || Number(year) !== selectedYear) return;
-      if (['1', '!', '!2', '2', 'e', 'ed'].includes(status)) {
+      if (['1', '!', '!2', '2'].includes(status)) {
         const dayOfWeek = new Date(Number(year), Number(month), Number(day)).getDay();
         const isDoubleScheduled = student.days?.filter(d => d === dayOfWeek).length === 2;
-        const isDouble = status === '2' || status === 'ed' || status === '!2' || (status === '!' && isDoubleScheduled);
+        const isDouble = status === '2' || status === '!2' || (status === '!' && isDoubleScheduled);
         visitsCount += isDouble ? 2 : 1;
         presentDays.push(Number(day));
       }
