@@ -5792,6 +5792,7 @@ function App() {
       const isDone = [
         AttendanceStatus.PRESENT,
         AttendanceStatus.PAID_ABSENCE,
+        AttendanceStatus.PAID_ABSENCE_DOUBLE,
         AttendanceStatus.POSTPONED,
         AttendanceStatus.UNEXCUSED_ABSENCE,
         AttendanceStatus.ABSENCE_RED, // Assumed dense red is "marked absent" thus done
@@ -5849,6 +5850,7 @@ function App() {
       const isDone = [
         AttendanceStatus.PRESENT,
         AttendanceStatus.PAID_ABSENCE,
+        AttendanceStatus.PAID_ABSENCE_DOUBLE,
         AttendanceStatus.POSTPONED,
         AttendanceStatus.UNEXCUSED_ABSENCE,
         AttendanceStatus.ABSENCE_RED,
