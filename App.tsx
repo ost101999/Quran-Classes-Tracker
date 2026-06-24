@@ -6558,7 +6558,7 @@ function App() {
                   })}
                   {showMissedCount && (
                     <th
-                      className="sticky left-0 z-40 p-4 font-arabic text-xl min-w-[70px] w-[70px] text-center px-2 font-normal bg-[#002060]"
+                      className="p-4 font-arabic text-xl min-w-[70px] w-[70px] text-center px-2 font-normal bg-[#002060]"
                       style={{
                         color: 'white',
                         backgroundImage: `
@@ -6566,8 +6566,7 @@ function App() {
                           repeating-linear-gradient(45deg, rgba(255,255,255,0.03) 0px, rgba(255,255,255,0.03) 2px, transparent 2px, transparent 10px),
                           repeating-linear-gradient(-45deg, rgba(255,255,255,0.03) 0px, rgba(255,255,255,0.03) 2px, transparent 2px, transparent 10px)
                         `,
-                        backgroundBlendMode: 'overlay',
-                        boxShadow: '2px 0 5px rgba(0,0,0,0.1)'
+                        backgroundBlendMode: 'overlay'
                       }}
                     >
                       الفائتة
@@ -7461,7 +7460,7 @@ function App() {
                             const count = calculateMissed(student.id);
                             return (
                               <td
-                                className="sticky left-0 z-20 p-2 bg-white group-hover:bg-blue-100 border-l border-gray-100 min-w-[70px] w-[70px] align-middle transition-colors shadow-[2px_0_5px_rgba(0,0,0,0.05)] text-center"
+                                className="p-2 bg-white group-hover:bg-blue-100 border-l border-gray-100 min-w-[70px] w-[70px] align-middle transition-colors text-center"
                               >
                                 {count > 0 && (
                                   <div
@@ -17281,7 +17280,7 @@ const StickyHeader = React.forwardRef<HTMLDivElement, {
                 })}
                 {showMissedCount && (
                   <th
-                    className="sticky left-0 z-50 p-4 font-arabic text-xl min-w-[70px] w-[70px] text-center px-2 font-normal bg-[#002060]"
+                    className="p-4 font-arabic text-xl min-w-[70px] w-[70px] text-center px-2 font-normal bg-[#002060]"
                     style={{
                       color: 'white',
                       backgroundImage: `
@@ -17289,8 +17288,7 @@ const StickyHeader = React.forwardRef<HTMLDivElement, {
                         repeating-linear-gradient(45deg, rgba(255,255,255,0.03) 0px, rgba(255,255,255,0.03) 2px, transparent 2px, transparent 10px),
                         repeating-linear-gradient(-45deg, rgba(255,255,255,0.03) 0px, rgba(255,255,255,0.03) 2px, transparent 2px, transparent 10px)
                       `,
-                      backgroundBlendMode: 'overlay',
-                      boxShadow: '2px 0 5px rgba(0,0,0,0.1)'
+                      backgroundBlendMode: 'overlay'
                     }}
                   >
                     الفائتة
