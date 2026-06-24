@@ -26,28 +26,28 @@ const customStyles = `
     border-width: 2px !important;
   }
   /* Ensure sticky student name column is transparent normally, but becomes solid when scrolled */
-  tr.row-hover-tr td.sticky {
+  tr.row-hover-tr td.student-name-sticky {
     background-color: transparent !important;
     opacity: 1 !important;
     transition: background-color 0.2s ease-in-out;
   }
-  tr.row-hover-tr:hover td.sticky {
+  tr.row-hover-tr:hover td.student-name-sticky {
     background-color: rgba(219, 234, 254, 0.4) !important; /* light semi-transparent hover when not scrolled */
     opacity: 1 !important;
   }
   /* Scrolled State: solid background to hide scrolling elements underneath */
-  .is-table-scrolled tr.row-hover-tr td.sticky {
+  .is-table-scrolled tr.row-hover-tr td.student-name-sticky {
     background-color: #ffffff !important;
   }
-  .is-table-scrolled tr.row-hover-tr:hover td.sticky {
+  .is-table-scrolled tr.row-hover-tr:hover td.student-name-sticky {
     background-color: #dbeafe !important; /* solid hover */
   }
   /* Dim/filter only the inner content for deleted or selected students, keeping the background 100% solid */
-  td.sticky.is-ending-cell > div {
+  td.student-name-sticky.is-ending-cell > div {
     opacity: 0.4 !important;
     filter: grayscale(1) saturate(0.5) !important;
   }
-  td.sticky.is-selected-cell > div {
+  td.student-name-sticky.is-selected-cell > div {
     opacity: 0.6 !important;
   }
 `;
@@ -480,7 +480,6 @@ function App() {
   const [selectedAcademy, setSelectedAcademy] = useState<string | null>(null);
   const [showMakeupLines, setShowMakeupLines] = useState<boolean>(true);
   const [showMissedCount, setShowMissedCount] = useState<boolean>(false);
-  const [missedCountPositions, setMissedCountPositions] = useState<Array<{ studentId: string; y: number; height: number; count: number }>>([]);
   const tableScrollRef = useRef<HTMLDivElement>(null);
 
   // Center the current day column horizontally on demand
@@ -5685,50 +5684,11 @@ function App() {
     return count;
   };
 
-  // --- Compute missed count row positions for fixed overlay ---
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!showMissedCount) {
-      setMissedCountPositions([]);
       setStudentOptionsMenu(prev => ({ ...prev, isOpen: false }));
-      return;
     }
-
-    const compute = () => {
-      const rows = document.querySelectorAll<HTMLTableRowElement>('tr[data-student-id]');
-      const newPositions: Array<{ studentId: string; y: number; height: number; count: number }> = [];
-
-      rows.forEach(row => {
-        const sid = row.getAttribute('data-student-id');
-        if (!sid) return;
-        // Inline count calculation to avoid stale closure
-        const student = students.find(s => s.id === sid);
-        if (!student) return;
-        let count = 0;
-        for (let i = 1; i <= daysInMonth; i++) {
-          const key = `${sid}_${i}_${month}_${year}`;
-          const status = attendance[key];
-          if (status === AttendanceStatus.ABSENCE_RED || status === AttendanceStatus.UNEXCUSED_ABSENCE) count++;
-        }
-        if (count <= 0) return;
-        const rect = row.getBoundingClientRect();
-        newPositions.push({ studentId: sid, y: rect.top, height: rect.height, count });
-      });
-
-      setMissedCountPositions(newPositions);
-    };
-
-    const raf = requestAnimationFrame(compute);
-    const onUpdate = () => requestAnimationFrame(compute);
-    window.addEventListener('scroll', onUpdate, true);
-    window.addEventListener('resize', onUpdate);
-
-    return () => {
-      cancelAnimationFrame(raf);
-      window.removeEventListener('scroll', onUpdate, true);
-      window.removeEventListener('resize', onUpdate);
-    };
-  }, [showMissedCount, students, attendance, month, year, daysInMonth]);
+  }, [showMissedCount]);
 
 
   const getCellColor = (status: AttendanceStatus | undefined, isDayOff: boolean) => {
@@ -6491,51 +6451,7 @@ function App() {
         ref={mainRef}
         className="px-12 pb-6 pt-10 min-h-[calc(100vh-100px)] relative"
       >
-        {/* Missed Count Overlay - Fixed positioned, outside the scroll container */}
-        {showMissedCount && missedCountPositions.map(({ studentId, y, height, count }) => {
-          const tableLeft = tableScrollRef.current?.getBoundingClientRect().left ?? 0;
-          return (
-            <div
-              key={studentId}
-              className="fixed z-[5] pointer-events-auto"
-              style={{
-                top: `${y}px`,
-                left: `${tableLeft - 2}px`,
-                height: `${height}px`,
-                transform: 'translateX(-100%)',
-                display: 'flex',
-                alignItems: 'center',
-                animation: 'missedSlideIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both',
-              }}
-              onClick={(e) => {
-                e.stopPropagation();
-                setMissedClassesMenu({
-                  isOpen: true,
-                  x: tableLeft - 60,
-                  y: y + height / 2,
-                  studentId
-                });
-              }}
-              title="نسخ تقرير الحصص الفائتة"
-            >
-              <div
-                className="flex items-center gap-1.5 px-3 py-1.5 cursor-pointer group/badge"
-                style={{
-                  background: 'linear-gradient(135deg, rgba(255,255,255,0.95), rgba(248,250,252,0.9))',
-                  borderRadius: '10px 0 0 10px',
-                  boxShadow: '-4px 2px 16px -4px rgba(0,0,0,0.18), -1px 0 0 rgba(0,0,0,0.06)',
-                  backdropFilter: 'blur(8px)',
-                  border: '1px solid rgba(0,0,0,0.07)',
-                  borderRight: 'none',
-                }}
-              >
-                <span className="text-gray-700 text-sm font-bold font-arabic leading-none group-hover/badge:text-black transition-colors">
-                  {toHindiDigits(count)}
-                </span>
-              </div>
-            </div>
-          );
-        })}
+
         <div 
           ref={tableScrollRef}
           className={`bg-white rounded-3xl relative z-10 shadow-[0_8px_30px_-12px_rgba(0,0,0,0.1),0_-8px_30px_-12px_rgba(0,0,0,0.1)] group/table-container w-full overflow-x-auto ${isTableScrolled ? 'is-table-scrolled' : ''}`}
@@ -6640,16 +6556,33 @@ function App() {
                       </th>
                     );
                   })}
+                  {showMissedCount && (
+                    <th
+                      className="sticky left-0 z-40 p-4 font-arabic text-xl min-w-[70px] w-[70px] text-center px-2 font-normal bg-[#002060]"
+                      style={{
+                        color: 'white',
+                        backgroundImage: `
+                          radial-gradient(circle at 50% 50%, transparent 0%, #002060 100%),
+                          repeating-linear-gradient(45deg, rgba(255,255,255,0.03) 0px, rgba(255,255,255,0.03) 2px, transparent 2px, transparent 10px),
+                          repeating-linear-gradient(-45deg, rgba(255,255,255,0.03) 0px, rgba(255,255,255,0.03) 2px, transparent 2px, transparent 10px)
+                        `,
+                        backgroundBlendMode: 'overlay',
+                        boxShadow: '2px 0 5px rgba(0,0,0,0.1)'
+                      }}
+                    >
+                      الفائتة
+                    </th>
+                  )}
                 </tr>
               </thead>
 
               <tbody className="bg-white">
                 {/* Spacer Row */}
-                <tr className="h-16 bg-white"><td colSpan={daysInMonth + 1}></td></tr>
+                <tr className="h-16 bg-white"><td colSpan={daysInMonth + (showMissedCount ? 2 : 1)}></td></tr>
 
                 {sortedAcademies.length === 0 && (
                   <tr>
-                    <td colSpan={daysInMonth + 1} className="py-20 text-center">
+                    <td colSpan={daysInMonth + (showMissedCount ? 2 : 1)} className="py-20 text-center">
                       <div className="flex flex-col items-center gap-4 text-gray-400">
                         <div className="w-20 h-20 rounded-full bg-gray-50 flex items-center justify-center">
                           <Users2 size={40} className="text-gray-300" />
@@ -6668,7 +6601,7 @@ function App() {
                     {/* Section Header */}
                     <tr id={`academy-${academy}`} className={`scroll-mt-40 group ${allHiddenBySearch ? 'hidden' : ''}`}>
                       <td
-                        colSpan={daysInMonth + 1}
+                        colSpan={daysInMonth + (showMissedCount ? 2 : 1)}
                         className="bg-gray-50/80 p-4 text-center select-none"
                       >
                         <div
@@ -6792,7 +6725,7 @@ function App() {
                           `}
                         >
                           <td
-                            className={`sticky right-0 z-[25] p-0 text-center text-gray-800 whitespace-nowrap cursor-pointer hover:brightness-100 transition-all select-none relative group/student border-none shadow-none min-w-[220px] w-[220px] backdrop-blur-[6px] ${isEnding ? 'opacity-40 grayscale saturate-50' : ''} ${selectedStudentIds.has(student.id) ? 'opacity-60' : ''}`}
+                            className={`sticky right-0 student-name-sticky z-[25] p-0 text-center text-gray-800 whitespace-nowrap cursor-pointer hover:brightness-100 transition-all select-none relative group/student border-none shadow-none min-w-[220px] w-[220px] backdrop-blur-[6px] ${isEnding ? 'opacity-40 grayscale saturate-50' : ''} ${selectedStudentIds.has(student.id) ? 'opacity-60' : ''}`}
                             style={{
                               background: (() => {
                                 const rgb = student.color ? {
@@ -7524,6 +7457,33 @@ function App() {
                               );
                             })
                           }
+                          {showMissedCount && (() => {
+                            const count = calculateMissed(student.id);
+                            return (
+                              <td
+                                className="sticky left-0 z-20 p-2 bg-white group-hover:bg-blue-100 border-l border-gray-100 min-w-[70px] w-[70px] align-middle transition-colors shadow-[2px_0_5px_rgba(0,0,0,0.05)] text-center"
+                              >
+                                {count > 0 && (
+                                  <div
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const rect = e.currentTarget.getBoundingClientRect();
+                                      setMissedClassesMenu({
+                                        isOpen: true,
+                                        x: rect.right - 96,
+                                        y: rect.bottom + 4,
+                                        studentId: student.id
+                                      });
+                                    }}
+                                    className="inline-flex items-center justify-center px-3 py-1.5 cursor-pointer rounded-lg bg-red-50 hover:bg-red-100 text-red-600 font-bold font-arabic text-sm transition-all border border-red-100 active:scale-95 shadow-sm"
+                                    title="انقر لنسخ تقرير الحصص الفائتة"
+                                  >
+                                    {toHindiDigits(count)}
+                                  </div>
+                                )}
+                              </td>
+                            );
+                          })()}
                         </tr>
                       );
                     })}
@@ -8224,6 +8184,7 @@ function App() {
         getDayOfWeek={getDayOfWeek}
         getRemainingClasses={getRemainingClasses}
         scrollToFirstPending={scrollToFirstPending}
+        showMissedCount={showMissedCount}
       />
 
       {/* Smart Report Modal */}
@@ -17245,7 +17206,8 @@ const StickyHeader = React.forwardRef<HTMLDivElement, {
   getDayOfWeek: (d: number) => number;
   getRemainingClasses: (dayNum: number) => number;
   scrollToFirstPending: (dayNum: number) => void;
-}>(({ show, isTableLoading, studentWidth, tableWidth, month, year, daysInMonth, dayOff, today, toHindiDigits, getDayOfWeek, getRemainingClasses, scrollToFirstPending }, ref) => {
+  showMissedCount: boolean;
+}>(({ show, isTableLoading, studentWidth, tableWidth, month, year, daysInMonth, dayOff, today, toHindiDigits, getDayOfWeek, getRemainingClasses, scrollToFirstPending, showMissedCount }, ref) => {
   const isWeekend = (day: number) => getDayOfWeek(day) === dayOff;
   const isTodayColumn = (dayNum: number) => {
     return month === today.month && year === today.year && dayNum === today.day;
@@ -17317,6 +17279,23 @@ const StickyHeader = React.forwardRef<HTMLDivElement, {
                     </th>
                   );
                 })}
+                {showMissedCount && (
+                  <th
+                    className="sticky left-0 z-50 p-4 font-arabic text-xl min-w-[70px] w-[70px] text-center px-2 font-normal bg-[#002060]"
+                    style={{
+                      color: 'white',
+                      backgroundImage: `
+                        radial-gradient(circle at 50% 50%, transparent 0%, #002060 100%),
+                        repeating-linear-gradient(45deg, rgba(255,255,255,0.03) 0px, rgba(255,255,255,0.03) 2px, transparent 2px, transparent 10px),
+                        repeating-linear-gradient(-45deg, rgba(255,255,255,0.03) 0px, rgba(255,255,255,0.03) 2px, transparent 2px, transparent 10px)
+                      `,
+                      backgroundBlendMode: 'overlay',
+                      boxShadow: '2px 0 5px rgba(0,0,0,0.1)'
+                    }}
+                  >
+                    الفائتة
+                  </th>
+                )}
               </tr>
             </thead>
           </table>
