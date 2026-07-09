@@ -44,7 +44,8 @@ export interface StudyPlan {
   to: number;
   totalClasses: number;
   portionPerClass: number;
-  startDateTime: string;
+  startDate: string;
+  endDate: string;
 }
 
 export interface Student {

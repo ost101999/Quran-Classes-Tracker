@@ -21,8 +21,8 @@ interface StudyPlan {
   from: number;
   to: number;
   totalClasses: number;
-  portionPerClass: number;
-  startDateTime: string;
+  startDate: string;
+  endDate?: string;
 }
 
 interface Student {
@@ -1380,8 +1380,8 @@ function App() {
                   const classDays = student.days || [];
                   let expectedClasses = 0;
                   
-                  if (plan.startDateTime && classDays.length > 0) {
-                    const start = new Date(plan.startDateTime);
+                  if (plan.startDate && classDays.length > 0) {
+                    const start = new Date(plan.startDate);
                     const now = new Date();
                     if (now > start) {
                       let current = new Date(start);

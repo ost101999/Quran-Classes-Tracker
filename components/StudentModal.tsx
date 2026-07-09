@@ -72,7 +72,8 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
     to: 0,
     totalClasses: 0,
     portionPerClass: 0,
-    startDateTime: '',
+    startDate: '',
+    endDate: '',
   });
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -101,6 +102,28 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
       document.removeEventListener('wheel', handleWheel);
     };
   }, []);
+
+  // Calculate total classes from start and end dates
+  useEffect(() => {
+    if (studyPlan.startDate && studyPlan.endDate && selectedDays.length > 0) {
+      const start = new Date(studyPlan.startDate);
+      const end = new Date(studyPlan.endDate);
+      let count = 0;
+      let current = new Date(start);
+      while (current <= end) {
+        if (selectedDays.includes(current.getDay())) {
+          count++;
+        }
+        current.setDate(current.getDate() + 1);
+      }
+      setStudyPlan(prev => {
+        if (prev.totalClasses === count) return prev;
+        const next = { ...prev, totalClasses: count };
+        next.portionPerClass = calculatePortion(next);
+        return next;
+      });
+    }
+  }, [studyPlan.startDate, studyPlan.endDate, selectedDays]);
 
   // Update dayStartDates automatically when selectedDays changes
   useEffect(() => {
@@ -823,15 +846,27 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                       </div>
                     </div>
                     
-                    <div className="space-y-2">
-                      <label className="block text-lg font-bold text-gray-600 font-arabic">تاريخ ووقت البدء</label>
-                      <input
-                        type="datetime-local"
-                        value={studyPlan.startDateTime}
-                        onChange={e => setStudyPlan(prev => ({ ...prev, startDateTime: e.target.value }))}
-                        className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:border-[#ffe05d] focus:bg-white transition-all text-center font-english"
-                        dir="ltr"
-                      />
+                    <div className="flex gap-4">
+                      <div className="flex-1 space-y-2">
+                        <label className="block text-lg font-bold text-gray-600 font-arabic whitespace-nowrap text-sm">تاريخ البدء</label>
+                        <input
+                          type="date"
+                          value={studyPlan.startDate || ''}
+                          onChange={e => setStudyPlan(prev => ({ ...prev, startDate: e.target.value }))}
+                          className="w-full px-2 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:border-[#ffe05d] focus:bg-white transition-all text-center font-english text-sm"
+                          dir="ltr"
+                        />
+                      </div>
+                      <div className="flex-1 space-y-2">
+                        <label className="block text-lg font-bold text-gray-600 font-arabic whitespace-nowrap text-sm">تاريخ الانتهاء</label>
+                        <input
+                          type="date"
+                          value={studyPlan.endDate || ''}
+                          onChange={e => setStudyPlan(prev => ({ ...prev, endDate: e.target.value }))}
+                          className="w-full px-2 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:border-[#ffe05d] focus:bg-white transition-all text-center font-english text-sm"
+                          dir="ltr"
+                        />
+                      </div>
                     </div>
                   </div>
                 )}
