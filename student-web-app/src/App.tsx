@@ -15,13 +15,25 @@ const QUESTION_TYPE_SECTION_LABELS: Record<QuestionType, { ar: string; en: strin
   audio: { ar: 'أسئلة التسجيل الصوتي', en: 'Audio Questions' },
 };
 
+interface StudyPlan {
+  isActive: boolean;
+  targetType: 'pages' | 'verses';
+  from: number;
+  to: number;
+  totalClasses: number;
+  portionPerClass: number;
+  startDateTime: string;
+}
+
 interface Student {
   id: string;
   name: string;
   academy: string;
   zoomLink?: string;
   duration?: string;
+  duration?: string;
   days?: number[];
+  studyPlan?: StudyPlan;
 }
 
 interface TajweedQuestion {
@@ -265,7 +277,7 @@ function App() {
   const [error, setError] = useState('');
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [activeTab, setActiveTab] = useState<'overview' | 'assignments' | 'history'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'assignments' | 'history' | 'study_plan'>('overview');
   const [selectedAssignmentId, setSelectedAssignmentId] = useState<string | null>(null);
   const [showVideo, setShowVideo] = useState(false);
   const [draftAnswersByAssignment, setDraftAnswersByAssignment] = useState<Record<string, Record<string, DraftAnswer>>>({});
@@ -856,6 +868,9 @@ function App() {
             )}
           </button>
           <button onClick={() => setActiveTab('history')} className={activeTab === 'history' ? 'tab-btn tab-btn-active' : 'tab-btn'}>سجل التجويد</button>
+          {student.studyPlan?.isActive && (
+            <button onClick={() => setActiveTab('study_plan')} className={activeTab === 'study_plan' ? 'tab-btn tab-btn-active' : 'tab-btn'}>الخطة الدراسية</button>
+          )}
         </div>
 
         <AnimatePresence mode="wait">
@@ -1327,6 +1342,115 @@ function App() {
                   </div>
                 );
               })}
+            </motion.section>
+          )}
+
+          {activeTab === 'study_plan' && student.studyPlan && (
+            <motion.section key="study_plan" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="space-y-6">
+              <div className="glass-card">
+                <h2 className="text-2xl font-extrabold mb-4 text-emerald-800 flex items-center gap-2">
+                  <BookOpen size={24} /> تفاصيل الخطة الدراسية
+                </h2>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 shadow-sm">
+                    <p className="text-sm text-slate-500 mb-1">النوع</p>
+                    <p className="text-lg font-bold">{student.studyPlan.targetType === 'pages' ? 'صفحات' : 'آيات'}</p>
+                  </div>
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 shadow-sm">
+                    <p className="text-sm text-slate-500 mb-1">الكمية الإجمالية</p>
+                    <p className="text-lg font-bold font-english">
+                      {toHindiDigits(student.studyPlan.from)} - {toHindiDigits(student.studyPlan.to)}
+                    </p>
+                  </div>
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 shadow-sm">
+                    <p className="text-sm text-slate-500 mb-1">عدد الحصص</p>
+                    <p className="text-lg font-bold font-english">{toHindiDigits(student.studyPlan.totalClasses)}</p>
+                  </div>
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 shadow-sm">
+                    <p className="text-sm text-slate-500 mb-1">المقدار لكل حصة</p>
+                    <p className="text-lg font-bold font-english text-amber-600">{toHindiDigits(student.studyPlan.portionPerClass)}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="glass-card overflow-hidden">
+                <h3 className="text-xl font-bold mb-6 text-slate-800">مسار التقدم المتوقع</h3>
+                {(() => {
+                  const plan = student.studyPlan;
+                  const classDays = student.days || [];
+                  let expectedClasses = 0;
+                  
+                  if (plan.startDateTime && classDays.length > 0) {
+                    const start = new Date(plan.startDateTime);
+                    const now = new Date();
+                    if (now > start) {
+                      let current = new Date(start);
+                      while (current <= now) {
+                        if (classDays.includes(current.getDay())) {
+                          expectedClasses++;
+                        }
+                        current.setDate(current.getDate() + 1);
+                      }
+                    }
+                  }
+                  
+                  expectedClasses = Math.min(expectedClasses, plan.totalClasses);
+                  const progressPercentage = Math.round((expectedClasses / plan.totalClasses) * 100) || 0;
+
+                  return (
+                    <div className="space-y-6">
+                      <div className="flex justify-between text-sm font-bold text-slate-500 px-2">
+                        <span>البداية</span>
+                        <span>{toHindiDigits(progressPercentage)}% منجز</span>
+                        <span>النهاية</span>
+                      </div>
+                      
+                      <div className="relative h-4 bg-slate-100 rounded-full overflow-hidden shadow-inner">
+                        <motion.div 
+                          initial={{ width: 0 }}
+                          animate={{ width: `${progressPercentage}%` }}
+                          transition={{ duration: 1, ease: "easeOut" }}
+                          className="absolute top-0 right-0 h-full bg-gradient-to-l from-emerald-400 to-emerald-600"
+                        />
+                      </div>
+
+                      <div className="flex flex-col gap-3 mt-8">
+                        {Array.from({ length: plan.totalClasses }).map((_, idx) => {
+                          const isCompleted = idx < expectedClasses;
+                          const isCurrent = idx === expectedClasses;
+                          const isFuture = idx > expectedClasses;
+                          
+                          let statusColor = 'bg-slate-100 border-slate-200 text-slate-400';
+                          if (isCompleted) statusColor = 'bg-emerald-50 border-emerald-200 text-emerald-700 shadow-sm';
+                          if (isCurrent) statusColor = 'bg-amber-50 border-amber-300 text-amber-700 shadow-md ring-2 ring-amber-100 ring-offset-1';
+
+                          return (
+                            <div key={idx} className={`relative flex items-center p-4 rounded-2xl border transition-all ${statusColor}`}>
+                              <div className="flex items-center justify-center w-10 h-10 rounded-full font-bold bg-white shadow-sm shrink-0 font-english ml-4">
+                                {isCompleted ? <CheckCircle2 size={20} className="text-emerald-500" /> : toHindiDigits(idx + 1)}
+                              </div>
+                              <div className="flex-1">
+                                <h4 className="font-bold text-lg">الحصة {toHindiDigits(idx + 1)}</h4>
+                                <p className="text-sm opacity-80 mt-1">
+                                  {isCompleted ? 'مكتملة (بناءً على الوقت المتوقع)' : isCurrent ? 'الحصة الحالية' : 'حصة قادمة'}
+                                </p>
+                              </div>
+                              {isCurrent && (
+                                <div className="absolute left-6 top-1/2 -translate-y-1/2">
+                                  <span className="relative flex h-4 w-4">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-4 w-4 bg-amber-500"></span>
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
             </motion.section>
           )}
         </AnimatePresence>

@@ -1256,6 +1256,7 @@
       const [recordingQuestionKey, setRecordingQuestionKey] = useState(null);
       const [reviewEditConfirmedKeys, setReviewEditConfirmedKeys] = useState({});
       const [showSchedule, setShowSchedule] = useState(false);
+      const [showStudyPlan, setShowStudyPlan] = useState(false);
       const [glowReportDay, setGlowReportDay] = useState(null);
       const [hideTourButton, setHideTourButton] = useState(false);
       const [passcodeToast, setPasscodeToast] = useState(false);
@@ -4662,6 +4663,20 @@ https://is.gd/oL6gEO`;
                   </button>
                 )}
 
+                {/* Study Plan Button */}
+                {student.studyPlan && student.studyPlan.isActive && (
+                  <button 
+                    id="tour-study-plan"
+                    onClick={() => setShowStudyPlan(true)} 
+                    className={`shrink-0 w-full sm:w-auto flex items-center justify-center gap-2 bg-emerald-800/50 hover:bg-emerald-800 border border-emerald-500/30 text-emerald-100 py-2.5 px-5 rounded-xl transition-all shadow-inner active:scale-95 order-3 sm:order-3`}
+                  >
+                    <i data-lucide="map" className="w-4 h-4 md:w-5 md:h-5 shrink-0 text-emerald-400"></i>
+                    <span className={`font-bold whitespace-nowrap tracking-wider ${isArabic ? 'text-sm' : 'text-[11px] md:text-sm uppercase'}`}>
+                      {isArabic ? 'الخطة الدراسية' : 'Study Plan'}
+                    </span>
+                  </button>
+                )}
+
               </div>
             </div>
           )}
@@ -5902,6 +5917,155 @@ https://is.gd/oL6gEO`;
                     >
                       {isArabic ? 'تعديل' : 'Edit'}
                     </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Study Plan Overlay */}
+          {showStudyPlan && student.studyPlan && (
+            <div className="fixed inset-0 z-[250] flex flex-col bg-slate-950/95 backdrop-blur-md animate-fade-in" dir={isArabic ? 'rtl' : 'ltr'}>
+              <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
+                <div className="max-w-4xl mx-auto relative mt-4 md:mt-8 pb-20">
+                  {/* Close Button */}
+                  <button onClick={() => setShowStudyPlan(false)} className={`absolute -top-2 md:-top-4 ${isArabic ? '-left-2 md:-left-4' : '-right-2 md:-right-4'} w-10 h-10 bg-slate-800 text-slate-300 rounded-full flex items-center justify-center hover:bg-slate-700 hover:text-white transition-colors z-10 border border-slate-700 shadow-lg`}>
+                    <i data-lucide="x" className="w-5 h-5"></i>
+                  </button>
+
+                  <div className="solid-panel rounded-3xl p-6 md:p-8 border border-emerald-500/30">
+                    <div className="text-center mb-10">
+                      <div className="w-16 h-16 bg-emerald-900/50 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-emerald-500/30 shadow-inner">
+                        <i data-lucide="map" className="w-8 h-8 text-emerald-400"></i>
+                      </div>
+                      <h2 className={`text-2xl md:text-3xl font-bold text-white mb-2 ${headerFontClass}`}>
+                        {isArabic ? 'الخطة الدراسية' : 'Study Plan'}
+                      </h2>
+                      <p className="text-slate-400 text-sm md:text-base">
+                        {isArabic ? 'مسار التقدم المتوقع لختم المقدار المحدد' : 'Expected progress roadmap to finish the selected portion'}
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-10 text-center">
+                      <div className="bg-slate-900/50 p-4 rounded-2xl border border-slate-700/50 shadow-inner">
+                        <p className="text-xs text-slate-500 mb-1">{isArabic ? 'النوع' : 'Type'}</p>
+                        <p className="text-sm md:text-base font-bold text-emerald-400">{student.studyPlan.targetType === 'pages' ? (isArabic ? 'صفحات' : 'Pages') : (isArabic ? 'آيات' : 'Verses')}</p>
+                      </div>
+                      <div className="bg-slate-900/50 p-4 rounded-2xl border border-slate-700/50 shadow-inner">
+                        <p className="text-xs text-slate-500 mb-1">{isArabic ? 'من' : 'From'} - {isArabic ? 'إلى' : 'To'}</p>
+                        <p className="text-sm md:text-base font-bold font-english text-white">
+                          {student.studyPlan.from} <span className="text-slate-500 mx-1">→</span> {student.studyPlan.to}
+                        </p>
+                      </div>
+                      <div className="bg-slate-900/50 p-4 rounded-2xl border border-slate-700/50 shadow-inner">
+                        <p className="text-xs text-slate-500 mb-1">{isArabic ? 'عدد الحصص' : 'Total Classes'}</p>
+                        <p className="text-sm md:text-base font-bold font-english text-amber-400">{student.studyPlan.totalClasses}</p>
+                      </div>
+                      <div className="bg-slate-900/50 p-4 rounded-2xl border border-slate-700/50 shadow-inner">
+                        <p className="text-xs text-slate-500 mb-1">{isArabic ? 'المقدار/حصة' : 'Portion/Class'}</p>
+                        <p className="text-sm md:text-base font-bold font-english text-emerald-400">{student.studyPlan.portionPerClass}</p>
+                      </div>
+                    </div>
+
+                    {/* Timeline */}
+                    <div className="relative" dir="ltr">
+                      {(() => {
+                        const plan = student.studyPlan;
+                        const classDays = student.days || [];
+                        const dates = [];
+                        let current = plan.startDateTime ? new Date(plan.startDateTime) : new Date();
+                        
+                        // Calculate expected dates for each class
+                        if (classDays.length > 0) {
+                          while (dates.length < plan.totalClasses) {
+                            if (classDays.includes(current.getDay())) {
+                              dates.push(new Date(current));
+                            }
+                            current.setDate(current.getDate() + 1);
+                          }
+                        } else {
+                          // Fallback if no days selected: just consecutive days
+                          for (let i = 0; i < plan.totalClasses; i++) {
+                            dates.push(new Date(current));
+                            current.setDate(current.getDate() + 1);
+                          }
+                        }
+
+                        const now = new Date();
+                        now.setHours(0, 0, 0, 0);
+
+                        let currentFrom = Number(plan.from);
+                        
+                        return (
+                          <div className="space-y-4">
+                            {/* Line connecting the steps */}
+                            <div className="absolute top-0 bottom-0 left-[27px] md:left-[35px] w-[2px] bg-slate-800 -z-10"></div>
+
+                            {Array.from({ length: plan.totalClasses }).map((_, idx) => {
+                              const classDate = dates[idx];
+                              classDate.setHours(0, 0, 0, 0);
+                              
+                              const isCompleted = classDate < now;
+                              const isCurrent = classDate.getTime() === now.getTime();
+                              const isFuture = classDate > now;
+
+                              let currentTo = currentFrom + Number(plan.portionPerClass);
+                              const prevFrom = currentFrom;
+                              currentFrom = currentTo;
+
+                              let statusColor = 'bg-slate-800/80 border-slate-700/80 text-slate-400';
+                              let iconColor = 'text-slate-500 bg-slate-900 border-slate-700';
+                              
+                              if (isCompleted) {
+                                statusColor = 'bg-emerald-900/20 border-emerald-500/20 text-emerald-100';
+                                iconColor = 'bg-emerald-500 border-emerald-400 text-emerald-950 shadow-[0_0_15px_rgba(16,185,129,0.3)]';
+                              } else if (isCurrent) {
+                                statusColor = 'bg-amber-900/20 border-amber-500/40 text-amber-100 shadow-[0_0_20px_rgba(245,158,11,0.1)]';
+                                iconColor = 'bg-amber-500 border-amber-400 text-amber-950 shadow-[0_0_20px_rgba(245,158,11,0.4)] animate-pulse';
+                              }
+
+                              const dateStr = classDate.toLocaleDateString(isArabic ? 'ar-EG' : 'en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+
+                              return (
+                                <div key={idx} className={`relative flex items-center p-3 md:p-5 rounded-2xl border backdrop-blur-sm transition-all duration-300 ${statusColor}`}>
+                                  
+                                  {/* Step Number Indicator */}
+                                  <div className={`flex items-center justify-center w-10 h-10 md:w-14 md:h-14 rounded-full font-bold font-english text-lg border-2 shrink-0 z-10 transition-colors mr-4 md:mr-6 ${iconColor}`}>
+                                    {isCompleted ? <i data-lucide="check" className="w-5 h-5 md:w-7 md:h-7"></i> : (idx + 1)}
+                                  </div>
+                                  
+                                  <div className={`flex-1 flex flex-col md:flex-row md:items-center justify-between gap-2 md:gap-4 ${isArabic ? 'text-right' : 'text-left'}`} dir={isArabic ? 'rtl' : 'ltr'}>
+                                    <div>
+                                      <h4 className={`font-bold text-base md:text-lg mb-1 flex items-center gap-2 ${isCurrent ? 'text-amber-400' : (isCompleted ? 'text-emerald-400' : 'text-slate-300')}`}>
+                                        {isArabic ? 'الحصة' : 'Class'} {idx + 1}
+                                        {isCurrent && (
+                                          <span className="text-[10px] md:text-xs bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-full border border-amber-500/30">
+                                            {isArabic ? 'اليوم' : 'Today'}
+                                          </span>
+                                        )}
+                                      </h4>
+                                      <p className="text-xs md:text-sm text-slate-400/80 flex items-center gap-1.5 font-english tracking-wider">
+                                        <i data-lucide="calendar" className="w-3 h-3 md:w-3.5 md:h-3.5 opacity-70"></i>
+                                        {dateStr}
+                                      </p>
+                                    </div>
+                                    
+                                    <div className={`bg-black/20 rounded-xl px-4 py-2 border border-white/5 flex items-center justify-center gap-3 ${isArabic ? 'md:mr-auto' : 'md:ml-auto'}`}>
+                                      <span className="text-xs text-slate-400">{plan.targetType === 'pages' ? (isArabic ? 'صفحة' : 'Page') : (isArabic ? 'آية' : 'Verse')}</span>
+                                      <span className="font-bold text-white font-english tracking-widest text-sm md:text-base" dir="ltr">
+                                        {prevFrom} <span className="text-emerald-500 mx-1 opacity-70">→</span> {currentTo}
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
+                    </div>
+
                   </div>
                 </div>
               </div>

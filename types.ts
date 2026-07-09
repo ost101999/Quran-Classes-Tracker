@@ -37,6 +37,16 @@ export interface AcademyRate {
   showAnimationBeforeLink?: boolean; // If true, display the class number animation overlay before opening
 }
 
+export interface StudyPlan {
+  isActive: boolean;
+  targetType: 'pages' | 'verses';
+  from: number;
+  to: number;
+  totalClasses: number;
+  portionPerClass: number;
+  startDateTime: string;
+}
+
 export interface Student {
   id: string;
   name: string;
@@ -64,6 +74,7 @@ export interface Student {
   prepaidCurrent?: number;
   prepaidMode?: 'subscription' | 'monthly';
   dayStartDates?: Record<number, string>; // Maps day of week (0-6) to start date (YYYY-MM-DD)
+  studyPlan?: StudyPlan;
 }
 
 export interface AttendanceRecord {

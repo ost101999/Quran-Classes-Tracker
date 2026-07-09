@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Trash2, Clock, Link, Check, Phone, ChevronDown, ChevronLeft } from 'lucide-react';
-import { Student } from '../types';
+import { Student, StudyPlan } from '../types';
 import { DAYS_OF_WEEK } from '../constants';
 
 interface Props {
@@ -65,7 +65,28 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
   const [showStudentWeb, setShowStudentWeb] = useState(false);
   const [isEndingEnrollment, setIsEndingEnrollment] = useState(!!student?.deletedAt);
   const [dayStartDates, setDayStartDates] = useState<Record<number, string>>(student?.dayStartDates || {});
+  const [studyPlan, setStudyPlan] = useState<StudyPlan>(student?.studyPlan || {
+    isActive: false,
+    targetType: 'pages',
+    from: 0,
+    to: 0,
+    totalClasses: 0,
+    portionPerClass: 0,
+    startDateTime: '',
+  });
   const formRef = useRef<HTMLFormElement>(null);
+
+  const calculatePortion = (plan: StudyPlan) => {
+    if (!plan.from || !plan.to || !plan.totalClasses) return 0;
+    const amount = Math.abs(plan.to - plan.from) + (plan.targetType === 'pages' ? 0 : 1);
+    let portion = amount / plan.totalClasses;
+    if (plan.targetType === 'pages') {
+      portion = Math.round(portion * 4) / 4;
+    } else {
+      portion = Math.round(portion);
+    }
+    return portion;
+  };
 
   // Intercept ALL wheel events while modal is open and redirect to the form
   useEffect(() => {
@@ -182,7 +203,8 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
         return { month: dMonth, year: dYear };
       })() : undefined,
       days: isEndingEnrollment ? [] : selectedDays,
-      dayStartDates: isEndingEnrollment ? {} : dayStartDates
+      dayStartDates: isEndingEnrollment ? {} : dayStartDates,
+      studyPlan: studyPlan
     };
 
     if (name && students) {
@@ -678,6 +700,141 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                     كبار
                   </button>
                 </div>
+              </div>
+
+              {/* Study Plan Section */}
+              <div className="pt-6 mt-6 border-t border-gray-100">
+                <h3 className="text-2xl font-bold text-gray-800 font-arabic mb-4">إعدادات الخطة</h3>
+                <div className="flex items-center justify-between p-4 rounded-2xl border bg-gray-50/50 border-gray-100 mb-4">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="studyPlanActive"
+                      checked={studyPlan.isActive}
+                      onChange={e => setStudyPlan(prev => ({ ...prev, isActive: e.target.checked }))}
+                      className="w-5 h-5 accent-[#ffe05d] cursor-pointer"
+                    />
+                    <label htmlFor="studyPlanActive" className="text-xl font-bold text-gray-700 cursor-pointer select-none font-arabic">
+                      تفعيل الخطة للطالب
+                    </label>
+                  </div>
+                </div>
+
+                {studyPlan.isActive && (
+                  <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
+                    {/* Target Type */}
+                    <div className="flex bg-gray-50 p-1 rounded-xl border border-gray-100">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setStudyPlan(prev => {
+                            const next = { ...prev, targetType: 'pages' as const };
+                            next.portionPerClass = calculatePortion(next);
+                            return next;
+                          });
+                        }}
+                        className={`flex-1 py-2 rounded-lg text-lg font-arabic transition-all ${studyPlan.targetType === 'pages'
+                          ? 'bg-white text-emerald-700 shadow-sm border border-emerald-200 font-bold'
+                          : 'text-gray-500 hover:text-gray-700'
+                          }`}
+                      >
+                        صفحات
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setStudyPlan(prev => {
+                            const next = { ...prev, targetType: 'verses' as const };
+                            next.portionPerClass = calculatePortion(next);
+                            return next;
+                          });
+                        }}
+                        className={`flex-1 py-2 rounded-lg text-lg font-arabic transition-all ${studyPlan.targetType === 'verses'
+                          ? 'bg-white text-emerald-700 shadow-sm border border-emerald-200 font-bold'
+                          : 'text-gray-500 hover:text-gray-700'
+                          }`}
+                      >
+                        آيات
+                      </button>
+                    </div>
+
+                    {/* From - To */}
+                    <div className="flex gap-4">
+                      <div className="flex-1 space-y-2">
+                        <label className="block text-lg font-bold text-gray-600 font-arabic">من</label>
+                        <input
+                          type="number"
+                          value={studyPlan.from || ''}
+                          onChange={e => {
+                            const val = Number(e.target.value);
+                            setStudyPlan(prev => {
+                               const next = { ...prev, from: val };
+                               next.portionPerClass = calculatePortion(next);
+                               return next;
+                            });
+                          }}
+                          className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:border-[#ffe05d] focus:bg-white transition-all text-center font-english"
+                          dir="ltr"
+                        />
+                      </div>
+                      <div className="flex-1 space-y-2">
+                        <label className="block text-lg font-bold text-gray-600 font-arabic">إلى</label>
+                        <input
+                          type="number"
+                          value={studyPlan.to || ''}
+                          onChange={e => {
+                            const val = Number(e.target.value);
+                            setStudyPlan(prev => {
+                               const next = { ...prev, to: val };
+                               next.portionPerClass = calculatePortion(next);
+                               return next;
+                            });
+                          }}
+                          className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:border-[#ffe05d] focus:bg-white transition-all text-center font-english"
+                          dir="ltr"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Classes & Start Time */}
+                    <div className="flex gap-4">
+                      <div className="flex-1 space-y-2">
+                        <label className="block text-lg font-bold text-gray-600 font-arabic whitespace-nowrap text-sm">عدد الحصص</label>
+                        <input
+                          type="number"
+                          value={studyPlan.totalClasses || ''}
+                          onChange={e => {
+                            const val = Number(e.target.value);
+                            setStudyPlan(prev => {
+                               const next = { ...prev, totalClasses: val };
+                               next.portionPerClass = calculatePortion(next);
+                               return next;
+                            });
+                          }}
+                          className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:border-[#ffe05d] focus:bg-white transition-all text-center font-english"
+                          dir="ltr"
+                        />
+                      </div>
+                      <div className="flex-1 space-y-2">
+                        <label className="block text-lg font-bold text-gray-600 font-arabic whitespace-nowrap text-sm">المقدار للحصة</label>
+                        <div className="w-full px-4 py-2 bg-gray-100 border border-transparent rounded-xl text-center text-gray-600 font-bold font-english h-[42px] flex items-center justify-center">
+                          {studyPlan.portionPerClass || 0}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <label className="block text-lg font-bold text-gray-600 font-arabic">تاريخ ووقت البدء</label>
+                      <input
+                        type="datetime-local"
+                        value={studyPlan.startDateTime}
+                        onChange={e => setStudyPlan(prev => ({ ...prev, startDateTime: e.target.value }))}
+                        className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:border-[#ffe05d] focus:bg-white transition-all text-center font-english"
+                        dir="ltr"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Save */}
