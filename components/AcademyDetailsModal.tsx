@@ -409,7 +409,7 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
                     ref={reportRef}
                     dir={isEnglish ? 'ltr' : 'rtl'}
                     className="bg-white p-12 w-[650px] flex flex-col items-center text-center rounded-[50px] shadow-2xl"
-                    style={{ fontFamily: isEnglish ? '"Acme", sans-serif' : "'DecoType Naskh', cursive" }}
+                    style={{ fontFamily: isEnglish ? '"AcmeWeb", "Acme", sans-serif' : "'DecoType Naskh', cursive" }}
                 >
                     <div className="w-full pb-10">
                         <h2 className={`font-bold text-gray-900 ${isEnglish ? 'text-5xl' : 'text-6xl'} tracking-tight`}>

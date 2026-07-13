@@ -277,7 +277,7 @@ const MultiStudentDetailsModal: React.FC<Props> = ({ students, attendance, onClo
                     ref={reportRef}
                     dir={isEnglish ? 'ltr' : 'rtl'}
                     className="bg-white p-12 w-[650px] flex flex-col items-center text-center rounded-[50px] shadow-2xl"
-                    style={{ fontFamily: isEnglish ? '"Acme", sans-serif' : "'DecoType Naskh', cursive" }}
+                    style={{ fontFamily: isEnglish ? '"AcmeWeb", "Acme", sans-serif' : "'DecoType Naskh', cursive" }}
                 >
                     <div className="w-full pb-10">
                         <h2 className={`font-bold text-gray-900 ${isEnglish ? 'text-4xl' : 'text-5xl'} tracking-tight leading-relaxed`}>
