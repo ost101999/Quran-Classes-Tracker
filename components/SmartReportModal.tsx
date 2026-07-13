@@ -241,7 +241,9 @@ ${(fromLine || toLine) ? (fromLine === toLine || !toLine ? `(سطر ${toHindiDig
                             <X size={20} />
                         </button>
                     </div>
-                    <p className="text-emerald-100 text-sm mt-1 font-arabic">{student.name}</p>
+                    <p className="text-emerald-100 text-sm mt-1 font-arabic">
+                        الطالب: <span className="font-bold text-white">{student.name}</span>
+                    </p>
                 </div>
 
                 {/* Path Selection */}

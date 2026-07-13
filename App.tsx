@@ -8404,8 +8404,15 @@ function App() {
                 }}
               >
 
+                {/* Floating Name */}
+                <div className="sticky top-0 z-50 flex justify-center pt-4 pointer-events-none">
+                  <div className="bg-white/80 backdrop-blur-md shadow-sm border border-gray-200/50 px-8 py-2 rounded-full pointer-events-auto">
+                    <span className="font-arabic font-bold text-gray-700 text-lg">{studentName}</span>
+                  </div>
+                </div>
+
                 {/* Form */}
-                <div className="px-6 lg:px-12 pb-2 pt-8">
+                <div className="px-6 lg:px-12 pb-2 pt-4">
                   <div className="pb-2">
                     {/* Path Selection */}
                     <div className="flex gap-2 mb-6 bg-gray-50 p-1 rounded-2xl">
