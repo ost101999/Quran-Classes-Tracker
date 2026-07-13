@@ -1478,11 +1478,6 @@ function App() {
     const handleWheel = (e: WheelEvent) => {
       if (e.ctrlKey || e.metaKey) {
         e.preventDefault();
-        if (e.deltaY < 0) {
-          setAppZoomLevel(prev => Math.min(prev + 0.05, 2.5));
-        } else {
-          setAppZoomLevel(prev => Math.max(prev - 0.05, 0.4));
-        }
       }
     };
 
