@@ -4271,7 +4271,13 @@ function App() {
   };
 
   const toggleBottomSeparator = (studentId: string) => {
-    setStudents(prev => prev.map(s => s.id === studentId ? { ...s, hasBottomSeparator: !s.hasBottomSeparator } : s));
+    setStudents(prev => prev.map(s => {
+      if (s.id === studentId) {
+        const currentlyHasBottom = s.hasBottomSeparator || s.hasSeparator;
+        return { ...s, hasBottomSeparator: !currentlyHasBottom, hasSeparator: false };
+      }
+      return s;
+    }));
   };
 
   const togglePinToEnd = (studentId: string) => {
@@ -7955,39 +7961,76 @@ function App() {
           }, 150);
         }}
       >
-        {studentOptionsMenu.student && (
-          <>
-            {/* Invisible Bridge to prevent hover loss */}
-            <div className="absolute -left-10 top-0 bottom-0 w-16 bg-transparent" />
+        {studentOptionsMenu.student && (() => {
+          const currentStudent = students.find(s => s.id === studentOptionsMenu.student!.id) || studentOptionsMenu.student!;
+          const academyGroup = groupedStudents[currentStudent.academy] || [];
+          const currentIndex = academyGroup.findIndex(s => s.id === currentStudent.id);
+          const prevStudent = currentIndex > 0 ? academyGroup[currentIndex - 1] : null;
+          const nextStudent = currentIndex < academyGroup.length - 1 ? academyGroup[currentIndex + 1] : null;
 
-            {/* Separator Buttons Stack */}
-            <div className="flex flex-col gap-0.5 pl-1 ml-0.5">
-              <button
-                onClick={(e) => { e.stopPropagation(); toggleTopSeparator(studentOptionsMenu.student!.id); }}
-                className={`p-0.5 rounded hover:bg-gray-50 text-gray-400 hover:text-blue-500 transition-colors relative z-10 ${studentOptionsMenu.student.hasTopSeparator ? 'text-blue-500 bg-blue-50' : ''}`}
-                title="إضافة/إزالة خط علوي"
-              >
-                <Minus size={12} strokeWidth={3} />
-              </button>
-              <button
-                onClick={(e) => { e.stopPropagation(); toggleBottomSeparator(studentOptionsMenu.student!.id); }}
-                className={`p-0.5 rounded hover:bg-gray-50 text-gray-400 hover:text-blue-500 transition-colors relative z-10 ${studentOptionsMenu.student.hasBottomSeparator ? 'text-blue-500 bg-blue-50' : ''}`}
-                title="إضافة/إزالة خط سفلي"
-              >
-                <Minus size={12} strokeWidth={3} />
-              </button>
-            </div>
+          const visuallyHasTop = currentStudent.hasTopSeparator || (prevStudent && (prevStudent.hasBottomSeparator || prevStudent.hasSeparator));
+          const visuallyHasBottom = currentStudent.hasBottomSeparator || currentStudent.hasSeparator || (nextStudent && nextStudent.hasTopSeparator);
 
-            {/* Pin Button */}
-            <button
-              onClick={(e) => { e.stopPropagation(); togglePinToEnd(studentOptionsMenu.student!.id); }}
-              className={`p-1 rounded hover:bg-gray-50 text-gray-400 hover:text-red-400 transition-colors relative z-10 border-l border-gray-100 pl-1.5 ml-0.5 ${studentOptionsMenu.student.isPinnedToEnd ? 'text-red-400 bg-red-50/50' : ''}`}
-              title={studentOptionsMenu.student.isPinnedToEnd ? "إلغاء التثبيت" : "تثبيت في النهاية"}
-            >
-              <Pin size={12} strokeWidth={1.5} className={studentOptionsMenu.student.isPinnedToEnd ? "" : "-rotate-45"} />
-            </button>
-          </>
-        )}
+          const handleTopClick = (e: React.MouseEvent) => {
+            e.stopPropagation();
+            setStudents(prev => prev.map(s => {
+              if (visuallyHasTop) {
+                if (s.id === currentStudent.id) return { ...s, hasTopSeparator: false };
+                if (prevStudent && s.id === prevStudent.id) return { ...s, hasBottomSeparator: false, hasSeparator: false };
+              } else {
+                if (s.id === currentStudent.id) return { ...s, hasTopSeparator: true };
+              }
+              return s;
+            }));
+          };
+
+          const handleBottomClick = (e: React.MouseEvent) => {
+            e.stopPropagation();
+            setStudents(prev => prev.map(s => {
+              if (visuallyHasBottom) {
+                if (s.id === currentStudent.id) return { ...s, hasBottomSeparator: false, hasSeparator: false };
+                if (nextStudent && s.id === nextStudent.id) return { ...s, hasTopSeparator: false };
+              } else {
+                if (s.id === currentStudent.id) return { ...s, hasBottomSeparator: true, hasSeparator: false };
+              }
+              return s;
+            }));
+          };
+
+          return (
+            <>
+              {/* Invisible Bridge to prevent hover loss */}
+              <div className="absolute -left-10 top-0 bottom-0 w-16 bg-transparent" />
+
+              {/* Separator Buttons Stack */}
+              <div className="flex flex-col gap-0.5 pl-1 ml-0.5">
+                <button
+                  onClick={handleTopClick}
+                  className={`p-0.5 rounded hover:bg-gray-50 text-gray-400 hover:text-blue-500 transition-colors relative z-10 ${visuallyHasTop ? 'text-blue-500 bg-blue-50' : ''}`}
+                  title="إضافة/إزالة خط علوي"
+                >
+                  <Minus size={12} strokeWidth={3} />
+                </button>
+                <button
+                  onClick={handleBottomClick}
+                  className={`p-0.5 rounded hover:bg-gray-50 text-gray-400 hover:text-blue-500 transition-colors relative z-10 ${visuallyHasBottom ? 'text-blue-500 bg-blue-50' : ''}`}
+                  title="إضافة/إزالة خط سفلي"
+                >
+                  <Minus size={12} strokeWidth={3} />
+                </button>
+              </div>
+
+              {/* Pin Button */}
+              <button
+                onClick={(e) => { e.stopPropagation(); togglePinToEnd(currentStudent.id); }}
+                className={`p-1 rounded hover:bg-gray-50 text-gray-400 hover:text-red-400 transition-colors relative z-10 border-l border-gray-100 pl-1.5 ml-0.5 ${currentStudent.isPinnedToEnd ? 'text-red-400 bg-red-50/50' : ''}`}
+                title={currentStudent.isPinnedToEnd ? "إلغاء التثبيت" : "تثبيت في النهاية"}
+              >
+                <Pin size={12} strokeWidth={1.5} className={currentStudent.isPinnedToEnd ? "" : "-rotate-45"} />
+              </button>
+            </>
+          );
+        })()}
       </div>
 
       {/* Academy Context Menu */}
