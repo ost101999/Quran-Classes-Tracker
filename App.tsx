@@ -1942,12 +1942,66 @@ function App() {
 
         // If remote timestamp is newer than our local state, fetch the lightweight core state
         if (remoteLastUpdated && typeof remoteLastUpdated === 'number' && remoteLastUpdated > lastUpdated) {
-          console.log(`Cloud state is newer (${remoteLastUpdated} > ${lastUpdated}). Fetching core updates...`);
+          console.log(`Cloud state is newer (${remoteLastUpdated} > ${lastUpdated}). Fetching incrementally...`);
           
-          const fullRes = await fetch(`${CLOUD_APPSTATE_BASE_URL}.json`);
-          let fullData = await fullRes.json();
+          const coreKeys = [
+            'students', 'attendance', 'month', 'year', 'dayOff', 'academyOrder', 'academyRates',
+            'monthlyObligations', 'paymentStatus', 'autoBackupConfig', 'externalLinks', 'dayTransitionTime',
+            'makeupLinks', 'showMakeupLines', 'confirmNonTodayAttendance', 'whatsappTarget', 'whatsappMode',
+            'studentProgress', 'preferredModes', 'defaultNoorBook', 'subscriptionSettings',
+            'seenUngradedTajweedVersion', 'seenUngradedTajweedAssignmentIds', 'studentNotesHistory',
+            'lastReports', 'tajweedBank'
+          ];
           
+          const fetchPromises = coreKeys.map(async (key) => {
+            try {
+              const res = await fetch(`${CLOUD_APPSTATE_BASE_URL}/${key}.json`);
+              return { key, data: res.ok ? await res.json() : null };
+            } catch (e) {
+              return { key, data: null };
+            }
+          });
+
+          const fetchIncremental = async (nodeKey: string, localObj: any) => {
+            try {
+              const shallowRes = await fetch(`${CLOUD_APPSTATE_BASE_URL}/${nodeKey}.json?shallow=true`);
+              if (!shallowRes.ok) return {};
+              const remoteKeys = (await shallowRes.json()) || {};
+              const localKeysList = Object.keys(localObj || {});
+              const newKeys = Object.keys(remoteKeys).filter(k => !localKeysList.includes(k));
+              
+              if (newKeys.length === 0) return {};
+              
+              const itemPromises = newKeys.map(async (k) => {
+                const res = await fetch(`${CLOUD_APPSTATE_BASE_URL}/${nodeKey}/${k}.json`);
+                return { key: k, data: res.ok ? await res.json() : null };
+              });
+              const fetched = await Promise.all(itemPromises);
+              const newData: any = {};
+              fetched.forEach(f => { if(f.data) newData[f.key] = f.data; });
+              return newData;
+            } catch (e) {
+              return {};
+            }
+          };
+
+          const [coreResults, newSavedReports, newSavedDrafts] = await Promise.all([
+            Promise.all(fetchPromises),
+            fetchIncremental('savedReports', savedReports),
+            fetchIncremental('savedReportDrafts', savedReportDrafts)
+          ]);
+
           if (isCancelled) return;
+
+          let fullData: any = {};
+          coreResults.forEach(r => { if (r.data !== null) fullData[r.key] = r.data; });
+          
+          fullData.savedReports = { ...savedReports, ...newSavedReports };
+          fullData.savedReportDrafts = { ...savedReportDrafts, ...newSavedDrafts };
+          
+          // Preserve local Tajweed data so saveData doesn't wipe them. They are synced separately.
+          fullData.tajweedAssignments = tajweedAssignments;
+          fullData.tajweedSubmissions = tajweedSubmissions;
 
           if (fullData) {
             fullData = desanitizeStateKeys(fullData, students, academyOrder);
