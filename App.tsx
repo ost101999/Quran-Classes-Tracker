@@ -6600,7 +6600,7 @@ function App() {
                         {remainingInfo.count > 0 && (
                           <div
                             onClick={(e) => { e.stopPropagation(); scrollToFirstPending(dayNum); }}
-                            className={`absolute -top-9 left-1/2 -translate-x-1/2 flex flex-col items-center justify-center bg-white/90 backdrop-blur-sm px-2 py-0.5 rounded-full shadow-md border border-amber-200/80 z-20 transition-all duration-300 cursor-pointer hover:scale-110 active:scale-95 ${isToday ? 'opacity-100' : 'opacity-0 group-hover/header:opacity-100 translate-y-2 group-hover/header:translate-y-0'}`}
+                            className={`absolute -top-11 left-1/2 -translate-x-1/2 flex flex-col items-center justify-center bg-white/90 backdrop-blur-sm px-2 py-0.5 rounded-full shadow-md border border-amber-200/80 z-20 transition-all duration-300 cursor-pointer hover:scale-110 active:scale-95 ${isToday ? 'opacity-100' : 'opacity-0 group-hover/header:opacity-100 translate-y-2 group-hover/header:translate-y-0'}`}
                             title={`انقر للذهاب لأول حصة متبقية (${toHindiDigits(remainingInfo.count)} حصص | ${toHindiDigits(remainingInfo.hours)} ساعة)`}
                           >
                             <span className="text-amber-700 text-[0.8rem] font-bold font-arabic leading-none">{toHindiDigits(remainingInfo.hours)}</span>
@@ -17370,7 +17370,7 @@ const StickyHeader = React.forwardRef<HTMLDivElement, {
                       {info.count > 0 && (
                         <div
                           onClick={(e) => { e.stopPropagation(); scrollToFirstPending(dayNum); }}
-                          className={`absolute -top-9 left-1/2 -translate-x-1/2 flex flex-col items-center justify-center bg-white/90 backdrop-blur-sm px-2 py-0.5 rounded-full shadow-md border border-amber-200/80 z-20 transition-all duration-300 cursor-pointer hover:scale-110 active:scale-95 pointer-events-auto ${isToday ? 'opacity-100' : 'opacity-0 group-hover/header:opacity-100 translate-y-2 group-hover/header:translate-y-0'}`}
+                          className={`absolute -top-11 left-1/2 -translate-x-1/2 flex flex-col items-center justify-center bg-white/90 backdrop-blur-sm px-2 py-0.5 rounded-full shadow-md border border-amber-200/80 z-20 transition-all duration-300 cursor-pointer hover:scale-110 active:scale-95 pointer-events-auto ${isToday ? 'opacity-100' : 'opacity-0 group-hover/header:opacity-100 translate-y-2 group-hover/header:translate-y-0'}`}
                           title={`انقر للذهاب لأول حصة متبقية (${toHindiDigits(info.count)} حصص | ${toHindiDigits(info.hours)} ساعة)`}
                         >
                           <span className="text-amber-700 text-[0.8rem] font-bold font-arabic leading-none">{toHindiDigits(info.hours)}</span>
