@@ -261,10 +261,10 @@ const getNoorLessonType = (book: 'noor' | 'taasees', fromPageStr: string, toPage
   if (isNaN(p1)) return '';
 
   const type1 = getSingleLessonType(book, p1, lang);
-  
+
   // If no toPage, or it's cancelled/0, just return type1
   if (!toPageStr || toPageStr.trim() === '0' || toPageStr.trim() === '٠') return type1;
-  
+
   const toEn = toPageStr.replace(/[٠-٩]/g, d => "0123456789"["٠١٢٣٤٥٦٧٨٩".indexOf(d)]);
   const p2 = parseInt(toEn);
   if (isNaN(p2) || p1 === p2) return type1;
@@ -486,15 +486,15 @@ function App() {
   const triggerCenterToday = useCallback(() => {
     if (!tableScrollRef.current) return;
     let attempts = 0;
-    
+
     // Prevent onScroll from doing any weird side effects during auto-scroll
     (window as any).isRestoringScroll = true;
-    
+
     const interval = setInterval(() => {
       const todayCol = document.getElementById('today-column');
       if (tableScrollRef.current && todayCol) {
         todayCol.scrollIntoView({ behavior: 'auto', inline: 'center', block: 'nearest' });
-        
+
         // Since scrollIntoView handles the math, we just try it a few times to ensure layout is settled
         if (attempts > 5) {
           clearInterval(interval);
@@ -828,14 +828,14 @@ function App() {
     groupsMap.forEach((group) => {
       const mainLessons = group.lessons.filter((l) => !l.parentLessonId);
       const childrenLessons = group.lessons.filter((l) => l.parentLessonId);
-      
+
       const sorted: Array<{ id: string; title: string; parentLessonId?: string }> = [];
       mainLessons.forEach((parent) => {
         sorted.push(parent);
         const children = childrenLessons.filter((child) => child.parentLessonId === parent.id);
         sorted.push(...children);
       });
-      
+
       const addedIds = new Set(sorted.map((l) => l.id));
       const orphans = group.lessons.filter((l) => !addedIds.has(l.id));
       sorted.push(...orphans);
@@ -1337,36 +1337,36 @@ function App() {
 
       for (const [subId, submission] of Object.entries(newSubmissions)) {
         if (!submission.answers) continue;
-        
+
         let subModified = false;
-        
+
         for (let i = 0; i < submission.answers.length; i++) {
           const ans = submission.answers[i];
           if (ans.audioBase64 && !ans.audioLocalPath) {
-             let pureBase64 = ans.audioBase64;
-             if (pureBase64.includes('base64,')) {
-                 pureBase64 = pureBase64.split('base64,')[1];
-             }
+            let pureBase64 = ans.audioBase64;
+            if (pureBase64.includes('base64,')) {
+              pureBase64 = pureBase64.split('base64,')[1];
+            }
 
-             const student = students.find(s => s.id === submission.studentId);
-             const studentName = student ? student.name.replace(/[^a-zA-Z0-9\u0600-\u06FF\s]/g, '') : 'Student';
-             const timestamp = new Date().getTime();
-             const fileName = `${studentName}_${submission.assignmentId}_${i}_${timestamp}.webm`;
+            const student = students.find(s => s.id === submission.studentId);
+            const studentName = student ? student.name.replace(/[^a-zA-Z0-9\u0600-\u06FF\s]/g, '') : 'Student';
+            const timestamp = new Date().getTime();
+            const fileName = `${studentName}_${submission.assignmentId}_${i}_${timestamp}.webm`;
 
-             try {
-                const result = await window.electronAPI.saveTajweedAudio(pureBase64, fileName);
-                if (result && result.success) {
-                    ans.audioLocalPath = result.localPath;
-                  // Keep the synced base64 so the recording stays available across devices.
-                    subModified = true;
-                    hasChanges = true;
-                }
-             } catch (err) {
-                 console.error('Failed to sync audio:', err);
-             }
+            try {
+              const result = await window.electronAPI.saveTajweedAudio(pureBase64, fileName);
+              if (result && result.success) {
+                ans.audioLocalPath = result.localPath;
+                // Keep the synced base64 so the recording stays available across devices.
+                subModified = true;
+                hasChanges = true;
+              }
+            } catch (err) {
+              console.error('Failed to sync audio:', err);
+            }
           }
         }
-        
+
         if (subModified) {
           newSubmissions[subId] = submission;
         }
@@ -1827,7 +1827,7 @@ function App() {
         }
 
         const remoteSubmissionIdByAssignment = new Map<string, string>();
-        
+
         // Populate from local submissions first
         Object.entries(tajweedSubmissionsRef.current).forEach(([submissionId, sub]) => {
           if (sub && sub.assignmentId) {
@@ -1928,9 +1928,9 @@ function App() {
       try {
         const res = await fetch(`${CLOUD_APPSTATE_BASE_URL}/lastUpdated.json`);
         if (!res.ok || isCancelled) return;
-        
+
         const remoteLastUpdated = await res.json();
-        
+
         // Ensure we are not currently syncing local changes before attempting an overwrite
         if (window.electronAPI?.getSyncStatus) {
           const syncStatus = await window.electronAPI.getSyncStatus();
@@ -1943,7 +1943,7 @@ function App() {
         // If remote timestamp is newer than our local state, fetch the lightweight core state
         if (remoteLastUpdated && typeof remoteLastUpdated === 'number' && remoteLastUpdated > lastUpdated) {
           console.log(`Cloud state is newer (${remoteLastUpdated} > ${lastUpdated}). Fetching incrementally...`);
-          
+
           const coreKeys = [
             'students', 'attendance', 'month', 'year', 'dayOff', 'academyOrder', 'academyRates',
             'monthlyObligations', 'paymentStatus', 'autoBackupConfig', 'externalLinks', 'dayTransitionTime',
@@ -1952,7 +1952,7 @@ function App() {
             'seenUngradedTajweedVersion', 'seenUngradedTajweedAssignmentIds', 'studentNotesHistory',
             'lastReports', 'tajweedBank'
           ];
-          
+
           const fetchPromises = coreKeys.map(async (key) => {
             try {
               const res = await fetch(`${CLOUD_APPSTATE_BASE_URL}/${key}.json`);
@@ -1969,16 +1969,16 @@ function App() {
               const remoteKeys = (await shallowRes.json()) || {};
               const localKeysList = Object.keys(localObj || {});
               const newKeys = Object.keys(remoteKeys).filter(k => !localKeysList.includes(k));
-              
+
               if (newKeys.length === 0) return {};
-              
+
               const itemPromises = newKeys.map(async (k) => {
                 const res = await fetch(`${CLOUD_APPSTATE_BASE_URL}/${nodeKey}/${k}.json`);
                 return { key: k, data: res.ok ? await res.json() : null };
               });
               const fetched = await Promise.all(itemPromises);
               const newData: any = {};
-              fetched.forEach(f => { if(f.data) newData[f.key] = f.data; });
+              fetched.forEach(f => { if (f.data) newData[f.key] = f.data; });
               return newData;
             } catch (e) {
               return {};
@@ -1995,10 +1995,10 @@ function App() {
 
           let fullData: any = {};
           coreResults.forEach(r => { if (r.data !== null) fullData[r.key] = r.data; });
-          
+
           fullData.savedReports = { ...savedReports, ...newSavedReports };
           fullData.savedReportDrafts = { ...savedReportDrafts, ...newSavedDrafts };
-          
+
           // Preserve local Tajweed data so saveData doesn't wipe them. They are synced separately.
           fullData.tajweedAssignments = tajweedAssignments;
           fullData.tajweedSubmissions = tajweedSubmissions;
@@ -2032,7 +2032,7 @@ function App() {
             if (fullData.paymentStatus) setPaymentStatus(fullData.paymentStatus);
             if (fullData.makeupLinks) setMakeupLinks(fullData.makeupLinks);
             if (fullData.showMakeupLines !== undefined && fullData.showMakeupLines !== null) setShowMakeupLines(fullData.showMakeupLines);
-            
+
             // New additions for full sync
             if (fullData.savedReports) setSavedReports(fullData.savedReports);
             if (fullData.savedReportDrafts) setSavedReportDrafts(fullData.savedReportDrafts);
@@ -2088,7 +2088,7 @@ function App() {
               tajweedLessonEditorUiState: fullData.tajweedLessonEditorUiState || tajweedLessonEditorUiState,
               seenUngradedTajweedVersion: SEEN_UNGRADED_TAJWEED_VERSION,
               seenUngradedTajweedAssignmentIds: Array.from(seenUngradedTajweedAssignmentIds),
-              
+
               lastUpdated: remoteLastUpdated,
             }, true); // true = skipSync
           }
@@ -2235,23 +2235,23 @@ function App() {
       let prevMonth = month - 1;
       let prevYear = year;
       if (prevMonth < 0) {
-          prevMonth = 11;
-          prevYear = year - 1;
+        prevMonth = 11;
+        prevYear = year - 1;
       }
       const daysInPrevMonth = new Date(prevYear, prevMonth + 1, 0).getDate();
 
       if (billingStartDay > 1) {
-          for (let d = billingStartDay; d <= daysInPrevMonth; d++) {
-              const status = attendance[`${studentId}_${d}_${prevMonth}_${prevYear}`];
-              count += getStatusSessionValue(status, student, d, prevMonth, prevYear);
-          }
+        for (let d = billingStartDay; d <= daysInPrevMonth; d++) {
+          const status = attendance[`${studentId}_${d}_${prevMonth}_${prevYear}`];
+          count += getStatusSessionValue(status, student, d, prevMonth, prevYear);
+        }
       }
 
       for (let d = 1; d <= daysInPrevMonth; d++) {
-          const status = attendance[`${studentId}_${d}_${prevMonth}_${prevYear}`];
-          if (status === AttendanceStatus.TRANSFERRED || status === AttendanceStatus.TRANSFERRED_ABSENT) {
-              count += 1;
-          }
+        const status = attendance[`${studentId}_${d}_${prevMonth}_${prevYear}`];
+        if (status === AttendanceStatus.TRANSFERRED || status === AttendanceStatus.TRANSFERRED_ABSENT) {
+          count += 1;
+        }
       }
 
       for (let d = 1; d <= daysInMonth; d++) {
@@ -2259,9 +2259,9 @@ function App() {
         let classValue = getStatusSessionValue(status, student, d, month, year);
 
         if (classValue > 0) {
-            if (!(billingStartDay > 1 && d >= billingStartDay)) {
-                count += classValue;
-            }
+          if (!(billingStartDay > 1 && d >= billingStartDay)) {
+            count += classValue;
+          }
         }
       }
     }
@@ -2287,7 +2287,7 @@ function App() {
     if (meetingLink) {
       const refreshedMeetingLink = withStudentPortalRefresh(meetingLink);
       const shouldOpenExternally = student ? (academyRates[student.academy] as any)?.openLinksExternally : false;
-      
+
       triggerLinkAnimation(studentId, () => {
         if (shouldOpenExternally) {
           openExternalLink(refreshedMeetingLink);
@@ -2414,7 +2414,7 @@ function App() {
       if (code === 'KeyE' || key === 'e' || key === 'ث' || !event.shiftKey) {
         // If it's the shift key being released OR the E/ArabicE key
         if (code === 'KeyE' || key === 'e' || key === 'ث' || key === 'shift') {
-           setIsEditReportShortcutPressed(false);
+          setIsEditReportShortcutPressed(false);
         }
       }
     };
@@ -2505,14 +2505,14 @@ function App() {
     if (!report) return;
 
     const checks: { id: string; surah: string | undefined; ayah: string | undefined }[] = [
-      { id: 'quran-new-to-ayah',    surah: report.readingNew?.toSurah    || report.readingNew?.surah,    ayah: report.readingNew?.toAyah },
-      { id: 'quran-rev-to-ayah',    surah: report.readingRev?.toSurah    || report.readingRev?.surah,    ayah: report.readingRev?.toAyah },
+      { id: 'quran-new-to-ayah', surah: report.readingNew?.toSurah || report.readingNew?.surah, ayah: report.readingNew?.toAyah },
+      { id: 'quran-rev-to-ayah', surah: report.readingRev?.toSurah || report.readingRev?.surah, ayah: report.readingRev?.toAyah },
       { id: 'quran-oldrev-to-ayah', surah: report.readingOldRev?.toSurah || report.readingOldRev?.surah, ayah: report.readingOldRev?.toAyah },
       { id: 'quran-tilawa-to-ayah', surah: report.readingTilawa?.toSurah || report.readingTilawa?.surah, ayah: report.readingTilawa?.toAyah },
-      { id: 'hw-new-to',            surah: report.homeworkNew?.toSurah   || report.homeworkNew?.surah,   ayah: report.homeworkNew?.to },
-      { id: 'hw-rev-to',            surah: report.homeworkRev?.toSurah   || report.homeworkRev?.surah,   ayah: report.homeworkRev?.to },
-      { id: 'hw-oldrev-to',         surah: report.homeworkOldRev?.toSurah|| report.homeworkOldRev?.surah,ayah: report.homeworkOldRev?.to },
-      { id: 'hw-tilawa-to',         surah: report.homeworkTilawa?.toSurah|| report.homeworkTilawa?.surah,ayah: report.homeworkTilawa?.to },
+      { id: 'hw-new-to', surah: report.homeworkNew?.toSurah || report.homeworkNew?.surah, ayah: report.homeworkNew?.to },
+      { id: 'hw-rev-to', surah: report.homeworkRev?.toSurah || report.homeworkRev?.surah, ayah: report.homeworkRev?.to },
+      { id: 'hw-oldrev-to', surah: report.homeworkOldRev?.toSurah || report.homeworkOldRev?.surah, ayah: report.homeworkOldRev?.to },
+      { id: 'hw-tilawa-to', surah: report.homeworkTilawa?.toSurah || report.homeworkTilawa?.surah, ayah: report.homeworkTilawa?.to },
     ];
 
     checks.forEach(({ id, surah, ayah }) => {
@@ -2726,7 +2726,7 @@ function App() {
         setExcludeNoorTam(lastReport?.excludeNoorTam ?? false);
         setExcludeNoorSayatim(lastReport?.excludeNoorSayatim ?? false);
         setExcludeQuranTajweed(lastReport?.excludeQuranTajweed ?? false);
-        
+
         // Backward compatibility for excludeNewFromReport which was previously saved inside homeworkNew
         const fallbackExcludeNew = lastReport?.homeworkNew?.excludeFromReport ?? false;
         setExcludeNewFromReport(lastReport?.excludeNewFromReport ?? fallbackExcludeNew);
@@ -3983,7 +3983,7 @@ function App() {
       const now = new Date();
       const [tHour, tMin] = dayTransitionTime.split(':').map(Number);
       const transitionToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), tHour, tMin, 0, 0);
-      
+
       if (now.getTime() < transitionToday.getTime()) {
         return transitionToday.getTime() - now.getTime();
       } else {
@@ -4375,7 +4375,7 @@ function App() {
   const [hadithIndex, setHadithIndex] = useState(0);
 
   // --- Effects ---
-  
+
   // Harvest custom notes to history
   useEffect(() => {
     if (!lastReports) return;
@@ -4399,10 +4399,10 @@ function App() {
   // Save to Electron AppData whenever data changes
   useEffect(() => {
     if (!isLoaded) return;
-    
+
     // Update local action timestamp so background sync doesn't overwrite us
     lastLocalActionTime.current = Date.now();
-    
+
     const dataToSave = {
       students,
       attendance,
@@ -4701,12 +4701,12 @@ function App() {
       const studentWhatsapp = student?.whatsappNumber;
       const academyWhatsapp = student ? academyRates[student.academy]?.whatsappNumber : undefined;
       const finalTarget = studentWhatsapp || academyWhatsapp || student?.name || '';
-      
+
       try {
         await navigator.clipboard.writeText(reportText);
         setTimeout(() => {
           navigator.clipboard.writeText(finalTarget).then(() => {
-             onCopied();
+            onCopied();
           }).catch(() => { onCopied(); });
         }, 800);
       } catch {
@@ -4714,7 +4714,7 @@ function App() {
       }
     } else {
       navigator.clipboard.writeText(reportText).then(() => {
-         onCopied();
+        onCopied();
       }).catch(() => { onCopied(); });
     }
   }, [whatsappMode, sendViaWhatsapp, students, academyRates]);
@@ -5089,10 +5089,10 @@ function App() {
       const prevNoor = prevReport?.noor;
       const rolledNoor = prevNoor
         ? {
-            book: prevNoor.book,
-            tam: normalizeNoorRange(prevNoor.sayatim || prevNoor.tam),
-            sayatim: normalizeNoorRange(prevNoor.sayatim),
-          }
+          book: prevNoor.book,
+          tam: normalizeNoorRange(prevNoor.sayatim || prevNoor.tam),
+          sayatim: normalizeNoorRange(prevNoor.sayatim),
+        }
         : undefined;
 
       // Quran Tajweed rollover for a new report draft.
@@ -5779,8 +5779,9 @@ function App() {
     }
   };
 
-  const getRemainingClasses = (dayNum: number) => {
+  const getRemainingClassesInfo = useCallback((dayNum: number) => {
     let count = 0;
+    let totalMinutes = 0;
     const dayOfWeek = getDayOfWeek(dayNum);
 
     students.forEach(student => {
@@ -5797,12 +5798,6 @@ function App() {
       const isHoliday = academyHolidays.includes(dayOfWeek);
       const isScheduled = isScheduledOnDate(student, dayNum);
 
-      // Check if this slot counts as "Remaining"
-      // It is remaining if:
-      // A) It's Scheduled AND Not Holiday AND Not Exempt AND Not Done
-      // B) It's explicitly marked as EXTRA_DAY (which implies pending extra class)
-      // C) It's a Makeup Target (Blue Stroke) AND Not Done
-
       const isExempt = status === AttendanceStatus.EXEMPT;
       const isDone = [
         AttendanceStatus.PRESENT,
@@ -5810,13 +5805,12 @@ function App() {
         AttendanceStatus.PAID_ABSENCE_DOUBLE,
         AttendanceStatus.POSTPONED,
         AttendanceStatus.UNEXCUSED_ABSENCE,
-        AttendanceStatus.ABSENCE_RED, // Assumed dense red is "marked absent" thus done
+        AttendanceStatus.ABSENCE_RED,
         AttendanceStatus.DOUBLE_CLASS,
         AttendanceStatus.TRANSFERRED,
         AttendanceStatus.TRANSFERRED_ABSENT
       ].includes(status as AttendanceStatus);
 
-      // Pending Statuses: undefined, null, EXTRA_DAY, or EXTRA_DOUBLE
       const isPending = !isExempt && !isDone;
 
       const isMakeupTarget = makeupLinks.some(l =>
@@ -5832,12 +5826,29 @@ function App() {
         (isScheduled && !isHoliday && isPending) ||
         (isMakeupTarget && isPending)
       ) {
-        count++;
+        const scheduledCount = getScheduledCountOnDate(student, dayNum);
+        const multiplier = status === AttendanceStatus.EXTRA_DOUBLE ? 2 : (scheduledCount > 1 ? scheduledCount : 1);
+        count += multiplier;
+
+        let durationMins = 30;
+        if (student.duration && student.duration !== 'خليط') {
+          const westernStr = student.duration.toString().replace(/[٠-٩]/g, d => "٠١٢٣٤٥٦٧٨٩".indexOf(d).toString()).trim();
+          const parsed = parseInt(westernStr, 10);
+          if (!isNaN(parsed) && parsed > 0) durationMins = parsed;
+        }
+        totalMinutes += durationMins * multiplier;
       }
     });
 
-    return count;
-  };
+    const rawHours = totalMinutes / 60;
+    const hours = Math.round(rawHours * 100) / 100;
+
+    return { count, totalMinutes, hours };
+  }, [getDayOfWeek, students, year, month, attendance, academyRates, isScheduledOnDate, makeupLinks, getScheduledCountOnDate]);
+
+  const getRemainingClasses = useCallback((dayNum: number) => {
+    return getRemainingClassesInfo(dayNum).count;
+  }, [getRemainingClassesInfo]);
 
   const scrollToFirstPending = (dayNum: number) => {
     const dayOfWeek = getDayOfWeek(dayNum);
@@ -5950,7 +5961,7 @@ function App() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3 p-4">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400 flex-shrink-0"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400 flex-shrink-0"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /></svg>
               <input
                 ref={searchInputRef}
                 type="text"
@@ -5959,7 +5970,7 @@ function App() {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') { closeSearchAndSaveHistory(searchQuery); }
                   if (e.key === 'Escape') { setIsSearchOpen(false); setSearchQuery(''); }
-                  
+
                   // Ctrl + Z (Undo / Previous history)
                   if ((e.ctrlKey || e.metaKey) && e.code === 'KeyZ') {
                     e.preventDefault();
@@ -5974,7 +5985,7 @@ function App() {
                       setSearchQuery(searchHistory[nextIndex]);
                     }
                   }
-                  
+
                   // Ctrl + Y (Redo / Next history)
                   if ((e.ctrlKey || e.metaKey) && e.code === 'KeyY') {
                     e.preventDefault();
@@ -6003,7 +6014,7 @@ function App() {
                   onClick={() => setSearchQuery('')}
                   className="text-gray-300 hover:text-gray-500 transition-colors"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
                 </button>
               )}
             </div>
@@ -6281,208 +6292,208 @@ function App() {
               className="w-10 h-10 bg-emerald-700 text-emerald-100 hover:bg-emerald-600 hover:text-white rounded-xl flex items-center justify-center shadow-sm transition-all active:scale-95"
               title="بنك التجويد"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" /></svg>
             </button>
           </div>
         </div>
 
         <div className="flex-1 flex justify-start px-12" dir="rtl">
           <div className="flex gap-4">
-          <div className="flex flex-col gap-2">
-            <div className="flex gap-2 bg-slate-100 p-1 rounded-2xl border border-slate-200 shadow-inner">
-              <button
-                onClick={() => setIsSettingsOpen(true)}
-                className="w-10 h-10 bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white rounded-xl flex items-center justify-center shadow-sm transition-all active:scale-95"
-                title="الإعدادات"
-              >
-                <Settings size={22} strokeWidth={2} />
-              </button>
+            <div className="flex flex-col gap-2">
+              <div className="flex gap-2 bg-slate-100 p-1 rounded-2xl border border-slate-200 shadow-inner">
+                <button
+                  onClick={() => setIsSettingsOpen(true)}
+                  className="w-10 h-10 bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white rounded-xl flex items-center justify-center shadow-sm transition-all active:scale-95"
+                  title="الإعدادات"
+                >
+                  <Settings size={22} strokeWidth={2} />
+                </button>
 
-              <button
-                onClick={() => {
-                  const type = externalLinks.partnership_type || 'link';
-                  const linkVal = externalLinks.partnership_linkVal || externalLinks.partnership || '';
-                  const copyVal = externalLinks.partnership_copyVal || '';
+                <button
+                  onClick={() => {
+                    const type = externalLinks.partnership_type || 'link';
+                    const linkVal = externalLinks.partnership_linkVal || externalLinks.partnership || '';
+                    const copyVal = externalLinks.partnership_copyVal || '';
 
-                  if (type === 'copy') {
-                    if (copyVal) {
-                      navigator.clipboard.writeText(copyVal);
-                      showToast('تم نسخ التفاصيل! 📝');
+                    if (type === 'copy') {
+                      if (copyVal) {
+                        navigator.clipboard.writeText(copyVal);
+                        showToast('تم نسخ التفاصيل! 📝');
+                      } else {
+                        showToast('لا يوجد نص محفوظ للنسخ (كليك يمين للضبط) 📝');
+                      }
                     } else {
-                      showToast('لا يوجد نص محفوظ للنسخ (كليك يمين للضبط) 📝');
+                      if (linkVal) {
+                        handleOpenLink(linkVal, 'الحسابات');
+                      } else {
+                        showToast('يرجى إضافة رابط الحسابات أولاً (كليك يمين للضبط)');
+                      }
                     }
-                  } else {
-                    if (linkVal) {
-                      handleOpenLink(linkVal, 'الحسابات');
-                    } else {
-                      showToast('يرجى إضافة رابط الحسابات أولاً (كليك يمين للضبط)');
-                    }
-                  }
-                }}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  setActionConfigModal({
-                    isOpen: true,
-                    target: 'partnership',
-                    initialConfig: {
-                      type: externalLinks.partnership_type || 'link',
-                      copyVal: externalLinks.partnership_copyVal || '',
-                      linkVal: externalLinks.partnership_linkVal || externalLinks.partnership || ''
-                    }
-                  });
-                }}
-                className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-sm transition-all active:scale-95 ${(externalLinks.partnership_type === 'copy' && externalLinks.partnership_copyVal) || ((!externalLinks.partnership_type || externalLinks.partnership_type === 'link') && (externalLinks.partnership_linkVal || externalLinks.partnership))
-                  ? 'bg-indigo-600 text-white hover:bg-indigo-500'
-                  : 'bg-slate-300 text-slate-500 hover:bg-slate-400'
-                  }`}
-                title={externalLinks.partnership_type === 'copy' ? "الحسابات (نسخ) (كليك يمين للضبط)" : "الحسابات (فتح) (كليك يمين للضبط)"}
-              >
-                {externalLinks.partnership_type === 'copy' ? <Copy size={20} strokeWidth={2} /> : <Users2 size={22} strokeWidth={2} />}
-              </button>
+                  }}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    setActionConfigModal({
+                      isOpen: true,
+                      target: 'partnership',
+                      initialConfig: {
+                        type: externalLinks.partnership_type || 'link',
+                        copyVal: externalLinks.partnership_copyVal || '',
+                        linkVal: externalLinks.partnership_linkVal || externalLinks.partnership || ''
+                      }
+                    });
+                  }}
+                  className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-sm transition-all active:scale-95 ${(externalLinks.partnership_type === 'copy' && externalLinks.partnership_copyVal) || ((!externalLinks.partnership_type || externalLinks.partnership_type === 'link') && (externalLinks.partnership_linkVal || externalLinks.partnership))
+                    ? 'bg-indigo-600 text-white hover:bg-indigo-500'
+                    : 'bg-slate-300 text-slate-500 hover:bg-slate-400'
+                    }`}
+                  title={externalLinks.partnership_type === 'copy' ? "الحسابات (نسخ) (كليك يمين للضبط)" : "الحسابات (فتح) (كليك يمين للضبط)"}
+                >
+                  {externalLinks.partnership_type === 'copy' ? <Copy size={20} strokeWidth={2} /> : <Users2 size={22} strokeWidth={2} />}
+                </button>
 
-              <button
-                onClick={() => {
-                  const type = externalLinks.expenses_type || 'link';
-                  const linkVal = externalLinks.expenses_linkVal || externalLinks.expenses || '';
-                  const copyVal = externalLinks.expenses_copyVal || '';
+                <button
+                  onClick={() => {
+                    const type = externalLinks.expenses_type || 'link';
+                    const linkVal = externalLinks.expenses_linkVal || externalLinks.expenses || '';
+                    const copyVal = externalLinks.expenses_copyVal || '';
 
-                  if (type === 'copy') {
-                    if (copyVal) {
-                      navigator.clipboard.writeText(copyVal);
-                      showToast('تم نسخ التفاصيل! 📝');
+                    if (type === 'copy') {
+                      if (copyVal) {
+                        navigator.clipboard.writeText(copyVal);
+                        showToast('تم نسخ التفاصيل! 📝');
+                      } else {
+                        showToast('لا يوجد نص محفوظ للنسخ (كليك يمين للضبط) 📝');
+                      }
                     } else {
-                      showToast('لا يوجد نص محفوظ للنسخ (كليك يمين للضبط) 📝');
+                      if (linkVal) {
+                        handleOpenLink(linkVal, 'المصروفات');
+                      } else {
+                        showToast('يرجى إضافة رابط المصروفات أولاً (كليك يمين للضبط)');
+                      }
                     }
-                  } else {
-                    if (linkVal) {
-                      handleOpenLink(linkVal, 'المصروفات');
-                    } else {
-                      showToast('يرجى إضافة رابط المصروفات أولاً (كليك يمين للضبط)');
-                    }
-                  }
-                }}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  setActionConfigModal({
-                    isOpen: true,
-                    target: 'expenses',
-                    initialConfig: {
-                      type: externalLinks.expenses_type || 'link',
-                      copyVal: externalLinks.expenses_copyVal || '',
-                      linkVal: externalLinks.expenses_linkVal || externalLinks.expenses || ''
-                    }
-                  });
-                }}
-                className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-sm transition-all active:scale-95 ${(externalLinks.expenses_type === 'copy' && externalLinks.expenses_copyVal) || ((!externalLinks.expenses_type || externalLinks.expenses_type === 'link') && (externalLinks.expenses_linkVal || externalLinks.expenses))
-                  ? 'bg-emerald-600 text-white hover:bg-emerald-500'
-                  : 'bg-slate-300 text-slate-500 hover:bg-slate-400'
-                  }`}
-                title={externalLinks.expenses_type === 'copy' ? "المصروفات (نسخ) (كليك يمين للضبط)" : "المصروفات (فتح) (كليك يمين للضبط)"}
-              >
-                {externalLinks.expenses_type === 'copy' ? <Copy size={20} strokeWidth={2} /> : <Banknote size={22} strokeWidth={2} />}
-              </button>
+                  }}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    setActionConfigModal({
+                      isOpen: true,
+                      target: 'expenses',
+                      initialConfig: {
+                        type: externalLinks.expenses_type || 'link',
+                        copyVal: externalLinks.expenses_copyVal || '',
+                        linkVal: externalLinks.expenses_linkVal || externalLinks.expenses || ''
+                      }
+                    });
+                  }}
+                  className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-sm transition-all active:scale-95 ${(externalLinks.expenses_type === 'copy' && externalLinks.expenses_copyVal) || ((!externalLinks.expenses_type || externalLinks.expenses_type === 'link') && (externalLinks.expenses_linkVal || externalLinks.expenses))
+                    ? 'bg-emerald-600 text-white hover:bg-emerald-500'
+                    : 'bg-slate-300 text-slate-500 hover:bg-slate-400'
+                    }`}
+                  title={externalLinks.expenses_type === 'copy' ? "المصروفات (نسخ) (كليك يمين للضبط)" : "المصروفات (فتح) (كليك يمين للضبط)"}
+                >
+                  {externalLinks.expenses_type === 'copy' ? <Copy size={20} strokeWidth={2} /> : <Banknote size={22} strokeWidth={2} />}
+                </button>
 
-              <button
-                onClick={() => {
-                  const type = externalLinks.taskCompletion_type || 'link';
-                  const linkVal = externalLinks.taskCompletion_linkVal || externalLinks.taskCompletion || '';
-                  const copyVal = externalLinks.taskCompletion_copyVal || '';
+                <button
+                  onClick={() => {
+                    const type = externalLinks.taskCompletion_type || 'link';
+                    const linkVal = externalLinks.taskCompletion_linkVal || externalLinks.taskCompletion || '';
+                    const copyVal = externalLinks.taskCompletion_copyVal || '';
 
-                  if (type === 'copy') {
-                    if (copyVal) {
-                      navigator.clipboard.writeText(copyVal);
-                      showToast('تم نسخ التفاصيل! 📋');
+                    if (type === 'copy') {
+                      if (copyVal) {
+                        navigator.clipboard.writeText(copyVal);
+                        showToast('تم نسخ التفاصيل! 📋');
+                      } else {
+                        showToast('لا يوجد نص محفوظ للنسخ (كليك يمين للضبط) 📝');
+                      }
                     } else {
-                      showToast('لا يوجد نص محفوظ للنسخ (كليك يمين للضبط) 📝');
+                      if (linkVal) {
+                        handleOpenLink(linkVal, 'استخراج مواعيد الطلاب');
+                      } else {
+                        showToast('يرجى إضافة رابط استخراج مواعيد الطلاب أولاً (كليك يمين للضبط)');
+                      }
                     }
-                  } else {
-                    if (linkVal) {
-                      handleOpenLink(linkVal, 'استخراج مواعيد الطلاب');
-                    } else {
-                      showToast('يرجى إضافة رابط استخراج مواعيد الطلاب أولاً (كليك يمين للضبط)');
-                    }
-                  }
-                }}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  setActionConfigModal({
-                    isOpen: true,
-                    target: 'taskCompletion',
-                    initialConfig: {
-                      type: externalLinks.taskCompletion_type || 'link',
-                      copyVal: externalLinks.taskCompletion_copyVal || '',
-                      linkVal: externalLinks.taskCompletion_linkVal || externalLinks.taskCompletion || ''
-                    }
-                  });
-                }}
-                className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-sm transition-all active:scale-95 ${(externalLinks.taskCompletion_type === 'copy' && externalLinks.taskCompletion_copyVal) || ((!externalLinks.taskCompletion_type || externalLinks.taskCompletion_type === 'link') && (externalLinks.taskCompletion_linkVal || externalLinks.taskCompletion))
-                  ? 'bg-amber-500 text-white hover:bg-amber-400'
-                  : 'bg-slate-300 text-slate-500 hover:bg-slate-400'
-                  }`}
-                title={externalLinks.taskCompletion_type === 'copy' ? "استخراج مواعيد الطلاب (نسخ) (كليك يمين للضبط)" : "استخراج مواعيد الطلاب (فتح) (كليك يمين للضبط)"}
-              >
-                {externalLinks.taskCompletion_type === 'copy' ? (
-                  <Copy size={20} strokeWidth={2} />
-                ) : (
-                  <Link size={22} strokeWidth={2.4} aria-hidden="true" />
-                )}
-              </button>
+                  }}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    setActionConfigModal({
+                      isOpen: true,
+                      target: 'taskCompletion',
+                      initialConfig: {
+                        type: externalLinks.taskCompletion_type || 'link',
+                        copyVal: externalLinks.taskCompletion_copyVal || '',
+                        linkVal: externalLinks.taskCompletion_linkVal || externalLinks.taskCompletion || ''
+                      }
+                    });
+                  }}
+                  className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-sm transition-all active:scale-95 ${(externalLinks.taskCompletion_type === 'copy' && externalLinks.taskCompletion_copyVal) || ((!externalLinks.taskCompletion_type || externalLinks.taskCompletion_type === 'link') && (externalLinks.taskCompletion_linkVal || externalLinks.taskCompletion))
+                    ? 'bg-amber-500 text-white hover:bg-amber-400'
+                    : 'bg-slate-300 text-slate-500 hover:bg-slate-400'
+                    }`}
+                  title={externalLinks.taskCompletion_type === 'copy' ? "استخراج مواعيد الطلاب (نسخ) (كليك يمين للضبط)" : "استخراج مواعيد الطلاب (فتح) (كليك يمين للضبط)"}
+                >
+                  {externalLinks.taskCompletion_type === 'copy' ? (
+                    <Copy size={20} strokeWidth={2} />
+                  ) : (
+                    <Link size={22} strokeWidth={2.4} aria-hidden="true" />
+                  )}
+                </button>
 
+              </div>
+
+              {/* Quick Links for Session durations */}
+              <div className="flex gap-4 bg-white/50 p-1 rounded-2xl border border-slate-100 shadow-sm ml-auto relative z-[60]">
+                <button
+                  onClick={() => {
+                    setActionChoiceModal({
+                      isOpen: true,
+                      title: '٣٠ دقيقة',
+                      target: '30m'
+                    });
+                  }}
+                  className={'w-10 h-10 rounded-xl flex flex-col items-center justify-center transition-all active:scale-90 font-english font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 shadow-sm border border-emerald-100/50'}
+                  title="٣٠ دقيقة (كليك للاختيار)"
+                >
+                  <span className="text-sm leading-none">30</span>
+                  <Clock size={12} strokeWidth={2.5} className="mt-0.5" />
+                </button>
+
+                <button
+                  onClick={() => {
+                    setActionChoiceModal({
+                      isOpen: true,
+                      title: '٦٠ دقيقة',
+                      target: '60m'
+                    });
+                  }}
+                  className={'w-10 h-10 rounded-xl flex flex-col items-center justify-center transition-all active:scale-90 font-english font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 shadow-sm border border-emerald-100/50'}
+                  title="٦٠ دقيقة (كليك للاختيار)"
+                >
+                  <span className="text-sm leading-none">60</span>
+                  <Clock size={12} strokeWidth={2.5} className="mt-0.5" />
+                </button>
+              </div>
             </div>
 
-            {/* Quick Links for Session durations */}
-            <div className="flex gap-4 bg-white/50 p-1 rounded-2xl border border-slate-100 shadow-sm ml-auto relative z-[60]">
-              <button
-                onClick={() => {
-                  setActionChoiceModal({
-                    isOpen: true,
-                    title: '٣٠ دقيقة',
-                    target: '30m'
-                  });
-                }}
-                className={'w-10 h-10 rounded-xl flex flex-col items-center justify-center transition-all active:scale-90 font-english font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 shadow-sm border border-emerald-100/50'}
-                title="٣٠ دقيقة (كليك للاختيار)"
-              >
-                <span className="text-sm leading-none">30</span>
-                <Clock size={12} strokeWidth={2.5} className="mt-0.5" />
-              </button>
+            <button
+              onClick={() => setIsMonthlyStatsOpen(true)}
+              className="h-10 px-5 bg-[#ffe05d] text-gray-900 rounded-xl flex items-center gap-2 shadow-sm hover:bg-[#fcd030] hover:shadow-md transition-all font-arabic font-bold text-lg"
+              title="إحصائيات الشهر"
+            >
+              <BarChart3 size={20} />
+              <span>إحصائيات الشهر</span>
+            </button>
 
-              <button
-                onClick={() => {
-                  setActionChoiceModal({
-                    isOpen: true,
-                    title: '٦٠ دقيقة',
-                    target: '60m'
-                  });
-                }}
-                className={'w-10 h-10 rounded-xl flex flex-col items-center justify-center transition-all active:scale-90 font-english font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 shadow-sm border border-emerald-100/50'}
-                title="٦٠ دقيقة (كليك للاختيار)"
-              >
-                <span className="text-sm leading-none">60</span>
-                <Clock size={12} strokeWidth={2.5} className="mt-0.5" />
-              </button>
-            </div>
+            <button
+              onClick={() => setIsLastMonthStatsOpen(true)}
+              className="h-10 px-5 bg-indigo-50 text-indigo-600 border border-indigo-100 rounded-xl flex items-center gap-2 shadow-sm hover:bg-indigo-100 hover:shadow-md transition-all font-arabic font-bold text-lg"
+              title="إحصائيات الشهر الماضي"
+            >
+              <History size={20} />
+              <span>إحصائيات الشهر الماضي</span>
+            </button>
           </div>
-
-          <button
-            onClick={() => setIsMonthlyStatsOpen(true)}
-            className="h-10 px-5 bg-[#ffe05d] text-gray-900 rounded-xl flex items-center gap-2 shadow-sm hover:bg-[#fcd030] hover:shadow-md transition-all font-arabic font-bold text-lg"
-            title="إحصائيات الشهر"
-          >
-            <BarChart3 size={20} />
-            <span>إحصائيات الشهر</span>
-          </button>
-
-          <button
-            onClick={() => setIsLastMonthStatsOpen(true)}
-            className="h-10 px-5 bg-indigo-50 text-indigo-600 border border-indigo-100 rounded-xl flex items-center gap-2 shadow-sm hover:bg-indigo-100 hover:shadow-md transition-all font-arabic font-bold text-lg"
-            title="إحصائيات الشهر الماضي"
-          >
-            <History size={20} />
-            <span>إحصائيات الشهر الماضي</span>
-          </button>
         </div>
-      </div>
       </div>
 
       <div
@@ -6507,14 +6518,14 @@ function App() {
         className="px-12 pb-6 pt-10 min-h-[calc(100vh-100px)] relative"
       >
 
-        <div 
+        <div
           ref={tableScrollRef}
           className={`bg-white rounded-3xl relative z-10 shadow-[0_8px_30px_-12px_rgba(0,0,0,0.1),0_-8px_30px_-12px_rgba(0,0,0,0.1)] group/table-container w-full overflow-x-auto ${isTableScrolled ? 'is-table-scrolled' : ''}`}
           onScroll={(e) => {
             if (stickyHeaderRef.current) {
               stickyHeaderRef.current.scrollLeft = e.currentTarget.scrollLeft;
             }
-            
+
             // Close context menu on scroll
             if (academyContextMenu.isOpen) {
               setAcademyContextMenu(prev => ({ ...prev, isOpen: false, isClosing: true }));
@@ -6575,7 +6586,7 @@ function App() {
                     const dayNum = i + 1;
                     const isWknd = isWeekend(dayNum);
                     const isToday = isTodayColumn(dayNum);
-                    const remainingCount = getRemainingClasses(dayNum);
+                    const remainingInfo = getRemainingClassesInfo(dayNum);
 
                     return (
                       <th
@@ -6586,13 +6597,14 @@ function App() {
                           backgroundColor: isToday ? 'rgba(255, 224, 93, 0.4)' : isWknd ? 'rgba(129, 255, 234, 0.1)' : 'transparent'
                         }}
                       >
-                        {remainingCount > 0 && (
+                        {remainingInfo.count > 0 && (
                           <div
                             onClick={(e) => { e.stopPropagation(); scrollToFirstPending(dayNum); }}
-                            className={`absolute -top-8 left-1/2 -translate-x-1/2 min-w-[20px] h-5 flex items-center justify-center z-20 transition-all duration-300 cursor-pointer hover:scale-125 active:scale-95 ${isToday ? 'opacity-100' : 'opacity-0 group-hover/header:opacity-100 translate-y-2 group-hover/header:translate-y-0'}`}
-                            title="انقر للذهاب لأول حصة متبقية"
+                            className={`absolute -top-9 left-1/2 -translate-x-1/2 flex flex-col items-center justify-center bg-white/90 backdrop-blur-sm px-2 py-0.5 rounded-full shadow-md border border-amber-200/80 z-20 transition-all duration-300 cursor-pointer hover:scale-110 active:scale-95 ${isToday ? 'opacity-100' : 'opacity-0 group-hover/header:opacity-100 translate-y-2 group-hover/header:translate-y-0'}`}
+                            title={`انقر للذهاب لأول حصة متبقية (${toHindiDigits(remainingInfo.count)} حصص | ${toHindiDigits(remainingInfo.hours)} ساعة)`}
                           >
-                            <span className="text-[#ff7a00] text-[1.15rem] font-bold font-arabic drop-shadow-md">{toHindiDigits(remainingCount)}</span>
+                            <span className="text-amber-700 text-[0.8rem] font-bold font-arabic leading-none">{toHindiDigits(remainingInfo.hours)}</span>
+                            <span className="text-[#ff7a00] text-[1.05rem] font-bold font-arabic drop-shadow-sm leading-none">{toHindiDigits(remainingInfo.count)}</span>
                           </div>
                         )}
 
@@ -6651,570 +6663,633 @@ function App() {
                   const academyStudents = groupedStudents[academy] || [];
                   const allHiddenBySearch = searchQuery.trim() !== '' && academyStudents.every(s => !searchMatches(s.name));
                   return (
-                  <React.Fragment key={academy}>
-                    {/* Section Header */}
-                    <tr id={`academy-${academy}`} className={`scroll-mt-40 group ${allHiddenBySearch ? 'hidden' : ''}`}>
-                      <td
-                        colSpan={daysInMonth + (showMissedCount ? 2 : 1)}
-                        className="bg-gray-50/80 p-4 text-center select-none"
-                      >
-                        <div
-                          onContextMenu={(e) => {
-                            e.preventDefault();
-                            const rect = e.currentTarget.getBoundingClientRect();
-                            setAcademyContextMenu({
-                              isOpen: true,
-                              isClosing: false,
-                              x: rect.right - 220, // Sync viewport coordinates
-                              y: rect.bottom + 5,  // Sync viewport coordinates
-                              academy: academy
-                            });
-                          }}
-                          className={`inline-flex items-center gap-3 px-6 py-2 bg-white rounded-full shadow-sm border border-gray-100 text-2xl text-gray-800 select-none cursor-pointer hover:bg-gray-50 hover:shadow-md transition-all ${/[a-zA-Z]/.test(academy) ? 'font-english' : 'font-arabic'}`}
-                          onClick={() => setSelectedAcademyForDetails(academy)}
+                    <React.Fragment key={academy}>
+                      {/* Section Header */}
+                      <tr id={`academy-${academy}`} className={`scroll-mt-40 group ${allHiddenBySearch ? 'hidden' : ''}`}>
+                        <td
+                          colSpan={daysInMonth + (showMissedCount ? 2 : 1)}
+                          className="bg-gray-50/80 p-4 text-center select-none"
                         >
-                          <span>{academy}</span>
-                          {academyRates[academy]?.externalLink && (
-                            <button
-                              type="button"
-                              onClick={(e) => openExternalLink(academyRates[academy].externalLink!, e)}
-                              className="text-gray-400 hover:text-[#002060] transition-colors"
-                              title="فتح ملف الأكاديمية"
-                            >
-                              <Link size={20} />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
+                          <div
+                            onContextMenu={(e) => {
+                              e.preventDefault();
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              setAcademyContextMenu({
+                                isOpen: true,
+                                isClosing: false,
+                                x: rect.right - 220, // Sync viewport coordinates
+                                y: rect.bottom + 5,  // Sync viewport coordinates
+                                academy: academy
+                              });
+                            }}
+                            className={`inline-flex items-center gap-3 px-6 py-2 bg-white rounded-full shadow-sm border border-gray-100 text-2xl text-gray-800 select-none cursor-pointer hover:bg-gray-50 hover:shadow-md transition-all ${/[a-zA-Z]/.test(academy) ? 'font-english' : 'font-arabic'}`}
+                            onClick={() => setSelectedAcademyForDetails(academy)}
+                          >
+                            <span>{academy}</span>
+                            {academyRates[academy]?.externalLink && (
+                              <button
+                                type="button"
+                                onClick={(e) => openExternalLink(academyRates[academy].externalLink!, e)}
+                                className="text-gray-400 hover:text-[#002060] transition-colors"
+                                title="فتح ملف الأكاديمية"
+                              >
+                                <Link size={20} />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
 
-                    {groupedStudents[academy].map((student, sIdx) => {
-                      const totalDays = calculateTotal(student.id);
-                      // For Mixed students, rate is the Hourly rate, so we divide by 2 for each 30-min unit
-                      const effectiveRate = student.duration === 'خليط' ? student.rate / 2 : student.rate;
-                      const totalPay = totalDays * effectiveRate;
-                      const unseenUngradedTajweedCount = getUnseenUngradedTajweedCount(student.id);
+                      {groupedStudents[academy].map((student, sIdx) => {
+                        const totalDays = calculateTotal(student.id);
+                        // For Mixed students, rate is the Hourly rate, so we divide by 2 for each 30-min unit
+                        const effectiveRate = student.duration === 'خليط' ? student.rate / 2 : student.rate;
+                        const totalPay = totalDays * effectiveRate;
+                        const unseenUngradedTajweedCount = getUnseenUngradedTajweedCount(student.id);
 
-                      const isEnding = !!student.deletedAt;
+                        const isEnding = !!student.deletedAt;
 
-                      // Logic to predict expected subscription end day for scheduled students
-                      const sub = subscriptionSettings[student.id];
-                      let expectedEndDay: number | null = null;
-                      if (!isEnding && sub?.enabled && sub.mode === 'subscription' && (student.days?.length ?? 0) > 0) {
-                        try {
-                          const limit = sub.totalClasses || 8;
-                          // If currentClass is 8, 16, etc., it means 8/8 is done.
-                          // Remaining in current cycle:
-                          const doneInCurrentCycle = sub.currentClass % limit;
-                          let remaining = limit - doneInCurrentCycle; 
-                          
-                          if (remaining > 0) {
-                            let currentSimMonth = today.month;
-                            let currentSimYear = today.year;
-                            let remainingToFind = remaining;
-                            let found = false;
+                        // Logic to predict expected subscription end day for scheduled students
+                        const sub = subscriptionSettings[student.id];
+                        let expectedEndDay: number | null = null;
+                        if (!isEnding && sub?.enabled && sub.mode === 'subscription' && (student.days?.length ?? 0) > 0) {
+                          try {
+                            const limit = sub.totalClasses || 8;
+                            // If currentClass is 8, 16, etc., it means 8/8 is done.
+                            // Remaining in current cycle:
+                            const doneInCurrentCycle = sub.currentClass % limit;
+                            let remaining = limit - doneInCurrentCycle;
 
-                            // Limit search to 12 months for safety
-                            for (let m = 0; m < 12; m++) {
-                              const isTodayMonth = (currentSimMonth === today.month && currentSimYear === today.year);
-                              const isViewMonth = (currentSimMonth === month && currentSimYear === year);
-                              
-                              const simDaysInMonth = new Date(currentSimYear, currentSimMonth + 1, 0).getDate();
-                              const startD = isTodayMonth ? today.day : 1;
-                              
-                              for (let d = startD; d <= simDaysInMonth; d++) {
-                                // Calculate day of week for the simulated date
-                                const dow = new Date(currentSimYear, currentSimMonth, d).getDay();
-                                if (isScheduledOnDate(student, d, currentSimMonth, currentSimYear)) {
-                                  // Account for marks already made
-                                  if (!attendance[`${student.id}_${d}_${currentSimMonth}_${currentSimYear}`]) {
-                                    remainingToFind--;
-                                    if (remainingToFind === 0) {
-                                      if (isViewMonth) {
-                                        expectedEndDay = d;
+                            if (remaining > 0) {
+                              let currentSimMonth = today.month;
+                              let currentSimYear = today.year;
+                              let remainingToFind = remaining;
+                              let found = false;
+
+                              // Limit search to 12 months for safety
+                              for (let m = 0; m < 12; m++) {
+                                const isTodayMonth = (currentSimMonth === today.month && currentSimYear === today.year);
+                                const isViewMonth = (currentSimMonth === month && currentSimYear === year);
+
+                                const simDaysInMonth = new Date(currentSimYear, currentSimMonth + 1, 0).getDate();
+                                const startD = isTodayMonth ? today.day : 1;
+
+                                for (let d = startD; d <= simDaysInMonth; d++) {
+                                  // Calculate day of week for the simulated date
+                                  const dow = new Date(currentSimYear, currentSimMonth, d).getDay();
+                                  if (isScheduledOnDate(student, d, currentSimMonth, currentSimYear)) {
+                                    // Account for marks already made
+                                    if (!attendance[`${student.id}_${d}_${currentSimMonth}_${currentSimYear}`]) {
+                                      remainingToFind--;
+                                      if (remainingToFind === 0) {
+                                        if (isViewMonth) {
+                                          expectedEndDay = d;
+                                        }
+                                        found = true;
+                                        break;
                                       }
-                                      found = true;
-                                      break;
                                     }
                                   }
                                 }
-                              }
-                              
-                              if (found) break;
-                              
-                              currentSimMonth++;
-                              if (currentSimMonth > 11) {
-                                currentSimMonth = 0;
-                                currentSimYear++;
+
+                                if (found) break;
+
+                                currentSimMonth++;
+                                if (currentSimMonth > 11) {
+                                  currentSimMonth = 0;
+                                  currentSimYear++;
+                                }
                               }
                             }
+                          } catch (e) {
+                            console.error("Failed to calculate expectedEndDay:", e);
                           }
-                        } catch (e) {
-                          console.error("Failed to calculate expectedEndDay:", e);
                         }
-                      }
 
-                      const isSearchHidden = searchQuery.trim() !== '' && !searchMatches(student.name);
-                      return (
-                        <tr
-                          key={student.id}
-                          data-student-id={student.id}
-                          draggable={true}
-                          onDragStart={(e) => handleStudentDragStart(e, student.id)}
-                          onDragOver={(e) => handleStudentDragOver(e, student.id)}
-                          onDragEnd={() => { setDraggedStudentId(null); setStudentDragOverId(null); stopAutoScroll(); }}
-                          onDrop={(e) => handleStudentDrop(e, student.id)}
-                          className={`
+                        const isSearchHidden = searchQuery.trim() !== '' && !searchMatches(student.name);
+                        return (
+                          <tr
+                            key={student.id}
+                            data-student-id={student.id}
+                            draggable={true}
+                            onDragStart={(e) => handleStudentDragStart(e, student.id)}
+                            onDragOver={(e) => handleStudentDragOver(e, student.id)}
+                            onDragEnd={() => { setDraggedStudentId(null); setStudentDragOverId(null); stopAutoScroll(); }}
+                            onDrop={(e) => handleStudentDrop(e, student.id)}
+                            className={`
                             hover:bg-blue-100 rounded-2xl group relative cursor-move row-hover-tr
                             ${isSearchHidden ? 'hidden' : ''}
                             ${draggedStudentId === student.id ? 'opacity-20 grayscale scale-[0.98] blur-[1px]' : ''}
                             ${(student.hasTopSeparator && (student.hasBottomSeparator || student.hasSeparator))
-                              ? 'shadow-[0_10px_15px_-8px_rgba(0,0,0,0.1),0_-10px_15px_-8px_rgba(0,0,0,0.1)]'
-                              : student.hasTopSeparator
-                                ? 'shadow-[0_-10px_15px_-8px_rgba(0,0,0,0.1)]'
-                                : (student.hasBottomSeparator || student.hasSeparator)
-                                  ? 'shadow-[0_10px_15px_-8px_rgba(0,0,0,0.1)]'
-                                  : ''
-                            }
+                                ? 'shadow-[0_10px_15px_-8px_rgba(0,0,0,0.1),0_-10px_15px_-8px_rgba(0,0,0,0.1)]'
+                                : student.hasTopSeparator
+                                  ? 'shadow-[0_-10px_15px_-8px_rgba(0,0,0,0.1)]'
+                                  : (student.hasBottomSeparator || student.hasSeparator)
+                                    ? 'shadow-[0_10px_15px_-8px_rgba(0,0,0,0.1)]'
+                                    : ''
+                              }
                           `}
-                        >
-                          <td
-                            className={`sticky right-0 student-name-sticky z-[25] p-0 text-center text-gray-800 whitespace-nowrap cursor-pointer hover:brightness-100 transition-all select-none relative group/student border-none shadow-none min-w-[220px] w-[220px] backdrop-blur-[6px] ${isEnding ? 'opacity-40 grayscale saturate-50' : ''} ${selectedStudentIds.has(student.id) ? 'opacity-60' : ''}`}
-                            style={{
-                              background: (() => {
-                                const rgb = student.color ? {
-                                  'red': '244, 63, 94',
-                                  'orange': '249, 115, 22',
-                                  'green': '16, 185, 129',
-                                  'blue': '59, 130, 246',
-                                  'purple': '139, 92, 246'
-                                }[student.color] || '255, 224, 93' : '255, 224, 93';
-                                return `linear-gradient(to left, rgba(${rgb}, 0.08) 95%, rgba(${rgb}, 0) 100%)`;
-                              })()
-                            }}
-                            onClick={(e) => {
-                              // Skip if this click was triggered after a long-press
-                              if (longPressTriggeredRef.current) {
-                                longPressTriggeredRef.current = false;
-                                return;
-                              }
-                              // Ctrl/Cmd + click on student name opens student link directly.
-                              if ((e.ctrlKey || e.metaKey) && !isMultiSelectMode && !isTajweedShortcutPressed) {
-                                handleOpenLink(buildStudentPortalUrl(student), student.name);
-                                return;
-                              }
-                              // If in multi-select mode, toggle selection instead of opening details
-                              if (isMultiSelectMode) {
-                                setSelectedStudentIds(prev => {
-                                  const newSet = new Set(prev);
-                                  if (newSet.has(student.id)) {
-                                    newSet.delete(student.id);
-                                    // If no students selected, exit multi-select mode
-                                    if (newSet.size === 0) {
-                                      setIsMultiSelectMode(false);
-                                    }
-                                  } else {
-                                    newSet.add(student.id);
-                                  }
-                                  return newSet;
-                                });
-                              } else if (isTajweedShortcutPressed) {
-                                markUngradedTajweedAssignmentsAsSeen(student.id);
-                                setTajweedGradingFocusStudentId(student.id);
-                                setIsTajweedGradingModalOpen(true);
-                              } else {
-                                setSelectedStudentForDetails(student);
-                              }
-                            }}
-                            onPointerDown={(e) => {
-                              // Start long-press timer for multi-select
-                              if (longPressTimerRef.current) {
-                                clearTimeout(longPressTimerRef.current);
-                              }
-                              longPressTriggeredRef.current = false;
-                              const studentId = student.id;
-                              longPressTimerRef.current = setTimeout(() => {
-                                // Long press detected - enter multi-select mode
-                                longPressTriggeredRef.current = true;
-                                setIsMultiSelectMode(true);
-                                setSelectedStudentIds(prev => {
-                                  const newSet = new Set(prev);
-                                  if (newSet.has(studentId)) {
-                                    newSet.delete(studentId);
-                                  } else {
-                                    newSet.add(studentId);
-                                  }
-                                  return newSet;
-                                });
-                                longPressTimerRef.current = null;
-                              }, 400); // 400ms long-press threshold
-                            }}
-                            onPointerUp={() => {
-                              // Cancel long-press timer if released early
-                              if (longPressTimerRef.current) {
-                                clearTimeout(longPressTimerRef.current);
-                                longPressTimerRef.current = null;
-                              }
-                            }}
-                            onPointerEnter={(e) => {
-                              if (!showMissedCount) return;
-                              if (studentOptionsTimeoutRef.current) clearTimeout(studentOptionsTimeoutRef.current);
-                              const rect = e.currentTarget.getBoundingClientRect();
-                              setStudentOptionsMenu({
-                                isOpen: true,
-                                isClosing: false,
-                                x: rect.right - 35,
-                                y: rect.top + rect.height / 2,
-                                student: student
-                              });
-                            }}
-                            onPointerLeave={(e) => {
-                              // Cancel long-press timer if pointer leaves
-                              if (longPressTimerRef.current) {
-                                clearTimeout(longPressTimerRef.current);
-                                longPressTimerRef.current = null;
-                              }
-                              // Hide options menu
-                              if (studentOptionsTimeoutRef.current) clearTimeout(studentOptionsTimeoutRef.current);
-                              // We only close if moving outside the menu. The global menu handles staying open.
-                              studentOptionsTimeoutRef.current = setTimeout(() => {
-                                setStudentOptionsMenu(prev => ({ ...prev, isOpen: false }));
-                              }, 150);
-                            }}
-                            onContextMenu={(e) => {
-                              e.preventDefault();
-                              setEditingStudent(student);
-                              setIsModalOpen(true);
-                            }}
                           >
-                            {/* Selection Indicator */}
-                            {selectedStudentIds.has(student.id) && (
-                              <div
-                                className="absolute inset-0 z-20 pointer-events-none border border-blue-400/50 rounded-sm shadow-[0_0_12px_rgba(59,130,246,0.3)] animate-in fade-in duration-200"
-                              >
-                                <div className="absolute top-1/2 left-2 -translate-y-1/2 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center shadow-md">
-                                  <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                  </svg>
-                                </div>
-                              </div>
-                            )}
-                            {/* Drop Indicator Logic Line */}
-                            {dropIndicator?.id === student.id && (
-                              <div
-                                className={`absolute right-0 h-[1.5px] bg-blue-400/60 shadow-[0_0_15px_rgba(59,130,246,0.5)] z-[100] transition-all duration-200 pointer-events-none animate-in fade-in zoom-in-y duration-300`}
-                                style={{
-                                  width: `${tableWidth}px`,
-                                  top: dropIndicator.position === 'top' ? '-0.75px' : 'auto',
-                                  bottom: dropIndicator.position === 'bottom' ? '-0.75px' : 'auto'
-                                }}
-                              />
-                            )}
-                            <div className="w-full h-full p-4 flex items-center justify-center relative">
-
-                              <div className={`flex items-center justify-center gap-2 ${/[a-zA-Z]/.test(student.name) ? 'font-english text-xl' : 'font-arabic text-2xl'}`}>
-                                <span className={searchQuery.trim() && searchMatches(student.name) ? 'text-amber-600' : ''}>{student.name}</span>
-                                {unseenUngradedTajweedCount > 0 && (
-                                  <span
-                                    className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold leading-none shadow-sm"
-                                    title="يوجد واجب تجويد غير مصحح"
-                                  >
-                                    {toHindiDigits(unseenUngradedTajweedCount)}
-                                  </span>
-                                )}
-                                {student.externalLink && (
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      e.preventDefault();
-                                      triggerLinkAnimation(student.id, () => {
-                                        openExternalLink(student.externalLink!);
-                                      });
-                                    }}
-                                    className="text-gray-400 hover:text-[#ffe05d] transition-colors"
-                                    title="فتح ملف الطالب"
-                                  >
-                                    <Link size={14} />
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-                          </td>
-
-                          {/* Attendance Grid */}
-                          {
-                            Array.from({ length: daysInMonth }).map((_, i) => {
-                              const dayNum = i + 1;
-                              const isWknd = isWeekend(dayNum);
-                              const isToday = isTodayColumn(dayNum);
-                              const key = `${student.id}_${dayNum}_${month}_${year}`;
-                              const status = attendance[key];
-                              const billingStartDay = academyRates[student.academy]?.billingStartDay || 1;
-                              const isDeferredDay = billingStartDay > 1 && dayNum >= billingStartDay;
-                              const visualStatus = (() => {
-                                if (!status) return status;
-                                if (isDeferredDay) {
-                                  if (status === AttendanceStatus.PRESENT) return AttendanceStatus.TRANSFERRED;
-                                  if (status === AttendanceStatus.PAID_ABSENCE) {
-                                    return AttendanceStatus.TRANSFERRED_ABSENT;
-                                  }
+                            <td
+                              className={`sticky right-0 student-name-sticky z-[25] p-0 text-center text-gray-800 whitespace-nowrap cursor-pointer hover:brightness-100 transition-all select-none relative group/student border-none shadow-none min-w-[220px] w-[220px] backdrop-blur-[6px] ${isEnding ? 'opacity-40 grayscale saturate-50' : ''} ${selectedStudentIds.has(student.id) ? 'opacity-60' : ''}`}
+                              style={{
+                                background: (() => {
+                                  const rgb = student.color ? {
+                                    'red': '244, 63, 94',
+                                    'orange': '249, 115, 22',
+                                    'green': '16, 185, 129',
+                                    'blue': '59, 130, 246',
+                                    'purple': '139, 92, 246'
+                                  }[student.color] || '255, 224, 93' : '255, 224, 93';
+                                  return `linear-gradient(to left, rgba(${rgb}, 0.08) 95%, rgba(${rgb}, 0) 100%)`;
+                                })()
+                              }}
+                              onClick={(e) => {
+                                // Skip if this click was triggered after a long-press
+                                if (longPressTriggeredRef.current) {
+                                  longPressTriggeredRef.current = false;
+                                  return;
                                 }
-                                return status;
-                              })();
-
-                              const academyHolidays = academyRates[student.academy]?.holidays || [];
-                              const isAcademyHoliday = academyHolidays.includes(getDayOfWeek(dayNum));
-
-                              const scheduledOccurrences = getScheduledCountOnDate(student, dayNum);
-                              const isDaySelected = scheduledOccurrences > 0;
-                              const isDoubleScheduled = scheduledOccurrences === 2;
-
-                              const makeupLinkForDay = makeupLinks.find(l => l.studentId === student.id && (l.missedDay === dayNum || l.makeupDay === dayNum) && l.month === month && l.year === year);
-                              const isMakeupTarget = makeupLinkForDay?.makeupDay === dayNum;
-                              const isMakeupSource = makeupLinkForDay?.missedDay === dayNum;
-
-                              // Compute Stable Lanes for this Student (to handle overlaps without intersection)
-                              const rowLinks = makeupLinks.filter(l => l.studentId === student.id && l.month === month && l.year === year)
-                                .sort((a, b) => Math.min(a.missedDay, a.makeupDay) - Math.min(b.missedDay, b.makeupDay));
-
-                              const laneMap = new Map<string, number>();
-                              const lanes: number[] = [];
-                              for (const l of rowLinks) {
-                                const start = Math.min(l.missedDay, l.makeupDay);
-                                const end = Math.max(l.missedDay, l.makeupDay);
-                                let assigned = -1;
-                                // Find first free lane
-                                for (let i = 0; i < lanes.length; i++) {
-                                  if (lanes[i] < start) { // Lane is free
-                                    assigned = i;
-                                    lanes[i] = end;
-                                    break;
-                                  }
+                                // Ctrl/Cmd + click on student name opens student link directly.
+                                if ((e.ctrlKey || e.metaKey) && !isMultiSelectMode && !isTajweedShortcutPressed) {
+                                  handleOpenLink(buildStudentPortalUrl(student), student.name);
+                                  return;
                                 }
-                                if (assigned === -1) {
-                                  assigned = lanes.length;
-                                  lanes.push(end);
-                                }
-                                laneMap.set(`${l.missedDay}-${l.makeupDay}`, assigned);
-                              }
-
-                              const activeLinks = rowLinks.filter(l =>
-                                dayNum >= Math.min(l.missedDay, l.makeupDay) &&
-                                dayNum <= Math.max(l.missedDay, l.makeupDay)
-                              );
-                              const hasActiveLinks = activeLinks.length > 0;
-
-                              const isLinkHovered = hoveredMakeupLink && rowLinks.some(l =>
-                                `${l.studentId}-${l.missedDay}-${l.makeupDay}` === hoveredMakeupLink &&
-                                l.makeupDay === dayNum
-                              );
-
-                              return (
-                                <td
-                                  key={dayNum}
-                                  id={`cell-${student.id}-${dayNum}`}
-                                  onClick={(e) => {
-                                    if (longPressTriggeredRef.current) {
-                                      longPressTriggeredRef.current = false;
-                                      return;
-                                    }
-
-                                    // Cancel if clicking on the same source cell while active
-                                    if (makeupLinkingMode?.isActive && makeupLinkingMode.studentId === student.id && makeupLinkingMode.sourceDay === dayNum) {
-                                      setMakeupLinkingMode(null);
-                                      return;
-                                    }
-
-                                    if (makeupLinkingMode?.isActive && makeupLinkingMode.studentId === student.id) {
-                                      if (dayNum !== makeupLinkingMode.sourceDay) {
-                                        const sourceKey = `${student.id}_${makeupLinkingMode.sourceDay}_${month}_${year}`;
-                                        const originalStatus = attendance[sourceKey] || AttendanceStatus.ABSENCE_RED; // Default to Red if missing
-
-                                        const newLink: MakeupLink = {
-                                          missedDay: makeupLinkingMode.sourceDay,
-                                          makeupDay: dayNum,
-                                          studentId: student.id,
-                                          month,
-                                          year,
-                                          originalStatus
-                                        };
-                                        setMakeupLinks(prev => [...prev, newLink]);
-
-                                        // Change original missed day to POSTPONED
-                                        setAttendance(prev => ({ ...prev, [sourceKey]: AttendanceStatus.POSTPONED }));
-
-                                        setMakeupLinkingMode(null);
+                                // If in multi-select mode, toggle selection instead of opening details
+                                if (isMultiSelectMode) {
+                                  setSelectedStudentIds(prev => {
+                                    const newSet = new Set(prev);
+                                    if (newSet.has(student.id)) {
+                                      newSet.delete(student.id);
+                                      // If no students selected, exit multi-select mode
+                                      if (newSet.size === 0) {
+                                        setIsMultiSelectMode(false);
                                       }
                                     } else {
-                                      // Unlinking Logic for POSTPONED days
+                                      newSet.add(student.id);
+                                    }
+                                    return newSet;
+                                  });
+                                } else if (isTajweedShortcutPressed) {
+                                  markUngradedTajweedAssignmentsAsSeen(student.id);
+                                  setTajweedGradingFocusStudentId(student.id);
+                                  setIsTajweedGradingModalOpen(true);
+                                } else {
+                                  setSelectedStudentForDetails(student);
+                                }
+                              }}
+                              onPointerDown={(e) => {
+                                // Start long-press timer for multi-select
+                                if (longPressTimerRef.current) {
+                                  clearTimeout(longPressTimerRef.current);
+                                }
+                                longPressTriggeredRef.current = false;
+                                const studentId = student.id;
+                                longPressTimerRef.current = setTimeout(() => {
+                                  // Long press detected - enter multi-select mode
+                                  longPressTriggeredRef.current = true;
+                                  setIsMultiSelectMode(true);
+                                  setSelectedStudentIds(prev => {
+                                    const newSet = new Set(prev);
+                                    if (newSet.has(studentId)) {
+                                      newSet.delete(studentId);
+                                    } else {
+                                      newSet.add(studentId);
+                                    }
+                                    return newSet;
+                                  });
+                                  longPressTimerRef.current = null;
+                                }, 400); // 400ms long-press threshold
+                              }}
+                              onPointerUp={() => {
+                                // Cancel long-press timer if released early
+                                if (longPressTimerRef.current) {
+                                  clearTimeout(longPressTimerRef.current);
+                                  longPressTimerRef.current = null;
+                                }
+                              }}
+                              onPointerEnter={(e) => {
+                                if (!showMissedCount) return;
+                                if (studentOptionsTimeoutRef.current) clearTimeout(studentOptionsTimeoutRef.current);
+                                const rect = e.currentTarget.getBoundingClientRect();
+                                setStudentOptionsMenu({
+                                  isOpen: true,
+                                  isClosing: false,
+                                  x: rect.right - 35,
+                                  y: rect.top + rect.height / 2,
+                                  student: student
+                                });
+                              }}
+                              onPointerLeave={(e) => {
+                                // Cancel long-press timer if pointer leaves
+                                if (longPressTimerRef.current) {
+                                  clearTimeout(longPressTimerRef.current);
+                                  longPressTimerRef.current = null;
+                                }
+                                // Hide options menu
+                                if (studentOptionsTimeoutRef.current) clearTimeout(studentOptionsTimeoutRef.current);
+                                // We only close if moving outside the menu. The global menu handles staying open.
+                                studentOptionsTimeoutRef.current = setTimeout(() => {
+                                  setStudentOptionsMenu(prev => ({ ...prev, isOpen: false }));
+                                }, 150);
+                              }}
+                              onContextMenu={(e) => {
+                                e.preventDefault();
+                                setEditingStudent(student);
+                                setIsModalOpen(true);
+                              }}
+                            >
+                              {/* Selection Indicator */}
+                              {selectedStudentIds.has(student.id) && (
+                                <div
+                                  className="absolute inset-0 z-20 pointer-events-none border border-blue-400/50 rounded-sm shadow-[0_0_12px_rgba(59,130,246,0.3)] animate-in fade-in duration-200"
+                                >
+                                  <div className="absolute top-1/2 left-2 -translate-y-1/2 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center shadow-md">
+                                    <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                  </div>
+                                </div>
+                              )}
+                              {/* Drop Indicator Logic Line */}
+                              {dropIndicator?.id === student.id && (
+                                <div
+                                  className={`absolute right-0 h-[1.5px] bg-blue-400/60 shadow-[0_0_15px_rgba(59,130,246,0.5)] z-[100] transition-all duration-200 pointer-events-none animate-in fade-in zoom-in-y duration-300`}
+                                  style={{
+                                    width: `${tableWidth}px`,
+                                    top: dropIndicator.position === 'top' ? '-0.75px' : 'auto',
+                                    bottom: dropIndicator.position === 'bottom' ? '-0.75px' : 'auto'
+                                  }}
+                                />
+                              )}
+                              <div className="w-full h-full p-4 flex items-center justify-center relative">
+
+                                <div className={`flex items-center justify-center gap-2 ${/[a-zA-Z]/.test(student.name) ? 'font-english text-xl' : 'font-arabic text-2xl'}`}>
+                                  <span className={searchQuery.trim() && searchMatches(student.name) ? 'text-amber-600' : ''}>{student.name}</span>
+                                  {unseenUngradedTajweedCount > 0 && (
+                                    <span
+                                      className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold leading-none shadow-sm"
+                                      title="يوجد واجب تجويد غير مصحح"
+                                    >
+                                      {toHindiDigits(unseenUngradedTajweedCount)}
+                                    </span>
+                                  )}
+                                  {student.externalLink && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        e.preventDefault();
+                                        triggerLinkAnimation(student.id, () => {
+                                          openExternalLink(student.externalLink!);
+                                        });
+                                      }}
+                                      className="text-gray-400 hover:text-[#ffe05d] transition-colors"
+                                      title="فتح ملف الطالب"
+                                    >
+                                      <Link size={14} />
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* Attendance Grid */}
+                            {
+                              Array.from({ length: daysInMonth }).map((_, i) => {
+                                const dayNum = i + 1;
+                                const isWknd = isWeekend(dayNum);
+                                const isToday = isTodayColumn(dayNum);
+                                const key = `${student.id}_${dayNum}_${month}_${year}`;
+                                const status = attendance[key];
+                                const billingStartDay = academyRates[student.academy]?.billingStartDay || 1;
+                                const isDeferredDay = billingStartDay > 1 && dayNum >= billingStartDay;
+                                const visualStatus = (() => {
+                                  if (!status) return status;
+                                  if (isDeferredDay) {
+                                    if (status === AttendanceStatus.PRESENT) return AttendanceStatus.TRANSFERRED;
+                                    if (status === AttendanceStatus.PAID_ABSENCE) {
+                                      return AttendanceStatus.TRANSFERRED_ABSENT;
+                                    }
+                                  }
+                                  return status;
+                                })();
+
+                                const academyHolidays = academyRates[student.academy]?.holidays || [];
+                                const isAcademyHoliday = academyHolidays.includes(getDayOfWeek(dayNum));
+
+                                const scheduledOccurrences = getScheduledCountOnDate(student, dayNum);
+                                const isDaySelected = scheduledOccurrences > 0;
+                                const isDoubleScheduled = scheduledOccurrences === 2;
+
+                                const makeupLinkForDay = makeupLinks.find(l => l.studentId === student.id && (l.missedDay === dayNum || l.makeupDay === dayNum) && l.month === month && l.year === year);
+                                const isMakeupTarget = makeupLinkForDay?.makeupDay === dayNum;
+                                const isMakeupSource = makeupLinkForDay?.missedDay === dayNum;
+
+                                // Compute Stable Lanes for this Student (to handle overlaps without intersection)
+                                const rowLinks = makeupLinks.filter(l => l.studentId === student.id && l.month === month && l.year === year)
+                                  .sort((a, b) => Math.min(a.missedDay, a.makeupDay) - Math.min(b.missedDay, b.makeupDay));
+
+                                const laneMap = new Map<string, number>();
+                                const lanes: number[] = [];
+                                for (const l of rowLinks) {
+                                  const start = Math.min(l.missedDay, l.makeupDay);
+                                  const end = Math.max(l.missedDay, l.makeupDay);
+                                  let assigned = -1;
+                                  // Find first free lane
+                                  for (let i = 0; i < lanes.length; i++) {
+                                    if (lanes[i] < start) { // Lane is free
+                                      assigned = i;
+                                      lanes[i] = end;
+                                      break;
+                                    }
+                                  }
+                                  if (assigned === -1) {
+                                    assigned = lanes.length;
+                                    lanes.push(end);
+                                  }
+                                  laneMap.set(`${l.missedDay}-${l.makeupDay}`, assigned);
+                                }
+
+                                const activeLinks = rowLinks.filter(l =>
+                                  dayNum >= Math.min(l.missedDay, l.makeupDay) &&
+                                  dayNum <= Math.max(l.missedDay, l.makeupDay)
+                                );
+                                const hasActiveLinks = activeLinks.length > 0;
+
+                                const isLinkHovered = hoveredMakeupLink && rowLinks.some(l =>
+                                  `${l.studentId}-${l.missedDay}-${l.makeupDay}` === hoveredMakeupLink &&
+                                  l.makeupDay === dayNum
+                                );
+
+                                return (
+                                  <td
+                                    key={dayNum}
+                                    id={`cell-${student.id}-${dayNum}`}
+                                    onClick={(e) => {
+                                      if (longPressTriggeredRef.current) {
+                                        longPressTriggeredRef.current = false;
+                                        return;
+                                      }
+
+                                      // Cancel if clicking on the same source cell while active
+                                      if (makeupLinkingMode?.isActive && makeupLinkingMode.studentId === student.id && makeupLinkingMode.sourceDay === dayNum) {
+                                        setMakeupLinkingMode(null);
+                                        return;
+                                      }
+
+                                      if (makeupLinkingMode?.isActive && makeupLinkingMode.studentId === student.id) {
+                                        if (dayNum !== makeupLinkingMode.sourceDay) {
+                                          const sourceKey = `${student.id}_${makeupLinkingMode.sourceDay}_${month}_${year}`;
+                                          const originalStatus = attendance[sourceKey] || AttendanceStatus.ABSENCE_RED; // Default to Red if missing
+
+                                          const newLink: MakeupLink = {
+                                            missedDay: makeupLinkingMode.sourceDay,
+                                            makeupDay: dayNum,
+                                            studentId: student.id,
+                                            month,
+                                            year,
+                                            originalStatus
+                                          };
+                                          setMakeupLinks(prev => [...prev, newLink]);
+
+                                          // Change original missed day to POSTPONED
+                                          setAttendance(prev => ({ ...prev, [sourceKey]: AttendanceStatus.POSTPONED }));
+
+                                          setMakeupLinkingMode(null);
+                                        }
+                                      } else {
+                                        // Unlinking Logic for POSTPONED days
+                                        const key = `${student.id}_${dayNum}_${month}_${year}`;
+                                        const currentStatus = attendance[key];
+
+                                        if (isEditReportShortcutPressed) {
+                                          const isEligibleStatus = currentStatus === AttendanceStatus.PRESENT || currentStatus === AttendanceStatus.DOUBLE_CLASS;
+                                          if (isEligibleStatus) {
+                                            const reportKey = `${student.id}_${dayNum}_${month}_${year}`;
+                                            const savedReport = savedReports[reportKey];
+
+                                            if (!savedReport) {
+                                              showToast('لا يوجد تقرير محفوظ لهذا اليوم');
+                                              return;
+                                            }
+
+                                            const draftSnapshot = savedReportDrafts[reportKey];
+                                            if (draftSnapshot) {
+                                              setLastReports(prev => ({
+                                                ...prev,
+                                                [student.id]: {
+                                                  ...prev[student.id],
+                                                  ...JSON.parse(JSON.stringify(draftSnapshot)),
+                                                  _dayNum: dayNum,
+                                                  _month: month,
+                                                  _year: year,
+                                                }
+                                              }));
+                                            } else {
+                                              // Fallback for older saved reports created before per-day snapshots.
+                                              setLastReports(prev => ({
+                                                ...prev,
+                                                [student.id]: {
+                                                  ...prev[student.id],
+                                                  _dayNum: dayNum,
+                                                  _month: month,
+                                                  _year: year,
+                                                }
+                                              }));
+                                            }
+
+                                            setSmartReportModal({
+                                              isOpen: true,
+                                              studentId: student.id,
+                                              dayNum,
+                                              undoSnapshot: buildSmartReportUndoSnapshot(),
+                                              isEditMode: true,
+                                            });
+                                            return;
+                                          }
+                                        }
+
+                                        if (currentStatus === AttendanceStatus.POSTPONED) {
+                                          const linkIndex = makeupLinks.findIndex(l =>
+                                            l.studentId === student.id &&
+                                            l.missedDay === dayNum &&
+                                            l.month === month &&
+                                            l.year === year
+                                          );
+
+                                          if (linkIndex !== -1) {
+                                            const link = makeupLinks[linkIndex];
+
+                                            // Remove link
+                                            const newLinks = [...makeupLinks];
+                                            newLinks.splice(linkIndex, 1);
+                                            setMakeupLinks(newLinks);
+
+                                            // Revert source day status
+                                            const revertedStatus = link.originalStatus || AttendanceStatus.ABSENCE_RED;
+                                            setAttendance(prev => ({ ...prev, [key]: revertedStatus }));
+
+                                            // Remove target makeup day status if it's currently EXTRA_DAY or just clear it
+                                            // If the user already marked it present, maybe we should keep it?
+                                            // User said "cancel connection and cancel the day connected to it (delete any stroke)".
+                                            // So we should probably remove the target status if it was seemingly part of this makeup.
+                                            // If it was just 'EXTRA_DAY' (the blue ring), we remove it.
+                                            // If it became 'PRESENT', maybe we should ask or just leave it?
+                                            // The user said "cancel the connected day completely, cancel any stroke". implies removal.
+                                            const targetKey = `${student.id}_${link.makeupDay}_${month}_${year}`;
+                                            setAttendance(prev => {
+                                              const newState = { ...prev };
+                                              delete newState[targetKey];
+                                              return newState;
+                                            });
+
+                                            return; // Skip toggleStatus
+                                          }
+                                        }
+
+                                        toggleStatus(student.id, dayNum, e.shiftKey, e.altKey, e.ctrlKey || e.metaKey, e);
+                                      }
+                                    }}
+                                    onPointerDown={(e) => {
                                       const key = `${student.id}_${dayNum}_${month}_${year}`;
                                       const currentStatus = attendance[key];
 
-                                      if (isEditReportShortcutPressed) {
-                                        const isEligibleStatus = currentStatus === AttendanceStatus.PRESENT || currentStatus === AttendanceStatus.DOUBLE_CLASS;
-                                        if (isEligibleStatus) {
+                                      // Long-press for makeup linking on red cells
+                                      if (currentStatus === AttendanceStatus.ABSENCE_RED || currentStatus === AttendanceStatus.UNEXCUSED_ABSENCE) {
+                                        longPressTriggeredRef.current = false;
+                                        longPressTimerRef.current = setTimeout(() => {
+                                          longPressTriggeredRef.current = true;
+                                          setMakeupLinkingMode({ isActive: true, sourceDay: dayNum, studentId: student.id });
+                                          if (navigator.vibrate) navigator.vibrate(50);
+                                        }, 250); // Speed up to 250ms
+                                      }
+
+                                      // Long-press for viewing saved report on green cells
+                                      if (currentStatus === AttendanceStatus.PRESENT || currentStatus === AttendanceStatus.DOUBLE_CLASS) {
+                                        longPressTriggeredRef.current = false;
+                                        longPressTimerRef.current = setTimeout(() => {
+                                          longPressTriggeredRef.current = true;
                                           const reportKey = `${student.id}_${dayNum}_${month}_${year}`;
                                           const savedReport = savedReports[reportKey];
-
-                                          if (!savedReport) {
-                                            showToast('لا يوجد تقرير محفوظ لهذا اليوم');
-                                            return;
-                                          }
-
-                                          const draftSnapshot = savedReportDrafts[reportKey];
-                                          if (draftSnapshot) {
-                                            setLastReports(prev => ({
-                                              ...prev,
-                                              [student.id]: {
-                                                ...prev[student.id],
-                                                ...JSON.parse(JSON.stringify(draftSnapshot)),
-                                                _dayNum: dayNum,
-                                                _month: month,
-                                                _year: year,
-                                              }
-                                            }));
+                                          if (savedReport) {
+                                            setSavedReportViewModal({
+                                              isOpen: true,
+                                              studentId: student.id,
+                                              studentName: student.name,
+                                              dayNum,
+                                              report: savedReport
+                                            });
                                           } else {
-                                            // Fallback for older saved reports created before per-day snapshots.
-                                            setLastReports(prev => ({
-                                              ...prev,
-                                              [student.id]: {
-                                                ...prev[student.id],
-                                                _dayNum: dayNum,
-                                                _month: month,
-                                                _year: year,
+                                            showToast('لا يوجد تقرير محفوظ لهذا اليوم');
+                                          }
+                                          if (navigator.vibrate) navigator.vibrate(50);
+                                        }, 400); // 400ms for viewing reports
+                                      }
+                                    }}
+                                    onPointerUp={() => {
+                                      if (longPressTimerRef.current) {
+                                        clearTimeout(longPressTimerRef.current);
+                                        longPressTimerRef.current = null;
+                                      }
+                                    }}
+                                    onPointerLeave={() => {
+                                      if (longPressTimerRef.current) {
+                                        clearTimeout(longPressTimerRef.current);
+                                        longPressTimerRef.current = null;
+                                      }
+                                      // Also clear hover timer
+                                      if (hoverTimerRef.current) {
+                                        clearTimeout(hoverTimerRef.current);
+                                        hoverTimerRef.current = null;
+                                      }
+                                      setHoveredStudentId(null);
+                                    }}
+                                    onMouseEnter={() => {
+                                      const key = `${student.id}_${dayNum}_${month}_${year}`;
+                                      const currentStatus = attendance[key];
+                                      setHoveredCellKey(key);
+
+                                      // Only trigger for green cells
+                                      if (currentStatus === AttendanceStatus.PRESENT || currentStatus === AttendanceStatus.DOUBLE_CLASS || currentStatus === AttendanceStatus.TRANSFERRED) {
+                                        hoverTimerRef.current = setTimeout(() => {
+                                          setHoveredStudentId(student.id);
+                                        }, 1000); // Show dots after 1 second
+                                      }
+                                    }}
+                                    onMouseLeave={() => {
+                                      setHoveredCellKey(null);
+                                      if (hoverTimerRef.current) {
+                                        clearTimeout(hoverTimerRef.current);
+                                        hoverTimerRef.current = null;
+                                      }
+                                      setHoveredStudentId(null);
+                                    }}
+                                    onMouseDown={(e) => {
+                                      if (e.button === 1) { // Middle Click
+                                        e.preventDefault();
+                                        cleanupBreakLink(student.id, dayNum, month, year);
+                                        const key = `${student.id}_${dayNum}_${month}_${year}`;
+                                        const currentStatus = attendance[key];
+
+                                        // Save history
+                                        pushHistorySnapshot();
+
+                                        let newStat: AttendanceStatus;
+                                        if (currentStatus === AttendanceStatus.PRESENT) {
+                                          newStat = AttendanceStatus.TRANSFERRED;
+                                        } else if (currentStatus === AttendanceStatus.TRANSFERRED) {
+                                          // Find what it was before being transferred
+                                          const prevStatus = (() => {
+                                            for (let i = past.length - 1; i >= 0; i--) {
+                                              const prevAtt = past[i].att;
+                                              if (prevAtt && prevAtt[key] && prevAtt[key] !== AttendanceStatus.TRANSFERRED && prevAtt[key] !== AttendanceStatus.TRANSFERRED_ABSENT) {
+                                                return prevAtt[key];
                                               }
+                                            }
+                                            return undefined;
+                                          })();
+                                          newStat = prevStatus || AttendanceStatus.PRESENT;
+                                        } else if (currentStatus === AttendanceStatus.ABSENCE_RED) {
+                                          newStat = AttendanceStatus.UNEXCUSED_ABSENCE;
+                                        } else if (currentStatus === AttendanceStatus.UNEXCUSED_ABSENCE) {
+                                          newStat = AttendanceStatus.ABSENT;
+                                        } else if (currentStatus === AttendanceStatus.PAID_ABSENCE) {
+                                          newStat = AttendanceStatus.TRANSFERRED_ABSENT;
+                                        } else if (currentStatus === AttendanceStatus.TRANSFERRED_ABSENT) {
+                                          // Find what it was before being transferred
+                                          const prevStatus = (() => {
+                                            for (let i = past.length - 1; i >= 0; i--) {
+                                              const prevAtt = past[i].att;
+                                              if (prevAtt && prevAtt[key] && prevAtt[key] !== AttendanceStatus.TRANSFERRED && prevAtt[key] !== AttendanceStatus.TRANSFERRED_ABSENT) {
+                                                return prevAtt[key];
+                                              }
+                                            }
+                                            return undefined;
+                                          })();
+                                          newStat = prevStatus || AttendanceStatus.PAID_ABSENCE;
+                                        } else {
+                                          newStat = AttendanceStatus.ABSENCE_RED;
+                                        }
+
+                                        // Update subscription counter if enabled
+                                        const studentSub = subscriptionSettings[student.id];
+                                        if (studentSub?.enabled) {
+                                          const wasVal = getStatusSessionValue(currentStatus as AttendanceStatus, student, dayNum, month, year);
+                                          const isVal = getStatusSessionValue(newStat, student, dayNum, month, year);
+                                          const diff = isVal - wasVal;
+                                          if (diff !== 0) {
+                                            setSubscriptionSettings(prev => ({
+                                              ...prev,
+                                              [student.id]: { ...prev[student.id], currentClass: Math.max(0, (prev[student.id].currentClass || 0) + diff) }
                                             }));
                                           }
-
-                                          setSmartReportModal({
-                                            isOpen: true,
-                                            studentId: student.id,
-                                            dayNum,
-                                            undoSnapshot: buildSmartReportUndoSnapshot(),
-                                            isEditMode: true,
-                                          });
-                                          return;
                                         }
+
+                                        setAttendance(prev => ({ ...prev, [key]: newStat }));
                                       }
-
-                                      if (currentStatus === AttendanceStatus.POSTPONED) {
-                                        const linkIndex = makeupLinks.findIndex(l =>
-                                          l.studentId === student.id &&
-                                          l.missedDay === dayNum &&
-                                          l.month === month &&
-                                          l.year === year
-                                        );
-
-                                        if (linkIndex !== -1) {
-                                          const link = makeupLinks[linkIndex];
-
-                                          // Remove link
-                                          const newLinks = [...makeupLinks];
-                                          newLinks.splice(linkIndex, 1);
-                                          setMakeupLinks(newLinks);
-
-                                          // Revert source day status
-                                          const revertedStatus = link.originalStatus || AttendanceStatus.ABSENCE_RED;
-                                          setAttendance(prev => ({ ...prev, [key]: revertedStatus }));
-
-                                          // Remove target makeup day status if it's currently EXTRA_DAY or just clear it
-                                          // If the user already marked it present, maybe we should keep it?
-                                          // User said "cancel connection and cancel the day connected to it (delete any stroke)".
-                                          // So we should probably remove the target status if it was seemingly part of this makeup.
-                                          // If it was just 'EXTRA_DAY' (the blue ring), we remove it.
-                                          // If it became 'PRESENT', maybe we should ask or just leave it?
-                                          // The user said "cancel the connected day completely, cancel any stroke". implies removal.
-                                          const targetKey = `${student.id}_${link.makeupDay}_${month}_${year}`;
-                                          setAttendance(prev => {
-                                            const newState = { ...prev };
-                                            delete newState[targetKey];
-                                            return newState;
-                                          });
-
-                                          return; // Skip toggleStatus
-                                        }
-                                      }
-
-                                      toggleStatus(student.id, dayNum, e.shiftKey, e.altKey, e.ctrlKey || e.metaKey, e);
-                                    }
-                                  }}
-                                  onPointerDown={(e) => {
-                                    const key = `${student.id}_${dayNum}_${month}_${year}`;
-                                    const currentStatus = attendance[key];
-
-                                    // Long-press for makeup linking on red cells
-                                    if (currentStatus === AttendanceStatus.ABSENCE_RED || currentStatus === AttendanceStatus.UNEXCUSED_ABSENCE) {
-                                      longPressTriggeredRef.current = false;
-                                      longPressTimerRef.current = setTimeout(() => {
-                                        longPressTriggeredRef.current = true;
-                                        setMakeupLinkingMode({ isActive: true, sourceDay: dayNum, studentId: student.id });
-                                        if (navigator.vibrate) navigator.vibrate(50);
-                                      }, 250); // Speed up to 250ms
-                                    }
-
-                                    // Long-press for viewing saved report on green cells
-                                    if (currentStatus === AttendanceStatus.PRESENT || currentStatus === AttendanceStatus.DOUBLE_CLASS) {
-                                      longPressTriggeredRef.current = false;
-                                      longPressTimerRef.current = setTimeout(() => {
-                                        longPressTriggeredRef.current = true;
-                                        const reportKey = `${student.id}_${dayNum}_${month}_${year}`;
-                                        const savedReport = savedReports[reportKey];
-                                        if (savedReport) {
-                                          setSavedReportViewModal({
-                                            isOpen: true,
-                                            studentId: student.id,
-                                            studentName: student.name,
-                                            dayNum,
-                                            report: savedReport
-                                          });
-                                        } else {
-                                          showToast('لا يوجد تقرير محفوظ لهذا اليوم');
-                                        }
-                                        if (navigator.vibrate) navigator.vibrate(50);
-                                      }, 400); // 400ms for viewing reports
-                                    }
-                                  }}
-                                  onPointerUp={() => {
-                                    if (longPressTimerRef.current) {
-                                      clearTimeout(longPressTimerRef.current);
-                                      longPressTimerRef.current = null;
-                                    }
-                                  }}
-                                  onPointerLeave={() => {
-                                    if (longPressTimerRef.current) {
-                                      clearTimeout(longPressTimerRef.current);
-                                      longPressTimerRef.current = null;
-                                    }
-                                    // Also clear hover timer
-                                    if (hoverTimerRef.current) {
-                                      clearTimeout(hoverTimerRef.current);
-                                      hoverTimerRef.current = null;
-                                    }
-                                    setHoveredStudentId(null);
-                                  }}
-                                  onMouseEnter={() => {
-                                    const key = `${student.id}_${dayNum}_${month}_${year}`;
-                                    const currentStatus = attendance[key];
-                                    setHoveredCellKey(key);
-
-                                    // Only trigger for green cells
-                                    if (currentStatus === AttendanceStatus.PRESENT || currentStatus === AttendanceStatus.DOUBLE_CLASS || currentStatus === AttendanceStatus.TRANSFERRED) {
-                                      hoverTimerRef.current = setTimeout(() => {
-                                        setHoveredStudentId(student.id);
-                                      }, 1000); // Show dots after 1 second
-                                    }
-                                  }}
-                                  onMouseLeave={() => {
-                                    setHoveredCellKey(null);
-                                    if (hoverTimerRef.current) {
-                                      clearTimeout(hoverTimerRef.current);
-                                      hoverTimerRef.current = null;
-                                    }
-                                    setHoveredStudentId(null);
-                                  }}
-                                  onMouseDown={(e) => {
-                                    if (e.button === 1) { // Middle Click
+                                    }}
+                                    onContextMenu={(e) => {
                                       e.preventDefault();
                                       cleanupBreakLink(student.id, dayNum, month, year);
                                       const key = `${student.id}_${dayNum}_${month}_${year}`;
@@ -7223,164 +7298,101 @@ function App() {
                                       // Save history
                                       pushHistorySnapshot();
 
-                                      let newStat: AttendanceStatus;
-                                      if (currentStatus === AttendanceStatus.PRESENT) {
-                                        newStat = AttendanceStatus.TRANSFERRED;
-                                      } else if (currentStatus === AttendanceStatus.TRANSFERRED) {
-                                        // Find what it was before being transferred
-                                        const prevStatus = (() => {
-                                          for (let i = past.length - 1; i >= 0; i--) {
-                                            const prevAtt = past[i].att;
-                                            if (prevAtt && prevAtt[key] && prevAtt[key] !== AttendanceStatus.TRANSFERRED && prevAtt[key] !== AttendanceStatus.TRANSFERRED_ABSENT) {
-                                              return prevAtt[key];
-                                            }
-                                          }
-                                          return undefined;
-                                        })();
-                                        newStat = prevStatus || AttendanceStatus.PRESENT;
-                                      } else if (currentStatus === AttendanceStatus.ABSENCE_RED) {
-                                        newStat = AttendanceStatus.UNEXCUSED_ABSENCE;
-                                      } else if (currentStatus === AttendanceStatus.UNEXCUSED_ABSENCE) {
-                                        newStat = AttendanceStatus.ABSENT;
-                                      } else if (currentStatus === AttendanceStatus.PAID_ABSENCE) {
-                                        newStat = AttendanceStatus.TRANSFERRED_ABSENT;
-                                      } else if (currentStatus === AttendanceStatus.TRANSFERRED_ABSENT) {
-                                        // Find what it was before being transferred
-                                        const prevStatus = (() => {
-                                          for (let i = past.length - 1; i >= 0; i--) {
-                                            const prevAtt = past[i].att;
-                                            if (prevAtt && prevAtt[key] && prevAtt[key] !== AttendanceStatus.TRANSFERRED && prevAtt[key] !== AttendanceStatus.TRANSFERRED_ABSENT) {
-                                              return prevAtt[key];
-                                            }
-                                          }
-                                          return undefined;
-                                        })();
-                                        newStat = prevStatus || AttendanceStatus.PAID_ABSENCE;
-                                      } else {
-                                        newStat = AttendanceStatus.ABSENCE_RED;
-                                      }
+                                      // Toggle between PAID_ABSENCE / PAID_ABSENCE_DOUBLE and POSTPONED
+                                      const isDouble = currentStatus === AttendanceStatus.DOUBLE_CLASS ||
+                                        currentStatus === AttendanceStatus.EXTRA_DOUBLE ||
+                                        currentStatus === AttendanceStatus.PAID_ABSENCE_DOUBLE ||
+                                        (isDoubleScheduled && (currentStatus === undefined || currentStatus === null || currentStatus === AttendanceStatus.ABSENT || currentStatus === AttendanceStatus.PAID_ABSENCE));
 
-                                      // Update subscription counter if enabled
-                                      const studentSub = subscriptionSettings[student.id];
-                                      if (studentSub?.enabled) {
-                                        const wasVal = getStatusSessionValue(currentStatus as AttendanceStatus, student, dayNum, month, year);
-                                        const isVal = getStatusSessionValue(newStat, student, dayNum, month, year);
-                                        const diff = isVal - wasVal;
-                                        if (diff !== 0) {
+                                      const newStatus = currentStatus === AttendanceStatus.PAID_ABSENCE || currentStatus === AttendanceStatus.PAID_ABSENCE_DOUBLE
+                                        ? AttendanceStatus.POSTPONED
+                                        : (isDouble ? AttendanceStatus.PAID_ABSENCE_DOUBLE : AttendanceStatus.PAID_ABSENCE);
+
+                                      // Auto-update subscription counter when changing attendance status
+                                      const wasVal = getStatusSessionValue(currentStatus as AttendanceStatus, student, dayNum, month, year);
+                                      const isVal = getStatusSessionValue(newStatus, student, dayNum, month, year);
+                                      const diff = isVal - wasVal;
+                                      if (diff !== 0) {
+                                        const studentSub = subscriptionSettings[student.id];
+                                        if (studentSub?.enabled) {
                                           setSubscriptionSettings(prev => ({
                                             ...prev,
-                                            [student.id]: { ...prev[student.id], currentClass: Math.max(0, (prev[student.id].currentClass || 0) + diff) }
+                                            [student.id]: {
+                                              ...prev[student.id],
+                                              currentClass: Math.max(0, (prev[student.id].currentClass || 0) + diff)
+                                            }
                                           }));
                                         }
                                       }
 
-                                      setAttendance(prev => ({ ...prev, [key]: newStat }));
-                                    }
-                                  }}
-                                  onContextMenu={(e) => {
-                                    e.preventDefault();
-                                    cleanupBreakLink(student.id, dayNum, month, year);
-                                    const key = `${student.id}_${dayNum}_${month}_${year}`;
-                                    const currentStatus = attendance[key];
+                                      if (newStatus === AttendanceStatus.PAID_ABSENCE || newStatus === AttendanceStatus.PAID_ABSENCE_DOUBLE) {
+                                        const studentSub = subscriptionSettings[student.id];
+                                        let currentClassNum = null;
 
-                                    // Save history
-                                    pushHistorySnapshot();
-
-                                    // Toggle between PAID_ABSENCE / PAID_ABSENCE_DOUBLE and POSTPONED
-                                    const isDouble = currentStatus === AttendanceStatus.DOUBLE_CLASS ||
-                                                     currentStatus === AttendanceStatus.EXTRA_DOUBLE ||
-                                                     currentStatus === AttendanceStatus.PAID_ABSENCE_DOUBLE ||
-                                                     (isDoubleScheduled && (currentStatus === undefined || currentStatus === null || currentStatus === AttendanceStatus.ABSENT || currentStatus === AttendanceStatus.PAID_ABSENCE));
-                                    
-                                    const newStatus = currentStatus === AttendanceStatus.PAID_ABSENCE || currentStatus === AttendanceStatus.PAID_ABSENCE_DOUBLE
-                                      ? AttendanceStatus.POSTPONED
-                                      : (isDouble ? AttendanceStatus.PAID_ABSENCE_DOUBLE : AttendanceStatus.PAID_ABSENCE);
-
-                                    // Auto-update subscription counter when changing attendance status
-                                    const wasVal = getStatusSessionValue(currentStatus as AttendanceStatus, student, dayNum, month, year);
-                                    const isVal = getStatusSessionValue(newStatus, student, dayNum, month, year);
-                                    const diff = isVal - wasVal;
-                                    if (diff !== 0) {
-                                      const studentSub = subscriptionSettings[student.id];
-                                      if (studentSub?.enabled) {
-                                        setSubscriptionSettings(prev => ({
-                                          ...prev,
-                                          [student.id]: {
-                                            ...prev[student.id],
-                                            currentClass: Math.max(0, (prev[student.id].currentClass || 0) + diff)
-                                          }
-                                        }));
-                                      }
-                                    }
-
-                                    if (newStatus === AttendanceStatus.PAID_ABSENCE || newStatus === AttendanceStatus.PAID_ABSENCE_DOUBLE) {
-                                      const studentSub = subscriptionSettings[student.id];
-                                      let currentClassNum = null;
-
-                                      if (studentSub?.enabled) {
-                                        const cur = studentSub.currentClass;
-                                        const total = studentSub.totalClasses;
-                                        // local preview of the incremented number
-                                        const nextClass = (studentSub.mode === 'subscription' && total > 0 && cur >= total) ? 1 : cur + diff;
-                                        currentClassNum = nextClass;
-                                      }
-
-                                      // GENERATE ABSENT REPORT using Last Language
-                                      const date = new Date(year, month, dayNum);
-                                      const lang = lastReportLanguage;
-
-                                      let reportTitle = lang === 'ar' ? '📖 *تقرير الحصة*' : '📖 *Session Report*';
-                                      let dateStr = '';
-
-                                      if (lang === 'ar') {
-                                        dateStr = date.toLocaleDateString('ar-EG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-                                        dateStr = toHindiDigits(dateStr);
-                                      } else {
-                                        const daysEn = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-                                        const monthsEn = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-                                        dateStr = `${daysEn[date.getDay()]} ${date.getDate()} ${monthsEn[date.getMonth()]} ${date.getFullYear()}`;
-                                      }
-
-                                      let report = `${reportTitle}\n\n${lang === 'ar' ? 'الطالب' : 'Student'}: ${student.name}\n${lang === 'ar' ? 'التاريخ' : 'Date'}: ${dateStr}\n`;
-
-                                      if (currentClassNum) {
-                                        const studentSub2 = subscriptionSettings[student.id];
-                                        const totalStr = studentSub2?.mode === 'subscription' && studentSub2.totalClasses > 0;
-                                        const isDoubleReport = newStatus === AttendanceStatus.PAID_ABSENCE_DOUBLE;
-                                        const classNumStr = isDoubleReport ? `${currentClassNum - 1} - ${currentClassNum}` : `${currentClassNum}`;
-                                        if (lang === 'ar') {
-                                          report += `رقم الحصة: ${toHindiDigits(classNumStr)}${totalStr ? ` من ${toHindiDigits(studentSub2.totalClasses)}` : ''}\n\n(غياب)\n`;
-                                        } else {
-                                          report += `Class No: ${classNumStr}${totalStr ? ` of ${studentSub2.totalClasses}` : ''}\n\n(Absent)\n`;
+                                        if (studentSub?.enabled) {
+                                          const cur = studentSub.currentClass;
+                                          const total = studentSub.totalClasses;
+                                          // local preview of the incremented number
+                                          const nextClass = (studentSub.mode === 'subscription' && total > 0 && cur >= total) ? 1 : cur + diff;
+                                          currentClassNum = nextClass;
                                         }
-                                      } else {
-                                        report += `${lang === 'ar' ? 'الحالة: غياب' : 'Status: Absent'}\n`;
+
+                                        // GENERATE ABSENT REPORT using Last Language
+                                        const date = new Date(year, month, dayNum);
+                                        const lang = lastReportLanguage;
+
+                                        let reportTitle = lang === 'ar' ? '📖 *تقرير الحصة*' : '📖 *Session Report*';
+                                        let dateStr = '';
+
+                                        if (lang === 'ar') {
+                                          dateStr = date.toLocaleDateString('ar-EG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+                                          dateStr = toHindiDigits(dateStr);
+                                        } else {
+                                          const daysEn = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                                          const monthsEn = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+                                          dateStr = `${daysEn[date.getDay()]} ${date.getDate()} ${monthsEn[date.getMonth()]} ${date.getFullYear()}`;
+                                        }
+
+                                        let report = `${reportTitle}\n\n${lang === 'ar' ? 'الطالب' : 'Student'}: ${student.name}\n${lang === 'ar' ? 'التاريخ' : 'Date'}: ${dateStr}\n`;
+
+                                        if (currentClassNum) {
+                                          const studentSub2 = subscriptionSettings[student.id];
+                                          const totalStr = studentSub2?.mode === 'subscription' && studentSub2.totalClasses > 0;
+                                          const isDoubleReport = newStatus === AttendanceStatus.PAID_ABSENCE_DOUBLE;
+                                          const classNumStr = isDoubleReport ? `${currentClassNum - 1} - ${currentClassNum}` : `${currentClassNum}`;
+                                          if (lang === 'ar') {
+                                            report += `رقم الحصة: ${toHindiDigits(classNumStr)}${totalStr ? ` من ${toHindiDigits(studentSub2.totalClasses)}` : ''}\n\n(غياب)\n`;
+                                          } else {
+                                            report += `Class No: ${classNumStr}${totalStr ? ` of ${studentSub2.totalClasses}` : ''}\n\n(Absent)\n`;
+                                          }
+                                        } else {
+                                          report += `${lang === 'ar' ? 'الحالة: غياب' : 'Status: Absent'}\n`;
+                                        }
+
+                                        navigator.clipboard.writeText(report);
+                                        showToast(lang === 'ar' ? 'تم نسخ التقرير (غياب) 📋' : 'Absent report copied 📋');
+
+                                        // Auto-open link when marking absence (always, regardless of report settings)
+                                        const wasCounted = [
+                                          AttendanceStatus.PRESENT,
+                                          AttendanceStatus.DOUBLE_CLASS,
+                                          AttendanceStatus.EXTRA_DOUBLE,
+                                          AttendanceStatus.PAID_ABSENCE,
+                                          AttendanceStatus.PAID_ABSENCE_DOUBLE,
+                                          AttendanceStatus.EXTRA_DAY,
+                                          AttendanceStatus.TRANSFERRED,
+                                          AttendanceStatus.TRANSFERRED_ABSENT
+                                        ].includes(currentStatus as AttendanceStatus);
+                                        const offset = wasCounted ? 0 : diff;
+                                        checkAndOpenLink(student.id, offset);
+
+                                        // Clear search when taking action
+                                        setSearchQuery('');
                                       }
 
-                                      navigator.clipboard.writeText(report);
-                                      showToast(lang === 'ar' ? 'تم نسخ التقرير (غياب) 📋' : 'Absent report copied 📋');
-
-                                      // Auto-open link when marking absence (always, regardless of report settings)
-                                      const wasCounted = [
-                                        AttendanceStatus.PRESENT,
-                                        AttendanceStatus.DOUBLE_CLASS,
-                                        AttendanceStatus.EXTRA_DOUBLE,
-                                        AttendanceStatus.PAID_ABSENCE,
-                                        AttendanceStatus.PAID_ABSENCE_DOUBLE,
-                                        AttendanceStatus.EXTRA_DAY,
-                                        AttendanceStatus.TRANSFERRED,
-                                        AttendanceStatus.TRANSFERRED_ABSENT
-                                      ].includes(currentStatus as AttendanceStatus);
-                                      const offset = wasCounted ? 0 : diff;
-                                      checkAndOpenLink(student.id, offset);
-
-                                      // Clear search when taking action
-                                      setSearchQuery('');
-                                    }
-
-                                    setAttendance(prev => ({ ...prev, [key]: newStatus }));
-                                  }}
-                                  className={`select-none ${isDoubleScheduled ? 'relative' : ''} transition-all duration-200
+                                      setAttendance(prev => ({ ...prev, [key]: newStatus }));
+                                    }}
+                                    className={`select-none ${isDoubleScheduled ? 'relative' : ''} transition-all duration-200
                                       ${(isWknd || isAcademyHoliday) ? 'bg-[#81ffea]/20' : ''}
                                       ${isToday ? 'bg-[#ffe05d]/10' : ''}
                                       ${dayNum === daysInMonth ? 'relative' : ''}
@@ -7388,50 +7400,50 @@ function App() {
                                       group/cell
                                       ${hasActiveLinks ? 'relative' : ''}
                                   `}
-                                >
-                                  {/* Connecting Line - Curved Approach - MultiLine with Stable Lanes */}
-                                  {showMakeupLines && activeLinks.map((link) => {
-                                    // 1. Identify the Left-Most day (Start of the visual line)
-                                    const leftMostDay = Math.min(link.missedDay, link.makeupDay);
+                                  >
+                                    {/* Connecting Line - Curved Approach - MultiLine with Stable Lanes */}
+                                    {showMakeupLines && activeLinks.map((link) => {
+                                      // 1. Identify the Left-Most day (Start of the visual line)
+                                      const leftMostDay = Math.min(link.missedDay, link.makeupDay);
 
-                                    // 2. Only render the line from the Left-Most cell to avoid fragmentation
-                                    if (dayNum !== leftMostDay) return null;
+                                      // 2. Only render the line from the Left-Most cell to avoid fragmentation
+                                      if (dayNum !== leftMostDay) return null;
 
-                                    // 3. Calculate Distance for Width
-                                    const distance = Math.abs(link.makeupDay - link.missedDay);
+                                      // 3. Calculate Distance for Width
+                                      const distance = Math.abs(link.makeupDay - link.missedDay);
 
-                                    const lane = laneMap.get(`${link.missedDay}-${link.makeupDay}`) || 0;
-                                    const verticalStep = 3; // Reduced step to save space
-                                    const verticalOffset = lane * verticalStep;
+                                      const lane = laneMap.get(`${link.missedDay}-${link.makeupDay}`) || 0;
+                                      const verticalStep = 3; // Reduced step to save space
+                                      const verticalOffset = lane * verticalStep;
 
-                                    // Dynamic height: Ensure all lines top-out at the same ceiling (e.g. 9px from bottom)
-                                    // so they don't enter the circle area.
-                                    const ceiling = 9;
-                                    const calculatedHeight = Math.max(3, ceiling - verticalOffset);
+                                      // Dynamic height: Ensure all lines top-out at the same ceiling (e.g. 9px from bottom)
+                                      // so they don't enter the circle area.
+                                      const ceiling = 9;
+                                      const calculatedHeight = Math.max(3, ceiling - verticalOffset);
 
-                                    const style = { bottom: `${verticalOffset}px`, zIndex: lane };
+                                      const style = { bottom: `${verticalOffset}px`, zIndex: lane };
 
-                                    // Check Hover State
-                                    const linkKey = `${link.studentId}-${link.missedDay}-${link.makeupDay}`;
-                                    const isHovered = hoveredMakeupLink === linkKey;
+                                      // Check Hover State
+                                      const linkKey = `${link.studentId}-${link.missedDay}-${link.makeupDay}`;
+                                      const isHovered = hoveredMakeupLink === linkKey;
 
-                                    return (
-                                      <div
-                                        key={`${link.missedDay}-${link.makeupDay}`}
-                                        className={`absolute right-[50%] opacity-0 group-hover:opacity-100 transition-opacity duration-300 ease-in-out will-change-[opacity] pointer-events-none border-b-[2.5px] border-l-[2.5px] border-r-[2.5px] border-[#FECACA] rounded-bl-[10px] rounded-br-[10px]`}
-                                        style={{
-                                          ...style,
-                                          height: `${calculatedHeight}px`,
-                                          zIndex: isHovered ? 50 : lane,
-                                          width: `calc(${distance} * 100%)`
-                                        }}
-                                      />
-                                    );
-                                  })}
+                                      return (
+                                        <div
+                                          key={`${link.missedDay}-${link.makeupDay}`}
+                                          className={`absolute right-[50%] opacity-0 group-hover:opacity-100 transition-opacity duration-300 ease-in-out will-change-[opacity] pointer-events-none border-b-[2.5px] border-l-[2.5px] border-r-[2.5px] border-[#FECACA] rounded-bl-[10px] rounded-br-[10px]`}
+                                          style={{
+                                            ...style,
+                                            height: `${calculatedHeight}px`,
+                                            zIndex: isHovered ? 50 : lane,
+                                            width: `calc(${distance} * 100%)`
+                                          }}
+                                        />
+                                      );
+                                    })}
 
-                                  {/* Missed count is now rendered as a fixed overlay outside the table */}
+                                    {/* Missed count is now rendered as a fixed overlay outside the table */}
 
-                                  <div className={`
+                                    <div className={`
                                 w-8 h-8 mx-auto rounded-full flex items-center justify-center text-lg transition-all relative z-10 js-cell-circle
                                 ${visualStatus === AttendanceStatus.PRESENT ? (isEditReportShortcutPressed && hoveredCellKey === key ? 'bg-red-500 scale-110 shadow-lg shadow-red-200' : 'bg-emerald-400 scale-100 shadow-md shadow-emerald-200') + ' text-white font-english' : ''}
                                 ${(visualStatus === AttendanceStatus.TRANSFERRED) ? 'bg-emerald-400 text-white shadow-md shadow-emerald-200 scale-100 font-english' : ''}
@@ -7446,102 +7458,102 @@ function App() {
                                 ${isLinkHovered ? 'z-30 animate-pulse-glow-soft' : ''}
                                 group-hover/cell:scale-110 group-hover/cell:shadow-[0_0_10px_rgba(0,0,0,0.2)]
                               `}
-                                    onMouseEnter={() => {
-                                      if (visualStatus === AttendanceStatus.POSTPONED) {
-                                        const link = makeupLinks.find(l => l.studentId === student.id && l.missedDay === dayNum && l.month === month && l.year === year);
-                                        if (link) {
-                                          setHoveredMakeupLink(`${link.studentId}-${link.missedDay}-${link.makeupDay}`);
+                                      onMouseEnter={() => {
+                                        if (visualStatus === AttendanceStatus.POSTPONED) {
+                                          const link = makeupLinks.find(l => l.studentId === student.id && l.missedDay === dayNum && l.month === month && l.year === year);
+                                          if (link) {
+                                            setHoveredMakeupLink(`${link.studentId}-${link.missedDay}-${link.makeupDay}`);
+                                          }
                                         }
+                                      }}
+                                      onMouseLeave={() => setHoveredMakeupLink(null)}
+                                    >
+                                      {/* Prepaid Indicator (Arabic, hover only, refined) */}
+                                      {subscriptionSettings[student.id]?.enabled && (visualStatus === AttendanceStatus.PRESENT || visualStatus === AttendanceStatus.DOUBLE_CLASS || visualStatus === AttendanceStatus.EXTRA_DOUBLE || visualStatus === AttendanceStatus.PAID_ABSENCE || visualStatus === AttendanceStatus.PAID_ABSENCE_DOUBLE || visualStatus === AttendanceStatus.TRANSFERRED || visualStatus === AttendanceStatus.TRANSFERRED_ABSENT || visualStatus === AttendanceStatus.EXTRA_DAY) && (
+                                        <div className="absolute -top-[3.2rem] left-1/2 -translate-x-1/2 whitespace-nowrap text-lg font-bold text-emerald-800 bg-white px-2 py-0.5 rounded-lg shadow-md border border-emerald-100 opacity-0 group-hover:opacity-100 transition-opacity duration-300 delay-500 z-[60] pointer-events-none font-arabic" dir="rtl">
+                                          {(() => {
+                                            const sub = subscriptionSettings[student.id];
+                                            // Calculate session number for this specific day
+                                            let totalAfter = 0;
+                                            for (let d = dayNum + 1; d <= 31; d++) {
+                                              const s = attendance[`${student.id}_${d}_${month}_${year}`];
+                                              totalAfter += getStatusSessionValue(s, student, d, month, year);
+                                            }
+
+                                            // IMPROVED: If currentClass shows 2 but we have 2 marks, and we are on the first mark,
+                                            // sub.currentClass - totalAfter = 2 - 1 = 1.
+                                            // If it shows 1 twice, it means sub.currentClass was only 1.
+                                            const daySessionNum = sub.currentClass - totalAfter;
+                                            const displayNumRaw = Math.max(1, daySessionNum);
+                                            const displayNum = sub.mode === 'subscription' && sub.totalClasses > 0
+                                              ? ((displayNumRaw - 1) % sub.totalClasses) + 1
+                                              : displayNumRaw;
+
+                                            if (sub.mode === 'monthly') return toHindiDigits(daySessionNum);
+                                            // Use Arabic "من" or standard slash with forced LTR alignment if needed for slash direction
+                                            return `${toHindiDigits(displayNum)} / ${toHindiDigits(sub.totalClasses)}`;
+                                          })()}
+                                        </div>
+                                      )}
+
+                                      {getCellContent(visualStatus)}
+                                      {
+                                        (isDoubleScheduled && !status && !isWknd && !isAcademyHoliday) && (
+                                          <span className="absolute -bottom-0.5 -right-0.5 w-1 h-1 bg-red-500 rounded-full shadow-[0_0_2px_rgba(239,68,68,0.8)] animate-pulse" />
+                                        )
                                       }
-                                    }}
-                                    onMouseLeave={() => setHoveredMakeupLink(null)}
-                                  >
-                                    {/* Prepaid Indicator (Arabic, hover only, refined) */}
-                                    {subscriptionSettings[student.id]?.enabled && (visualStatus === AttendanceStatus.PRESENT || visualStatus === AttendanceStatus.DOUBLE_CLASS || visualStatus === AttendanceStatus.EXTRA_DOUBLE || visualStatus === AttendanceStatus.PAID_ABSENCE || visualStatus === AttendanceStatus.PAID_ABSENCE_DOUBLE || visualStatus === AttendanceStatus.TRANSFERRED || visualStatus === AttendanceStatus.TRANSFERRED_ABSENT || visualStatus === AttendanceStatus.EXTRA_DAY) && (
-                                      <div className="absolute -top-[3.2rem] left-1/2 -translate-x-1/2 whitespace-nowrap text-lg font-bold text-emerald-800 bg-white px-2 py-0.5 rounded-lg shadow-md border border-emerald-100 opacity-0 group-hover:opacity-100 transition-opacity duration-300 delay-500 z-[60] pointer-events-none font-arabic" dir="rtl">
-                                        {(() => {
-                                          const sub = subscriptionSettings[student.id];
-                                          // Calculate session number for this specific day
-                                          let totalAfter = 0;
-                                          for (let d = dayNum + 1; d <= 31; d++) {
-                                            const s = attendance[`${student.id}_${d}_${month}_${year}`];
-                                             totalAfter += getStatusSessionValue(s, student, d, month, year);
-                                           }
-                                          
-                                          // IMPROVED: If currentClass shows 2 but we have 2 marks, and we are on the first mark,
-                                          // sub.currentClass - totalAfter = 2 - 1 = 1.
-                                          // If it shows 1 twice, it means sub.currentClass was only 1.
-                                          const daySessionNum = sub.currentClass - totalAfter;
-                                          const displayNumRaw = Math.max(1, daySessionNum);
-                                          const displayNum = sub.mode === 'subscription' && sub.totalClasses > 0
-                                            ? ((displayNumRaw - 1) % sub.totalClasses) + 1
-                                            : displayNumRaw;
-
-                                          if (sub.mode === 'monthly') return toHindiDigits(daySessionNum);
-                                          // Use Arabic "من" or standard slash with forced LTR alignment if needed for slash direction
-                                          return `${toHindiDigits(displayNum)} / ${toHindiDigits(sub.totalClasses)}`;
-                                        })()}
-                                      </div>
-                                    )}
-
-                                    {getCellContent(visualStatus)}
-                                    {
-                                      (isDoubleScheduled && !status && !isWknd && !isAcademyHoliday) && (
-                                        <span className="absolute -bottom-0.5 -right-0.5 w-1 h-1 bg-red-500 rounded-full shadow-[0_0_2px_rgba(239,68,68,0.8)] animate-pulse" />
-                                      )
-                                    }
-                                    {/* Report indicator dot on hover */}
-                                    {hoveredStudentId === student.id && (visualStatus === AttendanceStatus.PRESENT || visualStatus === AttendanceStatus.TRANSFERRED || visualStatus === AttendanceStatus.DOUBLE_CLASS) && (
-                                      <span
-                                        className={`absolute -top-1 -right-1 w-2 h-2 rounded-full shadow-sm transition-all animate-fade-in ${savedReports[`${student.id}_${dayNum}_${month}_${year}`]
-                                          ? 'bg-green-400 shadow-green-300'
-                                          : 'bg-red-400 shadow-red-300'
-                                          }`}
-                                      />
-                                    )}
-                                    {/* Pending Double Indicator (Dot) - only show when still pending, not after confirmed, or for Double Paid Absence */}
-                                    {((isMakeupTarget && (status === AttendanceStatus.EXTRA_DAY || (!status && isDaySelected))) || 
-                                      status === AttendanceStatus.EXTRA_DOUBLE || 
-                                      status === AttendanceStatus.PAID_ABSENCE_DOUBLE || 
-                                      (status === AttendanceStatus.PAID_ABSENCE && isDoubleScheduled)) && (
-                                      <span className="absolute -bottom-0.5 -right-0.5 w-1 h-1 bg-red-500 rounded-full shadow-[0_0_2px_rgba(239,68,68,0.8)] z-20" />
-                                    )}
-                                  </div>
+                                      {/* Report indicator dot on hover */}
+                                      {hoveredStudentId === student.id && (visualStatus === AttendanceStatus.PRESENT || visualStatus === AttendanceStatus.TRANSFERRED || visualStatus === AttendanceStatus.DOUBLE_CLASS) && (
+                                        <span
+                                          className={`absolute -top-1 -right-1 w-2 h-2 rounded-full shadow-sm transition-all animate-fade-in ${savedReports[`${student.id}_${dayNum}_${month}_${year}`]
+                                            ? 'bg-green-400 shadow-green-300'
+                                            : 'bg-red-400 shadow-red-300'
+                                            }`}
+                                        />
+                                      )}
+                                      {/* Pending Double Indicator (Dot) - only show when still pending, not after confirmed, or for Double Paid Absence */}
+                                      {((isMakeupTarget && (status === AttendanceStatus.EXTRA_DAY || (!status && isDaySelected))) ||
+                                        status === AttendanceStatus.EXTRA_DOUBLE ||
+                                        status === AttendanceStatus.PAID_ABSENCE_DOUBLE ||
+                                        (status === AttendanceStatus.PAID_ABSENCE && isDoubleScheduled)) && (
+                                          <span className="absolute -bottom-0.5 -right-0.5 w-1 h-1 bg-red-500 rounded-full shadow-[0_0_2px_rgba(239,68,68,0.8)] z-20" />
+                                        )}
+                                    </div>
+                                  </td>
+                                );
+                              })
+                            }
+                            {showMissedCount && (() => {
+                              const count = calculateMissed(student.id);
+                              return (
+                                <td
+                                  className="p-2 bg-white group-hover:bg-blue-100 border-l border-gray-100 min-w-[70px] w-[70px] align-middle transition-colors text-center"
+                                >
+                                  {count > 0 && (
+                                    <div
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        const rect = e.currentTarget.getBoundingClientRect();
+                                        setMissedClassesMenu({
+                                          isOpen: true,
+                                          x: rect.right - 96,
+                                          y: rect.bottom + 4,
+                                          studentId: student.id
+                                        });
+                                      }}
+                                      className="inline-flex items-center justify-center px-3 py-1.5 cursor-pointer rounded-lg bg-red-50 hover:bg-red-100 text-red-600 font-bold font-arabic text-sm transition-all border border-red-100 active:scale-95 shadow-sm"
+                                      title="انقر لنسخ تقرير الحصص الفائتة"
+                                    >
+                                      {toHindiDigits(count)}
+                                    </div>
+                                  )}
                                 </td>
                               );
-                            })
-                          }
-                          {showMissedCount && (() => {
-                            const count = calculateMissed(student.id);
-                            return (
-                              <td
-                                className="p-2 bg-white group-hover:bg-blue-100 border-l border-gray-100 min-w-[70px] w-[70px] align-middle transition-colors text-center"
-                              >
-                                {count > 0 && (
-                                  <div
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      const rect = e.currentTarget.getBoundingClientRect();
-                                      setMissedClassesMenu({
-                                        isOpen: true,
-                                        x: rect.right - 96,
-                                        y: rect.bottom + 4,
-                                        studentId: student.id
-                                      });
-                                    }}
-                                    className="inline-flex items-center justify-center px-3 py-1.5 cursor-pointer rounded-lg bg-red-50 hover:bg-red-100 text-red-600 font-bold font-arabic text-sm transition-all border border-red-100 active:scale-95 shadow-sm"
-                                    title="انقر لنسخ تقرير الحصص الفائتة"
-                                  >
-                                    {toHindiDigits(count)}
-                                  </div>
-                                )}
-                              </td>
-                            );
-                          })()}
-                        </tr>
-                      );
-                    })}
-                  </React.Fragment>
+                            })()}
+                          </tr>
+                        );
+                      })}
+                    </React.Fragment>
                   );
                 })}
 
@@ -8274,6 +8286,7 @@ function App() {
         toHindiDigits={toHindiDigits}
         getDayOfWeek={getDayOfWeek}
         getRemainingClasses={getRemainingClasses}
+        getRemainingClassesInfo={getRemainingClassesInfo}
         scrollToFirstPending={scrollToFirstPending}
         showMissedCount={showMissedCount}
       />
@@ -8425,10 +8438,10 @@ function App() {
                     'notes'
                   ];
 
-                  const currentKey = Object.keys(fieldIdsBySection).find(key => 
+                  const currentKey = Object.keys(fieldIdsBySection).find(key =>
                     fieldIdsBySection[key].includes(target.id)
                   );
-                  
+
                   if (!currentKey) return;
 
                   const getVisibleElementById = (id: string): HTMLElement | null => {
@@ -8519,7 +8532,7 @@ function App() {
                             }
                           }));
                         }}
-                         className={`flex-1 py-3 px-4 rounded-xl font-arabic text-lg font-medium transition-all focus:outline-none ${reportPath === 'quran' ? 'bg-white shadow-sm text-emerald-700' : 'text-gray-500 hover:bg-gray-100'}`}
+                        className={`flex-1 py-3 px-4 rounded-xl font-arabic text-lg font-medium transition-all focus:outline-none ${reportPath === 'quran' ? 'bg-white shadow-sm text-emerald-700' : 'text-gray-500 hover:bg-gray-100'}`}
                       >
                         📖 القرآن الكريم
                       </button>
@@ -8535,7 +8548,7 @@ function App() {
                             }
                           }));
                         }}
-                         className={`flex-1 py-3 px-4 rounded-xl font-arabic text-lg font-medium transition-all focus:outline-none ${reportPath === 'noor' ? 'bg-white shadow-sm text-amber-600' : 'text-gray-500 hover:bg-gray-100'}`}
+                        className={`flex-1 py-3 px-4 rounded-xl font-arabic text-lg font-medium transition-all focus:outline-none ${reportPath === 'noor' ? 'bg-white shadow-sm text-amber-600' : 'text-gray-500 hover:bg-gray-100'}`}
                       >
                         🌟 القرائية
                       </button>
@@ -8956,40 +8969,40 @@ function App() {
                             </label>
                             <div className="absolute left-0 top-1/2 -translate-y-1/2">
                               <button
-                              onClick={() => {
-                                const newMode = !isNoorMirrorMode;
-                                setIsNoorMirrorMode(newMode);
+                                onClick={() => {
+                                  const newMode = !isNoorMirrorMode;
+                                  setIsNoorMirrorMode(newMode);
 
-                                if (newMode) {
-                                  const setVal = (id: string, val: string) => {
-                                    const el = document.getElementById(id) as HTMLInputElement;
-                                    if (el) el.value = val;
-                                  };
+                                  if (newMode) {
+                                    const setVal = (id: string, val: string) => {
+                                      const el = document.getElementById(id) as HTMLInputElement;
+                                      if (el) el.value = val;
+                                    };
 
-                                  const tamFrom = (document.getElementById('noor-tam-from-page') as HTMLInputElement)?.value;
-                                  const tamTo = (document.getElementById('noor-tam-to-page') as HTMLInputElement)?.value;
+                                    const tamFrom = (document.getElementById('noor-tam-from-page') as HTMLInputElement)?.value;
+                                    const tamTo = (document.getElementById('noor-tam-to-page') as HTMLInputElement)?.value;
 
-                                  if (tamFrom) setVal('noor-sayatim-from-page', tamFrom);
-                                  if (tamTo) setVal('noor-sayatim-to-page', tamTo);
+                                    if (tamFrom) setVal('noor-sayatim-from-page', tamFrom);
+                                    if (tamTo) setVal('noor-sayatim-to-page', tamTo);
 
-                                  // Handle Lines if active
-                                  if (noorDetails.tam) {
-                                    setNoorDetails(prev => ({ ...prev, sayatim: true }));
-                                    // Small timeout to allow render if sayatim details were hidden
-                                    setTimeout(() => {
-                                      const tamLineFrom = (document.getElementById('noor-tam-from-line') as HTMLInputElement)?.value;
-                                      const tamLineTo = (document.getElementById('noor-tam-to-line') as HTMLInputElement)?.value;
-                                      if (tamLineFrom) setVal('noor-sayatim-from-line', tamLineFrom);
-                                      if (tamLineTo) setVal('noor-sayatim-to-line', tamLineTo);
-                                    }, 50);
+                                    // Handle Lines if active
+                                    if (noorDetails.tam) {
+                                      setNoorDetails(prev => ({ ...prev, sayatim: true }));
+                                      // Small timeout to allow render if sayatim details were hidden
+                                      setTimeout(() => {
+                                        const tamLineFrom = (document.getElementById('noor-tam-from-line') as HTMLInputElement)?.value;
+                                        const tamLineTo = (document.getElementById('noor-tam-to-line') as HTMLInputElement)?.value;
+                                        if (tamLineFrom) setVal('noor-sayatim-from-line', tamLineFrom);
+                                        if (tamLineTo) setVal('noor-sayatim-to-line', tamLineTo);
+                                      }, 50);
+                                    }
                                   }
-                                }
-                              }}
-                              className={`px-3 py-1 rounded-md transition-colors flex items-center gap-2 font-arabic text-sm font-bold border shadow-sm ${isNoorMirrorMode ? 'bg-amber-100 border-amber-300 text-amber-700 ring-2 ring-amber-200' : 'bg-white border-amber-200 text-amber-700 hover:bg-amber-50'}`}
-                            >
-                              <Repeat size={14} className={isNoorMirrorMode ? 'animate-spin-slow' : ''} />
-                              {isNoorMirrorMode ? 'نسخ مستمر' : 'إعادة'}
-                            </button>
+                                }}
+                                className={`px-3 py-1 rounded-md transition-colors flex items-center gap-2 font-arabic text-sm font-bold border shadow-sm ${isNoorMirrorMode ? 'bg-amber-100 border-amber-300 text-amber-700 ring-2 ring-amber-200' : 'bg-white border-amber-200 text-amber-700 hover:bg-amber-50'}`}
+                              >
+                                <Repeat size={14} className={isNoorMirrorMode ? 'animate-spin-slow' : ''} />
+                                {isNoorMirrorMode ? 'نسخ مستمر' : 'إعادة'}
+                              </button>
                             </div>
                           </div>
 
@@ -13943,18 +13956,18 @@ function App() {
                         onWheel={(e) => e.stopPropagation()}
                         className="w-full p-3 border border-gray-200 rounded-xl bg-gray-50 text-xl font-arabic font-semibold focus:ring-2 focus:ring-blue-300 focus:border-blue-300 transition-all placeholder-gray-300 custom-scrollbar resize-y relative z-10"
                       />
-                      
+
                       {/* History Dropdown */}
                       {isNotesFocused && customNotesText.trim() === '' && studentNotesHistory[smartReportModal.studentId] && studentNotesHistory[smartReportModal.studentId].length > 0 && (
-                        <div 
+                        <div
                           className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-100 rounded-xl shadow-lg z-50 overflow-hidden animate-in slide-in-from-top-2 fade-in duration-200"
                           onMouseDown={(e) => e.preventDefault()}
                         >
                           <div className="max-h-48 overflow-y-auto custom-scrollbar">
                             {studentNotesHistory[smartReportModal.studentId].map((note, idx) => (
-                              <div 
-                                key={idx} 
-                                className="flex items-center justify-between px-4 py-3 hover:bg-blue-50/50 border-b border-gray-50 last:border-0 cursor-pointer transition-colors group" 
+                              <div
+                                key={idx}
+                                className="flex items-center justify-between px-4 py-3 hover:bg-blue-50/50 border-b border-gray-50 last:border-0 cursor-pointer transition-colors group"
                                 onClick={() => {
                                   setCustomNotesText(note);
                                   setIsNotesFocused(false);
@@ -14023,11 +14036,10 @@ function App() {
                               };
                             });
                           }}
-                          className={`w-4 h-4 rounded ${
-                            whatsappMode === 'manual' 
-                              ? 'text-purple-600 focus:ring-purple-500' 
+                          className={`w-4 h-4 rounded ${whatsappMode === 'manual'
+                              ? 'text-purple-600 focus:ring-purple-500'
                               : 'text-blue-600 focus:ring-blue-500'
-                          }`}
+                            }`}
                         />
                         <span className="text-base font-medium text-gray-700 dark:text-gray-200">
                           {whatsappMode === 'manual' ? 'تجهيز للواتساب' : 'إرسال عبر واتساب'}
@@ -14653,8 +14665,8 @@ function App() {
                           const showHeader = academySettings?.includeReportHeader !== false;
 
                           const bookNameAr = (lastReports[smartReportModal.studentId]?.noor?.book || defaultNoorBook) === 'taasees' ? 'كتاب التأسيس' : 'نور البيان';
-                          const headerAr = (reportPath === 'noor') 
-                            ? bookNameAr 
+                          const headerAr = (reportPath === 'noor')
+                            ? bookNameAr
                             : 'تقرير الحصة';
 
                           let report = '';
@@ -14887,7 +14899,7 @@ function App() {
                             report += `\n📚 *( ${bookNameEnForAr} )* -----\n\n${noorSummaryPart}`;
                           }
 
-                           const planLabelAr = '📝 *حصتنا القادمة:*';
+                          const planLabelAr = '📝 *حصتنا القادمة:*';
                           report += `\n*ــــــــــــــــــــــــــــــــــــــ*\n\n${planLabelAr}\n`;
                           if (mergeWithQuran) {
                             report += `\n📖 *( Quran )* -----\n`;
@@ -15093,14 +15105,14 @@ function App() {
 
                           // Smart End of Surah text replacements for Arabic
                           report = report.replace(/إلى سورة ([^\s]+) آية (\d+|[٠-٩]+)/g, (match, surah, ayahStr) => {
-                              const sIdx = SURAHS.indexOf(surah.replace('سورة ', ''));
-                              if (sIdx > -1) {
-                                  const val = parseInt(ayahStr.replace(/[٠-٩]/g, (d:any) => "0123456789"["٠١٢٣٤٥٦٧٨٩".indexOf(d)]));
-                                  if (val === SURAH_AYAH_COUNTS[sIdx]) return `إلى نهاية سورة ${surah}`;
-                              }
-                              return match;
+                            const sIdx = SURAHS.indexOf(surah.replace('سورة ', ''));
+                            if (sIdx > -1) {
+                              const val = parseInt(ayahStr.replace(/[٠-٩]/g, (d: any) => "0123456789"["٠١٢٣٤٥٦٧٨٩".indexOf(d)]));
+                              if (val === SURAH_AYAH_COUNTS[sIdx]) return `إلى نهاية سورة ${surah}`;
+                            }
+                            return match;
                           });
-                            report = report.replace(/من سورة\s+(.+?)\s+آية\s+(?:1|١)\s+إلى نهاية سورة\s+(.+)/g, 'من سورة $1 إلى سورة $2');
+                          report = report.replace(/من سورة\s+(.+?)\s+آية\s+(?:1|١)\s+إلى نهاية سورة\s+(.+)/g, 'من سورة $1 إلى سورة $2');
 
                           // Custom Notes
                           const customNotesVal = customNotesText.trim();
@@ -15323,9 +15335,9 @@ function App() {
                                   audioLink: audioLinkText.trim()
                                 });
                                 ensureTajweedAssignmentForLesson(_arStudentId, arReportTajweedLessonId, 'ar');
-                                 if (mergeWithQuran) {
-                                   new Notification('تذكير الدمج 📖', { body: `تم دمج تقرير ${studentName} مع القرآن الكريم` });
-                                 }
+                                if (mergeWithQuran) {
+                                  new Notification('تذكير الدمج 📖', { body: `تم دمج تقرير ${studentName} مع القرآن الكريم` });
+                                }
 
                                 showToast('تم الإرسال عبر واتساب ✅');
                                 setSearchQuery('');
@@ -15352,9 +15364,9 @@ function App() {
                                 audioLink: audioLinkText.trim()
                               });
                               ensureTajweedAssignmentForLesson(_arCopyStudentId, arReportTajweedLessonId, 'ar');
-                               if (mergeWithQuran) {
-                                 new Notification('تذكير الدمج 📖', { body: `تم دمج تقرير ${studentName} مع القرآن الكريم` });
-                               }
+                              if (mergeWithQuran) {
+                                new Notification('تذكير الدمج 📖', { body: `تم دمج تقرير ${studentName} مع القرآن الكريم` });
+                              }
 
                               showToast('تم نسخ التقرير (عربي) ✨');
                               setSearchQuery('');
@@ -15656,14 +15668,14 @@ function App() {
                                 });
                               } else {
                                 handleClipboardCopy(smartReportModal.studentId, report, () => {
-                                    saveReportForDay(_noorEngStudentId, _noorEngDayNum, report, {
-                                      ...noorConfigPart,
-                                      noorDetails,
-                                      activeSection: reportPath,
-                                      mergeWithQuran,
-                                      customNotes: customNotesText.trim(),
-                                      audioLink: audioLinkText.trim()
-                                    });
+                                  saveReportForDay(_noorEngStudentId, _noorEngDayNum, report, {
+                                    ...noorConfigPart,
+                                    noorDetails,
+                                    activeSection: reportPath,
+                                    mergeWithQuran,
+                                    customNotes: customNotesText.trim(),
+                                    audioLink: audioLinkText.trim()
+                                  });
                                   closeAllModals(true);
                                   showToast('Report Copied (English) ✨');
                                   checkAndOpenLink(_noorEngStudentId);
@@ -15889,8 +15901,8 @@ function App() {
 
                             let isEnd = false;
                             if (prefix === 'Ayah' && surahName && toTrim) {
-                               const engIdx = SURAHS.findIndex(s => getEnglishSurahName(s) === surahName);
-                               if (engIdx > -1 && parseInt(toTrim) === SURAH_AYAH_COUNTS[engIdx]) isEnd = true;
+                              const engIdx = SURAHS.findIndex(s => getEnglishSurahName(s) === surahName);
+                              if (engIdx > -1 && parseInt(toTrim) === SURAH_AYAH_COUNTS[engIdx]) isEnd = true;
                             }
 
                             // 1. Single Value (Cancelled 'To')
@@ -16238,7 +16250,7 @@ function App() {
                             report += `\n📚 *( ${bookNameEn} )* -----\n\n${noorSummaryPart}`;
                           }
 
-                           const planLabelEn = '📝 *Next Session Plan ( Homework ):*';
+                          const planLabelEn = '📝 *Next Session Plan ( Homework ):*';
                           report += `\n*ــــــــــــــــــــــــــــــــــــــ*\n\n${planLabelEn}\n`;
                           if (mergeWithQuran) {
                             report += `\n📖 *( Quran )* -----\n`;
@@ -16620,19 +16632,19 @@ function App() {
 
                           // Smart End of Surah text replacements for English
                           report = report.replace(/to Surah ([a-zA-Z\s\-']+) Ayah (\d+)/gi, (match, surah, ayahStr) => {
-                              const sIdx = SURAHS.findIndex(s => getEnglishSurahName(s).toLowerCase() === surah.trim().toLowerCase());
-                              if (sIdx > -1) {
-                                  if (parseInt(ayahStr) === SURAH_AYAH_COUNTS[sIdx]) return `to the end of Surah ${surah.trim()}`;
-                              }
-                              return match;
+                            const sIdx = SURAHS.findIndex(s => getEnglishSurahName(s).toLowerCase() === surah.trim().toLowerCase());
+                            if (sIdx > -1) {
+                              if (parseInt(ayahStr) === SURAH_AYAH_COUNTS[sIdx]) return `to the end of Surah ${surah.trim()}`;
+                            }
+                            return match;
                           });
-                            report = report.replace(/From Surah\s+(.+?)\s+Ayah\s+1\s+to the end of Surah\s+(.+)/gi, 'From Surah $1 to Surah $2');
+                          report = report.replace(/From Surah\s+(.+?)\s+Ayah\s+1\s+to the end of Surah\s+(.+)/gi, 'From Surah $1 to Surah $2');
                           report = report.replace(/Surah ([a-zA-Z\s\-']+) \(From (.*?) to (\d+)\)/gi, (match, surah, fromStr, ayahStr) => {
-                              const sIdx = SURAHS.findIndex(s => getEnglishSurahName(s).toLowerCase() === surah.trim().toLowerCase());
-                              if (sIdx > -1) {
-                                  if (parseInt(ayahStr) === SURAH_AYAH_COUNTS[sIdx]) return `Surah ${surah.trim()} (From ${fromStr} to the end)`;
-                              }
-                              return match;
+                            const sIdx = SURAHS.findIndex(s => getEnglishSurahName(s).toLowerCase() === surah.trim().toLowerCase());
+                            if (sIdx > -1) {
+                              if (parseInt(ayahStr) === SURAH_AYAH_COUNTS[sIdx]) return `Surah ${surah.trim()} (From ${fromStr} to the end)`;
+                            }
+                            return match;
                           });
 
                           // Custom Notes
@@ -17227,10 +17239,10 @@ function App() {
       )}
 
       {/* --- Tajweed Bank Modal --- */}
-      <TajweedBankModal 
-        isOpen={isTajweedBankModalOpen} 
-        onClose={() => setIsTajweedBankModalOpen(false)} 
-        bank={tajweedBank} 
+      <TajweedBankModal
+        isOpen={isTajweedBankModalOpen}
+        onClose={() => setIsTajweedBankModalOpen(false)}
+        bank={tajweedBank}
         onSaveBank={(newBank) => setTajweedBank(newBank)}
         lessonEditorUiState={tajweedLessonEditorUiState}
         onUpdateLessonEditorUiState={(lessonId, nextState) => {
@@ -17247,19 +17259,19 @@ function App() {
       {/* --- Tajweed Assign Modal --- */}
       {assigningTajweedForStudent && (
         <TajweedAssignModal
-           isOpen={true}
-           onClose={() => setAssigningTajweedForStudent(null)}
-           student={assigningTajweedForStudent}
-           bank={tajweedBank}
-           onAssign={(assignment) => {
-             const enrichedAssignment = enrichTajweedAssignmentMetadata(assignment);
-             setTajweedAssignments(prev => ({ ...prev, [enrichedAssignment.id]: enrichedAssignment }));
-           }}
+          isOpen={true}
+          onClose={() => setAssigningTajweedForStudent(null)}
+          student={assigningTajweedForStudent}
+          bank={tajweedBank}
+          onAssign={(assignment) => {
+            const enrichedAssignment = enrichTajweedAssignmentMetadata(assignment);
+            setTajweedAssignments(prev => ({ ...prev, [enrichedAssignment.id]: enrichedAssignment }));
+          }}
         />
       )}
       {/* --- Tajweed Grading Modal --- */}
       <TajweedGradingModal
-         isOpen={isTajweedGradingModalOpen}
+        isOpen={isTajweedGradingModalOpen}
         onClose={() => {
           if (tajweedGradingFocusStudentId) {
             markUngradedTajweedAssignmentsAsSeen(tajweedGradingFocusStudentId);
@@ -17267,10 +17279,10 @@ function App() {
           setIsTajweedGradingModalOpen(false);
           setTajweedGradingFocusStudentId(null);
         }}
-         bank={tajweedBank}
-         assignments={tajweedAssignments}
-         submissions={tajweedSubmissions}
-         students={students}
+        bank={tajweedBank}
+        assignments={tajweedAssignments}
+        submissions={tajweedSubmissions}
+        students={students}
         onSaveGrading={handleSaveTajweedGrading}
         onRemoveFromMainGrading={handleRemoveFromMainTajweedGrading}
         focusStudentId={tajweedGradingFocusStudentId}
@@ -17303,9 +17315,10 @@ const StickyHeader = React.forwardRef<HTMLDivElement, {
   toHindiDigits: (n: number | string) => string;
   getDayOfWeek: (d: number) => number;
   getRemainingClasses: (dayNum: number) => number;
+  getRemainingClassesInfo?: (dayNum: number) => { count: number; totalMinutes: number; hours: number };
   scrollToFirstPending: (dayNum: number) => void;
   showMissedCount: boolean;
-}>(({ show, isTableLoading, studentWidth, tableWidth, month, year, daysInMonth, dayOff, today, toHindiDigits, getDayOfWeek, getRemainingClasses, scrollToFirstPending, showMissedCount }, ref) => {
+}>(({ show, isTableLoading, studentWidth, tableWidth, month, year, daysInMonth, dayOff, today, toHindiDigits, getDayOfWeek, getRemainingClasses, getRemainingClassesInfo, scrollToFirstPending, showMissedCount }, ref) => {
   const isWeekend = (day: number) => getDayOfWeek(day) === dayOff;
   const isTodayColumn = (dayNum: number) => {
     return month === today.month && year === today.year && dayNum === today.day;
@@ -17344,6 +17357,7 @@ const StickyHeader = React.forwardRef<HTMLDivElement, {
                   const dayNum = i + 1;
                   const isWknd = isWeekend(dayNum);
                   const isToday = isTodayColumn(dayNum);
+                  const info = getRemainingClassesInfo ? getRemainingClassesInfo(dayNum) : { count: getRemainingClasses(dayNum), totalMinutes: 0, hours: 0 };
 
                   return (
                     <th
@@ -17353,13 +17367,14 @@ const StickyHeader = React.forwardRef<HTMLDivElement, {
                         backgroundColor: isToday ? 'rgba(255, 224, 93, 0.4)' : isWknd ? 'rgba(129, 255, 234, 0.1)' : 'transparent'
                       }}
                     >
-                      {getRemainingClasses(dayNum) > 0 && (
+                      {info.count > 0 && (
                         <div
                           onClick={(e) => { e.stopPropagation(); scrollToFirstPending(dayNum); }}
-                          className={`absolute -top-8 left-1/2 -translate-x-1/2 min-w-[20px] h-5 flex items-center justify-center z-20 transition-all duration-300 cursor-pointer hover:scale-125 active:scale-95 pointer-events-auto ${isToday ? 'opacity-100' : 'opacity-0 group-hover/header:opacity-100 translate-y-2 group-hover/header:translate-y-0'}`}
-                          title="انقر للذهاب لأول حصة متبقية"
+                          className={`absolute -top-9 left-1/2 -translate-x-1/2 flex flex-col items-center justify-center bg-white/90 backdrop-blur-sm px-2 py-0.5 rounded-full shadow-md border border-amber-200/80 z-20 transition-all duration-300 cursor-pointer hover:scale-110 active:scale-95 pointer-events-auto ${isToday ? 'opacity-100' : 'opacity-0 group-hover/header:opacity-100 translate-y-2 group-hover/header:translate-y-0'}`}
+                          title={`انقر للذهاب لأول حصة متبقية (${toHindiDigits(info.count)} حصص | ${toHindiDigits(info.hours)} ساعة)`}
                         >
-                          <span className="text-[#ff7a00] text-[1.15rem] font-bold font-arabic drop-shadow-md">{toHindiDigits(getRemainingClasses(dayNum))}</span>
+                          <span className="text-amber-700 text-[0.8rem] font-bold font-arabic leading-none">{toHindiDigits(info.hours)}</span>
+                          <span className="text-[#ff7a00] text-[1.05rem] font-bold font-arabic drop-shadow-sm leading-none">{toHindiDigits(info.count)}</span>
                         </div>
                       )}
                       <div
