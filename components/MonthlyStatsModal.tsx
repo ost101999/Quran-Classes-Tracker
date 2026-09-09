@@ -258,6 +258,32 @@ const MonthlyStatsModal: React.FC<Props> = ({ students, attendance, month, year,
                         }
                     }
                 }
+
+                // Handle Academy Additions
+                const addition = rateInfo.monthlyAdditions?.[monthKey] ?? 0;
+                if (addition > 0) {
+                    const additionAmount = (addition / 60) * rateInfo.rate;
+                    if (rateInfo.currency === 'جنيه') {
+                        if (egpAggregated[academyName]) {
+                            egpAggregated[academyName] += additionAmount;
+                        }
+                        egpTotal += additionAmount;
+                    } else if (rateInfo.currency === 'دولار') {
+                        if (rateInfo.receiveInEGP) {
+                            // Add to EGP total (converted)
+                            const convertedAddition = additionAmount * usdRate;
+                            if (egpAggregated[academyName]) {
+                                egpAggregated[academyName] += convertedAddition;
+                            }
+                            egpTotal += convertedAddition;
+                        } else {
+                            if (usdAggregated[academyName]) {
+                                usdAggregated[academyName] += additionAmount;
+                            }
+                            usdTotal += additionAmount;
+                        }
+                    }
+                }
             });
         }
 
