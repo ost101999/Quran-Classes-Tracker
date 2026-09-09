@@ -4096,11 +4096,11 @@ function App() {
     });
   }, [selectedAcademy]);
 
-  const handleUpdateAcademy = useCallback((oldName: string, newName: string, rate: number, currency: string, monthlyDeductions: Record<string, number> = {}, billingStartDay: number = 1, externalLink: string = '', holidays: number[] = [], receiveInEGP: boolean = false, disableReports: boolean = false, whatsappNumber: string = '', openLinksExternally: boolean = false, includeReportHeader: boolean = true, showAnimationBeforeLink: boolean = true, monthlyAdditions: Record<string, number> = {}) => {
+  const handleUpdateAcademy = useCallback((oldName: string, newName: string, rate: number, currency: string, monthlyDeductions: Record<string, number> = {}, billingStartDay: number = 1, externalLink: string = '', holidays: number[] = [], receiveInEGP: boolean = false, disableReports: boolean = false, whatsappNumber: string = '', openLinksExternally: boolean = false, includeReportHeader: boolean = true, showAnimationBeforeLink: boolean = true, monthlyAdditions: Record<string, number> = {}, monthlyDeductionTypes: Record<string, 'minutes' | 'currency'> = {}, monthlyAdditionTypes: Record<string, 'minutes' | 'currency'> = {}) => {
     if (!oldName) {
       // Add Mode
       setAcademyOrder(prev => prev.includes(newName) ? prev : [...prev, newName]);
-      setAcademyRates(prev => ({ ...prev, [newName]: { rate, currency, monthlyDeductions, billingStartDay, externalLink, holidays, receiveInEGP, disableReports, whatsappNumber, openLinksExternally, includeReportHeader, showAnimationBeforeLink, monthlyAdditions } }));
+      setAcademyRates(prev => ({ ...prev, [newName]: { rate, currency, monthlyDeductions, billingStartDay, externalLink, holidays, receiveInEGP, disableReports, whatsappNumber, openLinksExternally, includeReportHeader, showAnimationBeforeLink, monthlyAdditions, monthlyDeductionTypes, monthlyAdditionTypes } }));
       setIsAddingAcademy(false);
       return;
     }
@@ -4135,7 +4135,7 @@ function App() {
     setAcademyRates(prev => {
       const next = { ...prev };
       delete next[oldName];
-      next[newName] = { rate, currency, monthlyDeductions, billingStartDay, externalLink, holidays, receiveInEGP, disableReports, whatsappNumber, openLinksExternally, includeReportHeader, showAnimationBeforeLink, monthlyAdditions };
+      next[newName] = { rate, currency, monthlyDeductions, billingStartDay, externalLink, holidays, receiveInEGP, disableReports, whatsappNumber, openLinksExternally, includeReportHeader, showAnimationBeforeLink, monthlyAdditions, monthlyDeductionTypes, monthlyAdditionTypes };
       return next;
     });
 
@@ -7627,8 +7627,8 @@ function App() {
               handleDeleteAcademy(selectedAcademyForDetails);
               setSelectedAcademyForDetails(null);
             }}
-            onUpdate={(oldName, newName, rate, curr, ded, bsd, link, hols, disRep, adds) =>
-              handleUpdateAcademy(oldName, newName, rate, curr, ded, bsd, link, hols, academyRates[selectedAcademyForDetails]?.receiveInEGP || false, disRep, academyRates[selectedAcademyForDetails]?.whatsappNumber || '', (academyRates[selectedAcademyForDetails] as any)?.openLinksExternally || false, (academyRates[selectedAcademyForDetails] as any)?.includeReportHeader !== false, (academyRates[selectedAcademyForDetails] as any)?.showAnimationBeforeLink !== false, adds)
+            onUpdate={(oldName, newName, rate, curr, ded, bsd, link, hols, disRep, adds, dedType, addsType) =>
+              handleUpdateAcademy(oldName, newName, rate, curr, ded, bsd, link, hols, academyRates[selectedAcademyForDetails]?.receiveInEGP || false, disRep, academyRates[selectedAcademyForDetails]?.whatsappNumber || '', (academyRates[selectedAcademyForDetails] as any)?.openLinksExternally || false, (academyRates[selectedAcademyForDetails] as any)?.includeReportHeader !== false, (academyRates[selectedAcademyForDetails] as any)?.showAnimationBeforeLink !== false, adds, dedType, addsType)
             }
             academyRate={academyRates[selectedAcademyForDetails]}
             usdRate={usdRate}
@@ -7641,7 +7641,7 @@ function App() {
             academyName={selectedAcademyForEditing}
             academyRate={academyRates[selectedAcademyForEditing]}
             onClose={() => setSelectedAcademyForEditing(null)}
-            onSave={(old, name, rate, curr, dm, bsd, el, hols, regp, disRep, whatsapp, openExt, incHdr, anim, adds) => handleUpdateAcademy(old, name, rate, curr, dm, bsd, el, hols, regp, disRep, whatsapp, openExt, incHdr, anim, adds)}
+            onSave={(old, name, rate, curr, dm, bsd, el, hols, regp, disRep, whatsapp, openExt, incHdr, anim, adds, dedType, addsType) => handleUpdateAcademy(old, name, rate, curr, dm, bsd, el, hols, regp, disRep, whatsapp, openExt, incHdr, anim, adds, dedType, addsType)}
             onDelete={() => handleDeleteAcademy(selectedAcademyForEditing)}
           />
         )
@@ -7651,7 +7651,7 @@ function App() {
           <AcademyEditModal
             academyName=""
             onClose={() => setIsAddingAcademy(false)}
-            onSave={(old, name, rate, curr, dm, bsd, el, hols, regp, disRep, whatsapp, openExt, incHdr, anim, adds) => handleUpdateAcademy('', name, rate, curr, dm, bsd, el, hols, regp, disRep, whatsapp, openExt, incHdr, anim, adds)}
+            onSave={(old, name, rate, curr, dm, bsd, el, hols, regp, disRep, whatsapp, openExt, incHdr, anim, adds, dedType, addsType) => handleUpdateAcademy('', name, rate, curr, dm, bsd, el, hols, regp, disRep, whatsapp, openExt, incHdr, anim, adds, dedType, addsType)}
             isAdd
           />
         )

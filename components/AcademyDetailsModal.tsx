@@ -10,8 +10,8 @@ interface Props {
     month: number;
     onClose: () => void;
     onDelete: () => void;
-    onUpdate: (oldName: string, newName: string, rate: number, currency: string, monthlyDeductions: Record<string, number>, billingStartDay: number, externalLink: string, holidays: number[], disableReports?: boolean, monthlyAdditions?: Record<string, number>) => void;
-    academyRate?: { rate: number; currency: string; deductedMinutes?: number; monthlyDeductions?: Record<string, number>; monthlyAdditions?: Record<string, number>; billingStartDay?: number; externalLink?: string; holidays?: number[], disableReports?: boolean };
+    onUpdate: (oldName: string, newName: string, rate: number, currency: string, monthlyDeductions: Record<string, number>, billingStartDay: number, externalLink: string, holidays: number[], disableReports?: boolean, monthlyAdditions?: Record<string, number>, monthlyDeductionTypes?: Record<string, 'minutes' | 'currency'>, monthlyAdditionTypes?: Record<string, 'minutes' | 'currency'>) => void;
+    academyRate?: { rate: number; currency: string; deductedMinutes?: number; monthlyDeductions?: Record<string, number>; monthlyAdditions?: Record<string, number>; monthlyDeductionTypes?: Record<string, 'minutes' | 'currency'>; monthlyAdditionTypes?: Record<string, 'minutes' | 'currency'>; billingStartDay?: number; externalLink?: string; holidays?: number[], disableReports?: boolean };
     month: number;
     year: number;
     usdRate: number;
@@ -195,27 +195,37 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
             }
         });
 
-        // Apply Month-Specific Deduction (Fallback to old format if necessary)
+        // Apply Month-Specific Deduction/Addition
         const monthKey = `${month}_${year}`;
         const deduction = academyRate?.monthlyDeductions?.[monthKey] ?? academyRate?.deductedMinutes ?? 0;
         const addition = academyRate?.monthlyAdditions?.[monthKey] ?? 0;
+        const deductionType = academyRate?.monthlyDeductionTypes?.[monthKey] ?? 'minutes';
+        const additionType = academyRate?.monthlyAdditionTypes?.[monthKey] ?? 'minutes';
         
         if (deduction > 0) {
-            totalHours = Math.max(0, totalHours - (deduction / 60));
-
-            // Apply income deduction to the academy's specific currency
             const academyCurrency = academyRate?.currency || 'جنيه';
             if (!incomeByCurrency[academyCurrency]) incomeByCurrency[academyCurrency] = 0;
-            incomeByCurrency[academyCurrency] = Math.max(0, incomeByCurrency[academyCurrency] - ((deduction / 60) * (academyRate?.rate || 0)));
+
+            if (deductionType === 'minutes') {
+                totalHours = Math.max(0, totalHours - (deduction / 60));
+                incomeByCurrency[academyCurrency] = Math.max(0, incomeByCurrency[academyCurrency] - ((deduction / 60) * (academyRate?.rate || 0)));
+            } else {
+                // Currency type: only affect income, not hours
+                incomeByCurrency[academyCurrency] = Math.max(0, incomeByCurrency[academyCurrency] - deduction);
+            }
         }
 
         if (addition > 0) {
-            totalHours += (addition / 60);
-
-            // Apply income addition to the academy's specific currency
             const academyCurrency = academyRate?.currency || 'جنيه';
             if (!incomeByCurrency[academyCurrency]) incomeByCurrency[academyCurrency] = 0;
-            incomeByCurrency[academyCurrency] += ((addition / 60) * (academyRate?.rate || 0));
+
+            if (additionType === 'minutes') {
+                totalHours += (addition / 60);
+                incomeByCurrency[academyCurrency] += ((addition / 60) * (academyRate?.rate || 0));
+            } else {
+                // Currency type: only affect income, not hours
+                incomeByCurrency[academyCurrency] += addition;
+            }
         }
 
         return { totalClasses, totalHours, incomeByCurrency, appliedDeduction: deduction, appliedAddition: addition, totalTransferred };
@@ -229,8 +239,12 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
     const monthKey = `${month}_${year}`;
     const initialDeduction = academyRate?.monthlyDeductions?.[monthKey] ?? academyRate?.deductedMinutes ?? 0;
     const initialAddition = academyRate?.monthlyAdditions?.[monthKey] ?? 0;
+    const initialDeductionType = academyRate?.monthlyDeductionTypes?.[monthKey] ?? 'minutes';
+    const initialAdditionType = academyRate?.monthlyAdditionTypes?.[monthKey] ?? 'minutes';
     const [editedDeduction, setEditedDeduction] = useState(initialDeduction);
     const [editedAddition, setEditedAddition] = useState(initialAddition);
+    const [editedDeductionType, setEditedDeductionType] = useState<'minutes' | 'currency'>(initialDeductionType);
+    const [editedAdditionType, setEditedAdditionType] = useState<'minutes' | 'currency'>(initialAdditionType);
     const [editedName, setEditedName] = useState(academyName);
     const [editedRate, setEditedRate] = useState(academyRate?.rate || 0);
     const [editedCurrency, setEditedCurrency] = useState(academyRate?.currency || 'جنيه');
@@ -440,7 +454,13 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
         newMonthlyDeductions[`${month}_${year}`] = editedDeduction;
         const newMonthlyAdditions = { ...(academyRate?.monthlyAdditions || {}) };
         newMonthlyAdditions[`${month}_${year}`] = editedAddition;
-        onUpdate(academyName, editedName, editedRate, editedCurrency, newMonthlyDeductions, editedBillingStartDay, editedLink, academyRate?.holidays || [], editedDisableReports, newMonthlyAdditions);
+        
+        const newMonthlyDeductionTypes = { ...(academyRate?.monthlyDeductionTypes || {}) } as Record<string, 'minutes' | 'currency'>;
+        newMonthlyDeductionTypes[`${month}_${year}`] = editedDeductionType;
+        const newMonthlyAdditionTypes = { ...(academyRate?.monthlyAdditionTypes || {}) } as Record<string, 'minutes' | 'currency'>;
+        newMonthlyAdditionTypes[`${month}_${year}`] = editedAdditionType;
+
+        onUpdate(academyName, editedName, editedRate, editedCurrency, newMonthlyDeductions, editedBillingStartDay, editedLink, academyRate?.holidays || [], editedDisableReports, newMonthlyAdditions, newMonthlyDeductionTypes, newMonthlyAdditionTypes);
         setIsEditing(false);
     };
 
@@ -998,7 +1018,7 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
                                 <div className="flex items-center gap-1.5">
                                     <Clock size={16} className={editedDeduction > 0 ? 'text-red-400' : 'text-gray-400'} />
                                     <span className={`text-xl font-medium whitespace-nowrap ${editedDeduction > 0 ? 'text-red-500' : 'text-gray-500'}`}>
-                                        خصم دقائق
+                                        خصم
                                     </span>
                                 </div>
                                 <div className="flex items-center gap-1">
@@ -1016,7 +1036,10 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
                                             const newMonthlyDeductions = { ...(academyRate?.monthlyDeductions || {}) };
                                             newMonthlyDeductions[`${month}_${year}`] = val;
                                             const newMonthlyAdditions = { ...(academyRate?.monthlyAdditions || {}) };
-                                            onUpdate(academyName, editedName, editedRate, editedCurrency, newMonthlyDeductions, editedBillingStartDay, editedLink, academyRate?.holidays || [], editedDisableReports, newMonthlyAdditions);
+                                            const newMonthlyDeductionTypes = { ...(academyRate?.monthlyDeductionTypes || {}) } as Record<string, 'minutes' | 'currency'>;
+                                            const newMonthlyAdditionTypes = { ...(academyRate?.monthlyAdditionTypes || {}) } as Record<string, 'minutes' | 'currency'>;
+                                            
+                                            onUpdate(academyName, editedName, editedRate, editedCurrency, newMonthlyDeductions, editedBillingStartDay, editedLink, academyRate?.holidays || [], editedDisableReports, newMonthlyAdditions, newMonthlyDeductionTypes, newMonthlyAdditionTypes);
 
                                             // Update history
                                             const newHistory = deductionHistory.slice(0, historyIndex + 1);
@@ -1031,7 +1054,22 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
                                         placeholder=""
                                         style={{ direction: 'ltr' }}
                                     />
-                                    <span className={`${editedDeduction > 0 ? 'text-red-300' : 'text-gray-300'} font-tajawal`}>دقيقة</span>
+                                    <button 
+                                        onClick={() => {
+                                            const newType = editedDeductionType === 'minutes' ? 'currency' : 'minutes';
+                                            setEditedDeductionType(newType);
+                                            const newMonthlyDeductions = { ...(academyRate?.monthlyDeductions || {}) };
+                                            const newMonthlyAdditions = { ...(academyRate?.monthlyAdditions || {}) };
+                                            const newMonthlyDeductionTypes = { ...(academyRate?.monthlyDeductionTypes || {}) } as Record<string, 'minutes' | 'currency'>;
+                                            newMonthlyDeductionTypes[`${month}_${year}`] = newType;
+                                            const newMonthlyAdditionTypes = { ...(academyRate?.monthlyAdditionTypes || {}) } as Record<string, 'minutes' | 'currency'>;
+                                            
+                                            onUpdate(academyName, editedName, editedRate, editedCurrency, newMonthlyDeductions, editedBillingStartDay, editedLink, academyRate?.holidays || [], editedDisableReports, newMonthlyAdditions, newMonthlyDeductionTypes, newMonthlyAdditionTypes);
+                                        }}
+                                        className={`font-tajawal px-2 py-0.5 rounded-lg transition-colors cursor-pointer hover:bg-black/5 ${editedDeduction > 0 ? 'text-red-400' : 'text-gray-400'}`}
+                                    >
+                                        {editedDeductionType === 'minutes' ? 'دقيقة' : academyRate?.currency || 'جنيه'}
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -1048,7 +1086,7 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
                                 <div className="flex items-center gap-1.5">
                                     <Clock size={16} className={editedAddition > 0 ? 'text-emerald-400' : 'text-gray-400'} />
                                     <span className={`text-xl font-medium whitespace-nowrap ${editedAddition > 0 ? 'text-emerald-500' : 'text-gray-500'}`}>
-                                        إضافة دقائق
+                                        إضافة
                                     </span>
                                 </div>
                                 <div className="flex items-center gap-1">
@@ -1066,7 +1104,10 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
                                             const newMonthlyDeductions = { ...(academyRate?.monthlyDeductions || {}) };
                                             const newMonthlyAdditions = { ...(academyRate?.monthlyAdditions || {}) };
                                             newMonthlyAdditions[`${month}_${year}`] = val;
-                                            onUpdate(academyName, editedName, editedRate, editedCurrency, newMonthlyDeductions, editedBillingStartDay, editedLink, academyRate?.holidays || [], editedDisableReports, newMonthlyAdditions);
+                                            const newMonthlyDeductionTypes = { ...(academyRate?.monthlyDeductionTypes || {}) } as Record<string, 'minutes' | 'currency'>;
+                                            const newMonthlyAdditionTypes = { ...(academyRate?.monthlyAdditionTypes || {}) } as Record<string, 'minutes' | 'currency'>;
+                                            
+                                            onUpdate(academyName, editedName, editedRate, editedCurrency, newMonthlyDeductions, editedBillingStartDay, editedLink, academyRate?.holidays || [], editedDisableReports, newMonthlyAdditions, newMonthlyDeductionTypes, newMonthlyAdditionTypes);
 
                                             // Update history
                                             const newHistory = additionHistory.slice(0, historyAdditionIndex + 1);
@@ -1081,7 +1122,22 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
                                         placeholder=""
                                         style={{ direction: 'ltr' }}
                                     />
-                                    <span className={`${editedAddition > 0 ? 'text-emerald-300' : 'text-gray-300'} font-tajawal`}>دقيقة</span>
+                                    <button 
+                                        onClick={() => {
+                                            const newType = editedAdditionType === 'minutes' ? 'currency' : 'minutes';
+                                            setEditedAdditionType(newType);
+                                            const newMonthlyDeductions = { ...(academyRate?.monthlyDeductions || {}) };
+                                            const newMonthlyAdditions = { ...(academyRate?.monthlyAdditions || {}) };
+                                            const newMonthlyDeductionTypes = { ...(academyRate?.monthlyDeductionTypes || {}) } as Record<string, 'minutes' | 'currency'>;
+                                            const newMonthlyAdditionTypes = { ...(academyRate?.monthlyAdditionTypes || {}) } as Record<string, 'minutes' | 'currency'>;
+                                            newMonthlyAdditionTypes[`${month}_${year}`] = newType;
+                                            
+                                            onUpdate(academyName, editedName, editedRate, editedCurrency, newMonthlyDeductions, editedBillingStartDay, editedLink, academyRate?.holidays || [], editedDisableReports, newMonthlyAdditions, newMonthlyDeductionTypes, newMonthlyAdditionTypes);
+                                        }}
+                                        className={`font-tajawal px-2 py-0.5 rounded-lg transition-colors cursor-pointer hover:bg-black/5 ${editedAddition > 0 ? 'text-emerald-400' : 'text-gray-400'}`}
+                                    >
+                                        {editedAdditionType === 'minutes' ? 'دقيقة' : academyRate?.currency || 'جنيه'}
+                                    </button>
                                 </div>
                             </div>
                         </div>

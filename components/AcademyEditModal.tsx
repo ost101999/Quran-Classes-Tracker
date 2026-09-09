@@ -17,10 +17,12 @@ interface Props {
         showAnimationBeforeLink?: boolean;
         monthlyDeductions?: Record<string, number>;
         monthlyAdditions?: Record<string, number>;
+        monthlyDeductionTypes?: Record<string, 'minutes' | 'currency'>;
+        monthlyAdditionTypes?: Record<string, 'minutes' | 'currency'>;
         includeReportHeader?: boolean;
     };
     onClose: () => void;
-    onSave: (oldName: string, newName: string, rate: number, currency: string, monthlyDeductions: Record<string, number>, billingStartDay?: number, externalLink?: string, holidays?: number[], receiveInEGP?: boolean, disableReports?: boolean, whatsappNumber?: string, openLinksExternally?: boolean, includeReportHeader?: boolean, showAnimationBeforeLink?: boolean, monthlyAdditions?: Record<string, number>) => void;
+    onSave: (oldName: string, newName: string, rate: number, currency: string, monthlyDeductions: Record<string, number>, billingStartDay?: number, externalLink?: string, holidays?: number[], receiveInEGP?: boolean, disableReports?: boolean, whatsappNumber?: string, openLinksExternally?: boolean, includeReportHeader?: boolean, showAnimationBeforeLink?: boolean, monthlyAdditions?: Record<string, number>, monthlyDeductionTypes?: Record<string, 'minutes' | 'currency'>, monthlyAdditionTypes?: Record<string, 'minutes' | 'currency'>) => void;
     onDelete?: () => void;
     isAdd?: boolean;
 }
@@ -76,7 +78,7 @@ const AcademyEditModal: React.FC<Props> = ({ academyName, academyRate, onClose, 
 
         const finalRate = Number(toWesternDigits(rate).replace(',', '.'));
         const finalStartDay = Number(toWesternDigits(billingStartDay));
-        onSave(academyName, name, isNaN(finalRate) ? 0 : finalRate, currency, academyRate?.monthlyDeductions || {}, isNaN(finalStartDay) ? 1 : finalStartDay, externalLink, holidays, currency === 'دولار' ? receiveInEGP : false, disableReports, whatsappNumber, openLinksExternally, includeReportHeader, showAnimationBeforeLink, academyRate?.monthlyAdditions || {});
+        onSave(academyName, name, isNaN(finalRate) ? 0 : finalRate, currency, academyRate?.monthlyDeductions || {}, isNaN(finalStartDay) ? 1 : finalStartDay, externalLink, holidays, currency === 'دولار' ? receiveInEGP : false, disableReports, whatsappNumber, openLinksExternally, includeReportHeader, showAnimationBeforeLink, academyRate?.monthlyAdditions || {}, academyRate?.monthlyDeductionTypes || {}, academyRate?.monthlyAdditionTypes || {});
         onClose();
     };
 
