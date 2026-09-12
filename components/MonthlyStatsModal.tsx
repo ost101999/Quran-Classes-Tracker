@@ -235,8 +235,9 @@ const MonthlyStatsModal: React.FC<Props> = ({ students, attendance, month, year,
         if (academyRates) {
             Object.entries(academyRates).forEach(([academyName, rateInfo]) => {
                 const deduction = rateInfo.monthlyDeductions?.[monthKey] ?? rateInfo.deductedMinutes ?? 0;
+                const deductionType = rateInfo.monthlyDeductionTypes?.[monthKey] ?? 'minutes';
                 if (deduction > 0) {
-                    const deductionAmount = (deduction / 60) * rateInfo.rate;
+                    const deductionAmount = deductionType === 'minutes' ? (deduction / 60) * rateInfo.rate : deduction;
                     if (rateInfo.currency === 'جنيه') {
                         if (egpAggregated[academyName]) {
                             egpAggregated[academyName] = Math.max(0, egpAggregated[academyName] - deductionAmount);
@@ -255,6 +256,33 @@ const MonthlyStatsModal: React.FC<Props> = ({ students, attendance, month, year,
                                 usdAggregated[academyName] = Math.max(0, usdAggregated[academyName] - deductionAmount);
                             }
                             usdTotal = Math.max(0, usdTotal - deductionAmount);
+                        }
+                    }
+                }
+
+                // Handle Academy Additions
+                const addition = rateInfo.monthlyAdditions?.[monthKey] ?? 0;
+                const additionType = rateInfo.monthlyAdditionTypes?.[monthKey] ?? 'minutes';
+                if (addition > 0) {
+                    const additionAmount = additionType === 'minutes' ? (addition / 60) * rateInfo.rate : addition;
+                    if (rateInfo.currency === 'جنيه') {
+                        if (egpAggregated[academyName]) {
+                            egpAggregated[academyName] += additionAmount;
+                        }
+                        egpTotal += additionAmount;
+                    } else if (rateInfo.currency === 'دولار') {
+                        if (rateInfo.receiveInEGP) {
+                            // Add to EGP total (converted)
+                            const convertedAddition = additionAmount * usdRate;
+                            if (egpAggregated[academyName]) {
+                                egpAggregated[academyName] += convertedAddition;
+                            }
+                            egpTotal += convertedAddition;
+                        } else {
+                            if (usdAggregated[academyName]) {
+                                usdAggregated[academyName] += additionAmount;
+                            }
+                            usdTotal += additionAmount;
                         }
                     }
                 }

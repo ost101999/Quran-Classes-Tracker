@@ -10,8 +10,8 @@ interface Props {
     month: number;
     onClose: () => void;
     onDelete: () => void;
-    onUpdate: (oldName: string, newName: string, rate: number, currency: string, monthlyDeductions: Record<string, number>, billingStartDay: number, externalLink: string, holidays: number[], disableReports?: boolean) => void;
-    academyRate?: { rate: number; currency: string; deductedMinutes?: number; monthlyDeductions?: Record<string, number>; billingStartDay?: number; externalLink?: string; holidays?: number[], disableReports?: boolean };
+    onUpdate: (oldName: string, newName: string, rate: number, currency: string, monthlyDeductions: Record<string, number>, billingStartDay: number, externalLink: string, holidays: number[], disableReports?: boolean, monthlyAdditions?: Record<string, number>, monthlyDeductionTypes?: Record<string, 'minutes' | 'currency'>, monthlyAdditionTypes?: Record<string, 'minutes' | 'currency'>) => void;
+    academyRate?: { rate: number; currency: string; deductedMinutes?: number; monthlyDeductions?: Record<string, number>; monthlyAdditions?: Record<string, number>; monthlyDeductionTypes?: Record<string, 'minutes' | 'currency'>; monthlyAdditionTypes?: Record<string, 'minutes' | 'currency'>; billingStartDay?: number; externalLink?: string; holidays?: number[], disableReports?: boolean };
     month: number;
     year: number;
     usdRate: number;
@@ -195,19 +195,40 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
             }
         });
 
-        // Apply Month-Specific Deduction (Fallback to old format if necessary)
+        // Apply Month-Specific Deduction/Addition
         const monthKey = `${month}_${year}`;
         const deduction = academyRate?.monthlyDeductions?.[monthKey] ?? academyRate?.deductedMinutes ?? 0;
+        const addition = academyRate?.monthlyAdditions?.[monthKey] ?? 0;
+        const deductionType = academyRate?.monthlyDeductionTypes?.[monthKey] ?? 'minutes';
+        const additionType = academyRate?.monthlyAdditionTypes?.[monthKey] ?? 'minutes';
+        
         if (deduction > 0) {
-            totalHours = Math.max(0, totalHours - (deduction / 60));
-
-            // Apply income deduction to the academy's specific currency
             const academyCurrency = academyRate?.currency || 'جنيه';
             if (!incomeByCurrency[academyCurrency]) incomeByCurrency[academyCurrency] = 0;
-            incomeByCurrency[academyCurrency] = Math.max(0, incomeByCurrency[academyCurrency] - ((deduction / 60) * (academyRate?.rate || 0)));
+
+            if (deductionType === 'minutes') {
+                totalHours = Math.max(0, totalHours - (deduction / 60));
+                incomeByCurrency[academyCurrency] = Math.max(0, incomeByCurrency[academyCurrency] - ((deduction / 60) * (academyRate?.rate || 0)));
+            } else {
+                // Currency type: only affect income, not hours
+                incomeByCurrency[academyCurrency] = Math.max(0, incomeByCurrency[academyCurrency] - deduction);
+            }
         }
 
-        return { totalClasses, totalHours, incomeByCurrency, appliedDeduction: deduction, totalTransferred };
+        if (addition > 0) {
+            const academyCurrency = academyRate?.currency || 'جنيه';
+            if (!incomeByCurrency[academyCurrency]) incomeByCurrency[academyCurrency] = 0;
+
+            if (additionType === 'minutes') {
+                totalHours += (addition / 60);
+                incomeByCurrency[academyCurrency] += ((addition / 60) * (academyRate?.rate || 0));
+            } else {
+                // Currency type: only affect income, not hours
+                incomeByCurrency[academyCurrency] += addition;
+            }
+        }
+
+        return { totalClasses, totalHours, incomeByCurrency, appliedDeduction: deduction, appliedAddition: addition, totalTransferred };
     };
 
     const stats = getAcademyStats();
@@ -217,14 +238,22 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
     const [isEditing, setIsEditing] = useState(false);
     const monthKey = `${month}_${year}`;
     const initialDeduction = academyRate?.monthlyDeductions?.[monthKey] ?? academyRate?.deductedMinutes ?? 0;
+    const initialAddition = academyRate?.monthlyAdditions?.[monthKey] ?? 0;
+    const initialDeductionType = academyRate?.monthlyDeductionTypes?.[monthKey] ?? 'minutes';
+    const initialAdditionType = academyRate?.monthlyAdditionTypes?.[monthKey] ?? 'minutes';
     const [editedDeduction, setEditedDeduction] = useState(initialDeduction);
+    const [editedAddition, setEditedAddition] = useState(initialAddition);
+    const [editedDeductionType, setEditedDeductionType] = useState<'minutes' | 'currency'>(initialDeductionType);
+    const [editedAdditionType, setEditedAdditionType] = useState<'minutes' | 'currency'>(initialAdditionType);
     const [editedName, setEditedName] = useState(academyName);
     const [editedRate, setEditedRate] = useState(academyRate?.rate || 0);
     const [editedCurrency, setEditedCurrency] = useState(academyRate?.currency || 'جنيه');
     const [editedBillingStartDay, setEditedBillingStartDay] = useState(academyRate?.billingStartDay || 1);
     const [editedLink, setEditedLink] = useState(academyRate?.externalLink || '');
     const [deductionHistory, setDeductionHistory] = useState<number[]>([initialDeduction]);
+    const [additionHistory, setAdditionHistory] = useState<number[]>([initialAddition]);
     const [historyIndex, setHistoryIndex] = useState(0);
+    const [historyAdditionIndex, setHistoryAdditionIndex] = useState(0);
     const [editedDisableReports, setEditedDisableReports] = useState(academyRate?.disableReports || false);
 
     const handleCopy = async (withPricing: boolean, withBreakdown: boolean = false) => {
@@ -352,7 +381,8 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
             setHistoryIndex(historyIndex - 1);
             const newMonthlyDeductions = { ...(academyRate?.monthlyDeductions || {}) };
             newMonthlyDeductions[`${month}_${year}`] = prev;
-            onUpdate(academyName, editedName, editedRate, editedCurrency, newMonthlyDeductions, editedBillingStartDay, editedLink, academyRate?.holidays || [], editedDisableReports);
+            const newMonthlyAdditions = { ...(academyRate?.monthlyAdditions || {}) };
+            onUpdate(academyName, editedName, editedRate, editedCurrency, newMonthlyDeductions, editedBillingStartDay, editedLink, academyRate?.holidays || [], editedDisableReports, newMonthlyAdditions);
         }
     };
 
@@ -363,7 +393,32 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
             setHistoryIndex(historyIndex + 1);
             const newMonthlyDeductions = { ...(academyRate?.monthlyDeductions || {}) };
             newMonthlyDeductions[`${month}_${year}`] = next;
-            onUpdate(academyName, editedName, editedRate, editedCurrency, newMonthlyDeductions, editedBillingStartDay, editedLink, academyRate?.holidays || [], editedDisableReports);
+            const newMonthlyAdditions = { ...(academyRate?.monthlyAdditions || {}) };
+            onUpdate(academyName, editedName, editedRate, editedCurrency, newMonthlyDeductions, editedBillingStartDay, editedLink, academyRate?.holidays || [], editedDisableReports, newMonthlyAdditions);
+        }
+    };
+
+    const undoAddition = () => {
+        if (historyAdditionIndex > 0) {
+            const prev = additionHistory[historyAdditionIndex - 1];
+            setEditedAddition(prev);
+            setHistoryAdditionIndex(historyAdditionIndex - 1);
+            const newMonthlyDeductions = { ...(academyRate?.monthlyDeductions || {}) };
+            const newMonthlyAdditions = { ...(academyRate?.monthlyAdditions || {}) };
+            newMonthlyAdditions[`${month}_${year}`] = prev;
+            onUpdate(academyName, editedName, editedRate, editedCurrency, newMonthlyDeductions, editedBillingStartDay, editedLink, academyRate?.holidays || [], editedDisableReports, newMonthlyAdditions);
+        }
+    };
+
+    const redoAddition = () => {
+        if (historyAdditionIndex < additionHistory.length - 1) {
+            const next = additionHistory[historyAdditionIndex + 1];
+            setEditedAddition(next);
+            setHistoryAdditionIndex(historyAdditionIndex + 1);
+            const newMonthlyDeductions = { ...(academyRate?.monthlyDeductions || {}) };
+            const newMonthlyAdditions = { ...(academyRate?.monthlyAdditions || {}) };
+            newMonthlyAdditions[`${month}_${year}`] = next;
+            onUpdate(academyName, editedName, editedRate, editedCurrency, newMonthlyDeductions, editedBillingStartDay, editedLink, academyRate?.holidays || [], editedDisableReports, newMonthlyAdditions);
         }
     };
 
@@ -374,27 +429,38 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
 
             if (!isInputFocused) return;
 
+            // Simple assumption: if focused input is addition, undo/redo addition, otherwise deduction
+            const isAdditionInput = activeElement.id === 'additionInput';
+
             if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
                 if (e.shiftKey) {
                     e.preventDefault();
-                    redoDeduction();
+                    if (isAdditionInput) redoAddition(); else redoDeduction();
                 } else {
                     e.preventDefault();
-                    undoDeduction();
+                    if (isAdditionInput) undoAddition(); else undoDeduction();
                 }
             } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
                 e.preventDefault();
-                redoDeduction();
+                if (isAdditionInput) redoAddition(); else redoDeduction();
             }
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [historyIndex, deductionHistory, editedName, editedRate, editedCurrency, editedDeduction]);
+    }, [historyIndex, historyAdditionIndex, deductionHistory, additionHistory, editedName, editedRate, editedCurrency, editedDeduction, editedAddition]);
 
     const handleSave = () => {
         const newMonthlyDeductions = { ...(academyRate?.monthlyDeductions || {}) };
         newMonthlyDeductions[`${month}_${year}`] = editedDeduction;
-        onUpdate(academyName, editedName, editedRate, editedCurrency, newMonthlyDeductions, editedBillingStartDay, editedLink, academyRate?.holidays || [], editedDisableReports);
+        const newMonthlyAdditions = { ...(academyRate?.monthlyAdditions || {}) };
+        newMonthlyAdditions[`${month}_${year}`] = editedAddition;
+        
+        const newMonthlyDeductionTypes = { ...(academyRate?.monthlyDeductionTypes || {}) } as Record<string, 'minutes' | 'currency'>;
+        newMonthlyDeductionTypes[`${month}_${year}`] = editedDeductionType;
+        const newMonthlyAdditionTypes = { ...(academyRate?.monthlyAdditionTypes || {}) } as Record<string, 'minutes' | 'currency'>;
+        newMonthlyAdditionTypes[`${month}_${year}`] = editedAdditionType;
+
+        onUpdate(academyName, editedName, editedRate, editedCurrency, newMonthlyDeductions, editedBillingStartDay, editedLink, academyRate?.holidays || [], editedDisableReports, newMonthlyAdditions, newMonthlyDeductionTypes, newMonthlyAdditionTypes);
         setIsEditing(false);
     };
 
@@ -940,52 +1006,142 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
                     </div >
 
                     {/* Pill Design for Deduction - Conditional Theme */}
-                    < div className="flex items-center justify-center pt-0" >
-                        <div className={`
-                            inline-flex items-center gap-4 px-5 py-2 rounded-full border shadow-sm transition-all duration-300
-                            ${editedDeduction > 0
-                                ? 'bg-red-50/50 border-red-100 hover:bg-red-50'
-                                : 'bg-gray-50/50 border-gray-100 hover:bg-gray-50'
-                            }
-                        `}>
-                            <div className="flex items-center gap-1.5">
-                                <Clock size={16} className={editedDeduction > 0 ? 'text-red-400' : 'text-gray-400'} />
-                                <span className={`text-xl font-medium whitespace-nowrap ${editedDeduction > 0 ? 'text-red-500' : 'text-gray-500'}`}>
-                                    خصم دقائق
-                                </span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                                <input
-                                    type="text"
-                                    inputMode="numeric"
-                                    value={editedDeduction === 0 ? '' : editedDeduction.toString()}
-                                    onFocus={(e) => e.target.select()}
-                                    onChange={(e) => {
-                                        const western = toWesternDigits(e.target.value).replace(/\D/g, '');
-                                        const val = western === '' ? 0 : parseInt(western);
+                    <div className="flex flex-col gap-3 pt-0">
+                        <div className="flex items-center justify-center">
+                            <div className={`
+                                inline-flex items-center gap-4 px-5 py-2 rounded-full border shadow-sm transition-all duration-300
+                                ${editedDeduction > 0
+                                    ? 'bg-red-50/50 border-red-100 hover:bg-red-50'
+                                    : 'bg-gray-50/50 border-gray-100 hover:bg-gray-50'
+                                }
+                            `}>
+                                <div className="flex items-center gap-1.5">
+                                    <Clock size={16} className={editedDeduction > 0 ? 'text-red-400' : 'text-gray-400'} />
+                                    <span className={`text-xl font-medium whitespace-nowrap ${editedDeduction > 0 ? 'text-red-500' : 'text-gray-500'}`}>
+                                        خصم
+                                    </span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    <input
+                                        type="text"
+                                        inputMode="numeric"
+                                        id="deductionInput"
+                                        value={editedDeduction === 0 ? '' : editedDeduction.toString()}
+                                        onFocus={(e) => e.target.select()}
+                                        onChange={(e) => {
+                                            const western = toWesternDigits(e.target.value).replace(/\D/g, '');
+                                            const val = western === '' ? 0 : parseInt(western);
 
-                                        setEditedDeduction(val);
-                                        const newMonthlyDeductions = { ...(academyRate?.monthlyDeductions || {}) };
-                                        newMonthlyDeductions[`${month}_${year}`] = val;
-                                        onUpdate(academyName, editedName, editedRate, editedCurrency, newMonthlyDeductions, editedBillingStartDay, editedLink, academyRate?.holidays || [], editedDisableReports);
+                                            setEditedDeduction(val);
+                                            const newMonthlyDeductions = { ...(academyRate?.monthlyDeductions || {}) };
+                                            newMonthlyDeductions[`${month}_${year}`] = val;
+                                            const newMonthlyAdditions = { ...(academyRate?.monthlyAdditions || {}) };
+                                            const newMonthlyDeductionTypes = { ...(academyRate?.monthlyDeductionTypes || {}) } as Record<string, 'minutes' | 'currency'>;
+                                            const newMonthlyAdditionTypes = { ...(academyRate?.monthlyAdditionTypes || {}) } as Record<string, 'minutes' | 'currency'>;
+                                            
+                                            onUpdate(academyName, editedName, editedRate, editedCurrency, newMonthlyDeductions, editedBillingStartDay, editedLink, academyRate?.holidays || [], editedDisableReports, newMonthlyAdditions, newMonthlyDeductionTypes, newMonthlyAdditionTypes);
 
-                                        // Update history
-                                        const newHistory = deductionHistory.slice(0, historyIndex + 1);
-                                        newHistory.push(val);
-                                        setDeductionHistory(newHistory);
-                                        setHistoryIndex(newHistory.length - 1);
-                                    }}
-                                    className={`
-                                        w-16 text-center text-3xl font-bold bg-transparent outline-none font-tajawal transition-colors
-                                        ${editedDeduction > 0 ? 'text-red-600' : 'text-gray-400'}
-                                    `}
-                                    placeholder=""
-                                    style={{ direction: 'ltr' }}
-                                />
-                                <span className={`${editedDeduction > 0 ? 'text-red-300' : 'text-gray-300'} font-tajawal`}>دقيقة</span>
+                                            // Update history
+                                            const newHistory = deductionHistory.slice(0, historyIndex + 1);
+                                            newHistory.push(val);
+                                            setDeductionHistory(newHistory);
+                                            setHistoryIndex(newHistory.length - 1);
+                                        }}
+                                        className={`
+                                            w-16 text-center text-3xl font-bold bg-transparent outline-none font-tajawal transition-colors
+                                            ${editedDeduction > 0 ? 'text-red-600' : 'text-gray-400'}
+                                        `}
+                                        placeholder=""
+                                        style={{ direction: 'ltr' }}
+                                    />
+                                    <button 
+                                        onClick={() => {
+                                            const newType = editedDeductionType === 'minutes' ? 'currency' : 'minutes';
+                                            setEditedDeductionType(newType);
+                                            const newMonthlyDeductions = { ...(academyRate?.monthlyDeductions || {}) };
+                                            const newMonthlyAdditions = { ...(academyRate?.monthlyAdditions || {}) };
+                                            const newMonthlyDeductionTypes = { ...(academyRate?.monthlyDeductionTypes || {}) } as Record<string, 'minutes' | 'currency'>;
+                                            newMonthlyDeductionTypes[`${month}_${year}`] = newType;
+                                            const newMonthlyAdditionTypes = { ...(academyRate?.monthlyAdditionTypes || {}) } as Record<string, 'minutes' | 'currency'>;
+                                            
+                                            onUpdate(academyName, editedName, editedRate, editedCurrency, newMonthlyDeductions, editedBillingStartDay, editedLink, academyRate?.holidays || [], editedDisableReports, newMonthlyAdditions, newMonthlyDeductionTypes, newMonthlyAdditionTypes);
+                                        }}
+                                        className={`font-tajawal px-2 py-0.5 rounded-lg transition-colors cursor-pointer hover:bg-black/5 ${editedDeduction > 0 ? 'text-red-400' : 'text-gray-400'}`}
+                                    >
+                                        {editedDeductionType === 'minutes' ? 'دقيقة' : academyRate?.currency || 'جنيه'}
+                                    </button>
+                                </div>
                             </div>
                         </div>
-                    </div >
+
+                        {/* Pill Design for Addition */}
+                        <div className="flex items-center justify-center">
+                            <div className={`
+                                inline-flex items-center gap-4 px-5 py-2 rounded-full border shadow-sm transition-all duration-300
+                                ${editedAddition > 0
+                                    ? 'bg-emerald-50/50 border-emerald-100 hover:bg-emerald-50'
+                                    : 'bg-gray-50/50 border-gray-100 hover:bg-gray-50'
+                                }
+                            `}>
+                                <div className="flex items-center gap-1.5">
+                                    <Clock size={16} className={editedAddition > 0 ? 'text-emerald-400' : 'text-gray-400'} />
+                                    <span className={`text-xl font-medium whitespace-nowrap ${editedAddition > 0 ? 'text-emerald-500' : 'text-gray-500'}`}>
+                                        إضافة
+                                    </span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    <input
+                                        type="text"
+                                        inputMode="numeric"
+                                        id="additionInput"
+                                        value={editedAddition === 0 ? '' : editedAddition.toString()}
+                                        onFocus={(e) => e.target.select()}
+                                        onChange={(e) => {
+                                            const western = toWesternDigits(e.target.value).replace(/\D/g, '');
+                                            const val = western === '' ? 0 : parseInt(western);
+
+                                            setEditedAddition(val);
+                                            const newMonthlyDeductions = { ...(academyRate?.monthlyDeductions || {}) };
+                                            const newMonthlyAdditions = { ...(academyRate?.monthlyAdditions || {}) };
+                                            newMonthlyAdditions[`${month}_${year}`] = val;
+                                            const newMonthlyDeductionTypes = { ...(academyRate?.monthlyDeductionTypes || {}) } as Record<string, 'minutes' | 'currency'>;
+                                            const newMonthlyAdditionTypes = { ...(academyRate?.monthlyAdditionTypes || {}) } as Record<string, 'minutes' | 'currency'>;
+                                            
+                                            onUpdate(academyName, editedName, editedRate, editedCurrency, newMonthlyDeductions, editedBillingStartDay, editedLink, academyRate?.holidays || [], editedDisableReports, newMonthlyAdditions, newMonthlyDeductionTypes, newMonthlyAdditionTypes);
+
+                                            // Update history
+                                            const newHistory = additionHistory.slice(0, historyAdditionIndex + 1);
+                                            newHistory.push(val);
+                                            setAdditionHistory(newHistory);
+                                            setHistoryAdditionIndex(newHistory.length - 1);
+                                        }}
+                                        className={`
+                                            w-16 text-center text-3xl font-bold bg-transparent outline-none font-tajawal transition-colors
+                                            ${editedAddition > 0 ? 'text-emerald-600' : 'text-gray-400'}
+                                        `}
+                                        placeholder=""
+                                        style={{ direction: 'ltr' }}
+                                    />
+                                    <button 
+                                        onClick={() => {
+                                            const newType = editedAdditionType === 'minutes' ? 'currency' : 'minutes';
+                                            setEditedAdditionType(newType);
+                                            const newMonthlyDeductions = { ...(academyRate?.monthlyDeductions || {}) };
+                                            const newMonthlyAdditions = { ...(academyRate?.monthlyAdditions || {}) };
+                                            const newMonthlyDeductionTypes = { ...(academyRate?.monthlyDeductionTypes || {}) } as Record<string, 'minutes' | 'currency'>;
+                                            const newMonthlyAdditionTypes = { ...(academyRate?.monthlyAdditionTypes || {}) } as Record<string, 'minutes' | 'currency'>;
+                                            newMonthlyAdditionTypes[`${month}_${year}`] = newType;
+                                            
+                                            onUpdate(academyName, editedName, editedRate, editedCurrency, newMonthlyDeductions, editedBillingStartDay, editedLink, academyRate?.holidays || [], editedDisableReports, newMonthlyAdditions, newMonthlyDeductionTypes, newMonthlyAdditionTypes);
+                                        }}
+                                        className={`font-tajawal px-2 py-0.5 rounded-lg transition-colors cursor-pointer hover:bg-black/5 ${editedAddition > 0 ? 'text-emerald-400' : 'text-gray-400'}`}
+                                    >
+                                        {editedAdditionType === 'minutes' ? 'دقيقة' : academyRate?.currency || 'جنيه'}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
 
                     {/* Delete Action */}
                     < div className="pt-3 border-t border-gray-100" >
