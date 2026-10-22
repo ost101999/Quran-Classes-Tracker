@@ -302,6 +302,50 @@ const getNoorLessonType = (book: 'noor' | 'taasees', fromPageStr: string, toPage
   return uniqueLessons.join(' - ');
 };
 
+const getNoorBayanListeningLink = (cancelledInputs: Record<string, boolean> = {}) => {
+  const toEn = (s?: string | null) => (s || '').replace(/[٠-٩]/g, d => "0123456789"["٠١٢٣٤٥٦٧٨٩".indexOf(d)]).trim();
+
+  const sayatimFromEl = document.getElementById('noor-sayatim-from-page') as HTMLInputElement | null;
+  const sayatimToEl = document.getElementById('noor-sayatim-to-page') as HTMLInputElement | null;
+  const tamFromEl = document.getElementById('noor-tam-from-page') as HTMLInputElement | null;
+  const tamToEl = document.getElementById('noor-tam-to-page') as HTMLInputElement | null;
+
+  let rawFrom = toEn(sayatimFromEl?.value);
+  let rawTo = toEn(sayatimToEl?.value);
+  let isToCancelled = !!cancelledInputs['noor-sayatim-to-page'];
+
+  // If next lesson (sayatim) has no pages, check current lesson (tam) as fallback
+  if (!rawFrom && !rawTo) {
+    rawFrom = toEn(tamFromEl?.value);
+    rawTo = toEn(tamToEl?.value);
+    isToCancelled = !!cancelledInputs['noor-tam-to-page'];
+  }
+
+  if (!rawFrom && !rawTo) return '';
+
+  let fromNum = parseInt(rawFrom, 10);
+  let toNum: number;
+
+  if (isToCancelled || !rawTo) {
+    // Single page (empty or cancelled to-page)
+    toNum = isNaN(fromNum) ? 1 : fromNum;
+  } else if (rawTo === '0') {
+    // Open range to end of book (73)
+    toNum = 73;
+  } else {
+    toNum = parseInt(rawTo, 10);
+    if (isNaN(toNum)) toNum = isNaN(fromNum) ? 1 : fromNum;
+  }
+
+  if (isNaN(fromNum)) fromNum = toNum;
+
+  const startPage = Math.min(fromNum, toNum);
+  const endPage = Math.max(fromNum, toNum);
+
+  return `https://nooralbayan-two.vercel.app/?pages=${startPage}-${endPage}#p=${startPage}`;
+};
+
+
 const normalizeUrl = (url: string) => {
   const s = (url || '').toString().trim();
   if (!s) return '';
@@ -14445,6 +14489,11 @@ function App() {
                             if (isFoundationBookAr && foundationListenPageAr) {
                               const pageEng = toEnglish(foundationListenPageAr);
                               report += `\nــــــــــــــــــــــــــــــ\n🎧 *الاستماع:*\nhttps://audio-foundation-book.vercel.app/?page=${pageEng}`;
+                            } else if (!isFoundationBookAr) {
+                              const noorListenLinkAr = getNoorBayanListeningLink(cancelledInputs);
+                              if (noorListenLinkAr) {
+                                report += `\nــــــــــــــــــــــــــــــ\n🎧 *الاستماع:*\n${noorListenLinkAr}`;
+                              }
                             }
 
                             // Custom Notes
@@ -15100,6 +15149,11 @@ function App() {
                             if (isMergedFoundationBookAr && mergedListenPageAr) {
                               const mergedPageEng = toEnglish(mergedListenPageAr);
                               report += `\n*• الاستماع:*\nhttps://audio-foundation-book.vercel.app/?page=${mergedPageEng}\n`;
+                            } else if (!isMergedFoundationBookAr) {
+                              const mergedNoorListenLinkAr = getNoorBayanListeningLink(cancelledInputs);
+                              if (mergedNoorListenLinkAr) {
+                                report += `\n*• الاستماع:*\n${mergedNoorListenLinkAr}\n`;
+                              }
                             }
                           }
 
@@ -15599,6 +15653,11 @@ function App() {
                               if (isFoundationBook && foundationListenPage) {
                                 const foundationPageEng = toEnglish(foundationListenPage.toString());
                                 report += `\nــــــــــــــــــــــــــــــ\n🎧 *Listening:*\nhttps://audio-foundation-book.vercel.app/?page=${foundationPageEng}`;
+                              } else if (!isFoundationBook) {
+                                const noorListenLinkEn = getNoorBayanListeningLink(cancelledInputs);
+                                if (noorListenLinkEn) {
+                                  report += `\nــــــــــــــــــــــــــــــ\n🎧 *Listening:*\n${noorListenLinkEn}`;
+                                }
                               }
 
                               // Custom Notes
@@ -16627,6 +16686,11 @@ function App() {
                             if (isMergedFoundationBook && mergedFoundationListenPage) {
                               const mergedFoundationPageEng = toEnglish(mergedFoundationListenPage.toString());
                               report += `\n*• Listening:*\nhttps://audio-foundation-book.vercel.app/?page=${mergedFoundationPageEng}\n`;
+                            } else if (!isMergedFoundationBook) {
+                              const mergedNoorListenLinkEn = getNoorBayanListeningLink(cancelledInputs);
+                              if (mergedNoorListenLinkEn) {
+                                report += `\n*• Listening:*\n${mergedNoorListenLinkEn}\n`;
+                              }
                             }
                           }
 

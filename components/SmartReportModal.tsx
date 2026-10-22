@@ -171,6 +171,17 @@ const SmartReportModal: React.FC<SmartReportModalProps> = ({
 ✅ تم بحمد الله${audioSection}`;
         } else {
             const bookNameAr = book === 'taasees' ? 'كتاب التأسيس' : 'نور البيان';
+            const listeningLink = (book === 'taasees' && (toPage || fromPage))
+                ? `\n\nــــــــــــــــــــــــــــــ\n🎧 *الاستماع:*\nhttps://audio-foundation-book.vercel.app/?page=${toPage || fromPage}`
+                : (book === 'noor' && fromPage)
+                    ? (() => {
+                        const startP = fromPage;
+                        const endP = toPage === 0 ? 73 : (toPage || fromPage);
+                        const minP = Math.min(startP, endP);
+                        const maxP = Math.max(startP, endP);
+                        return `\n\nــــــــــــــــــــــــــــــ\n🎧 *الاستماع:*\nhttps://nooralbayan-two.vercel.app/?pages=${minP}-${maxP}#p=${minP}`;
+                    })()
+                    : '';
             return `📖 *تقرير الحصة*
 
 الطالب: ${student.name}
@@ -182,7 +193,7 @@ const SmartReportModal: React.FC<SmartReportModalProps> = ({
 
 *• المقروء:*
 ${fromPage === toPage || !toPage ? `صفحة ${toHindiDigits(fromPage)}` : `من صفحة ${toHindiDigits(fromPage)} إلى صفحة ${toHindiDigits(toPage)}`}
-${(fromLine || toLine) ? (fromLine === toLine || !toLine ? `(سطر ${toHindiDigits(fromLine)})` : `(من السطر ${toHindiDigits(fromLine)} إلى السطر ${toHindiDigits(toLine)})`) : ''}
+${(fromLine || toLine) ? (fromLine === toLine || !toLine ? `(سطر ${toHindiDigits(fromLine)})` : `(من السطر ${toHindiDigits(fromLine)} إلى السطر ${toHindiDigits(toLine)})`) : ''}${listeningLink}
 
 ✅ تم بحمد الله${audioSection}`;
         }
