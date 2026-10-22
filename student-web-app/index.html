@@ -483,6 +483,9 @@
       const lines = text.split('\n');
       const sections = [];
       const isFoundationReport = text.includes('audio-foundation-book');
+      const isNoorReport = text.includes('nooralbayan-two.vercel.app');
+      const globalNoorMatch = text.match(/https:\/\/nooralbayan-two\.vercel\.app\/[^\s]+/);
+      const globalNoorLink = globalNoorMatch ? globalNoorMatch[0] : null;
 
       let currentTitle = 'Summary';
       let currentContent = [];
@@ -648,6 +651,11 @@
             section.title = reportIsArabic ? 'كتاب التأسيس' : 'Foundation Book';
         }
 
+        // Auto-rename "Arabic" to "Noor El-Bayan Book" if it's Noor content
+        if (isNoorReport && isArabicTitle) {
+            section.title = reportIsArabic ? 'نور البيان' : 'Noor El-Bayan Book';
+        }
+
         const isRelevantTitle = isFoundationText || section.title.toLowerCase().includes('reading') || section.title.includes('قراءة') || isArabicTitle;
         
         // Only show button in relevant sections (not in the default "Daily Report" header section)
@@ -668,6 +676,26 @@
             if (foundationPageNum) section.foundationPage = foundationPageNum;
         }
 
+        const isQuranTitle = (t) => {
+            const lower = (t || '').toLowerCase();
+            return lower.includes('quran') || lower.includes('قرآن') ||
+                   lower.includes('new') || lower.includes('الجديد') ||
+                   lower.includes('revision') || lower.includes('مراجعة') ||
+                   lower.includes('tilawa') || lower.includes('تلاوة');
+        };
+
+        const isNoorRelevantTitle = isNoorReport && !isQuranTitle(section.title) && (
+            section.title.toLowerCase().includes('noor') || 
+            section.title.includes('بيان') || 
+            isArabicTitle ||
+            section.title.toLowerCase().includes('reading') || 
+            section.title.includes('قراءة')
+        );
+
+        if (globalNoorLink && isNoorRelevantTitle && section.type === 'homework' && section.title !== 'Summary' && section.title !== 'Daily Report' && section.title !== 'تقرير الحصة') {
+            section.noorLink = globalNoorLink;
+        }
+
         // Always clean up the content if it contains the link, regardless of section title
         if (hasFoundationLink) {
             // Remove Listening links/lines from the content shown in the UI for a cleaner view
@@ -678,10 +706,7 @@
             ).join('\n').trim();
         }
 
-        const hasNoorLink = section.content.includes('nooralbayan-two.vercel.app');
-        if (hasNoorLink) {
-            const noorMatch = section.content.match(/https:\/\/nooralbayan-two\.vercel\.app\/[^\s]+/);
-            if (noorMatch) section.noorLink = noorMatch[0];
+        if (section.content.includes('nooralbayan-two.vercel.app') || isNoorReport) {
             section.content = section.content.split('\n').filter(line => 
                 !line.toLowerCase().includes('listening') && 
                 !line.includes('الاستماع') && 
@@ -689,9 +714,20 @@
             ).join('\n').trim();
         }
 
+        // Drop standalone audio section if its content only had the practice link
+        const isStandaloneAudioPractice = (section.title.includes('Listening') || section.title.includes('الاستماع') || section.type === 'audio') && !section.content.trim();
+        if (isStandaloneAudioPractice) {
+            continue;
+        }
+
         if (section.content.trim() || section.foundationPage || section.noorLink) {
             filteredSections.push(section);
         }
+      }
+
+      if (globalNoorLink && !filteredSections.some(s => s.noorLink)) {
+          const hwSec = filteredSections.find(s => s.type === 'homework') || filteredSections[filteredSections.length - 1];
+          if (hwSec) hwSec.noorLink = globalNoorLink;
       }
 
       return filteredSections.length > 0 ? filteredSections : [{ title: 'Report Overview', content: text.replace(/〰️/g, ''), icon: 'file-text', type: 'other' }];
@@ -4605,7 +4641,7 @@ https://is.gd/oL6gEO`;
                           {isArabic ? "التطبيق العملي" : "Open Practice App"}
                         </a>
                       )}
-                      {section.noorLink && section.type === 'homework' && (
+                      {section.noorLink && (
                         <a
                           href={section.noorLink}
                           target="_blank"
@@ -4613,7 +4649,7 @@ https://is.gd/oL6gEO`;
                           className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-amber-400/40 bg-amber-500/20 px-3 py-1.5 text-xs font-bold text-amber-200 hover:bg-amber-500/30 transition-colors"
                         >
                           <i data-lucide="external-link" className="w-3.5 h-3.5"></i>
-                          {isArabic ? "التطبيق العملي لنور البيان" : "Open Practice App"}
+                          {isArabic ? "التطبيق العملي" : "Open Practice App"}
                         </a>
                       )}
 
