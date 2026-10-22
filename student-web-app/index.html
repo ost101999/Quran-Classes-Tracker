@@ -1567,7 +1567,7 @@
         return () => window.clearInterval(intervalId);
       }, [isTourMode, roadmapAutoStartEnabled, roadmapAutoOpenReviewAttempt, showTajweedRoadmapPage, selectedTajweedQuiz?.lessonId, selectedTajweedQuiz?.assignmentId]);
 
-      // Glow animation on last reported day after data loads
+      // Glow animation on last reported day after data loads & auto-open daily report
       useEffect(() => {
         if (!loading && data && !isTourMode && urlStudent) {
           const att = data.attendance || {};
@@ -1577,14 +1577,19 @@
           const dim = new Date(yr, mo + 1, 0).getDate();
           // Find the last day in displayed month with a report
           let lastDay = null;
+          let lastDayReportText = null;
           for (let d = dim; d >= 1; d--) {
             const k = `${urlStudent.id}_${d}_${mo}_${yr}`;
             const st = att[k];
             const raw = rep[k];
             const txt = st ? (typeof raw === 'string' ? raw : raw?.reportText || null) : null;
-            if (txt) { lastDay = d; break; }
+            if (txt) {
+              lastDay = d;
+              lastDayReportText = txt;
+              break;
+            }
           }
-          if (lastDay) {
+          if (lastDay && lastDayReportText) {
             setHideTourButton(true);
             const timer = setTimeout(() => {
               const el = document.getElementById(`calendar-day-${lastDay}`);
@@ -1610,12 +1615,24 @@
                 setGlowReportDay(lastDay);
               }, 1600);
             }, 800);
+
+            // Automatically open the Daily Report modal after scroll and glow animation
+            const modalTimer = setTimeout(() => {
+              setSelectedReport((prev) => {
+                if (prev) return prev;
+                return { day: lastDay, text: lastDayReportText };
+              });
+            }, 800 + 1600 + 1200);
             
             const stop = setTimeout(() => {
               setGlowReportDay(null);
               setHideTourButton(false);
             }, 800 + 1600 + 4500);
-            return () => { clearTimeout(timer); clearTimeout(stop); };
+            return () => {
+              clearTimeout(timer);
+              clearTimeout(modalTimer);
+              clearTimeout(stop);
+            };
           }
         }
       }, [loading, urlStudent]);
