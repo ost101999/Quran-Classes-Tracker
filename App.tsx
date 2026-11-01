@@ -5759,7 +5759,7 @@ function App() {
     const reportStudents = studentId ? students.filter(s => s.id === studentId) : (academyName ? groupedStudents[academyName] || [] : []);
     if (studentId && !reportStudents.length) return null;
     const categories = [
-      { id: 'rescheduled', label: 'إعادة الجدولة', statuses: [AttendanceStatus.POSTPONED], days: [] as { day: number; studentName: string }[], count: 0 },
+      { id: 'rescheduled', label: 'الحصص المراد إعادة جدولتها', statuses: [] as AttendanceStatus[], days: [] as { day: number; studentName: string }[], count: 0 },
       { id: 'studentApology', label: 'اعتذار الطالب', statuses: [AttendanceStatus.ABSENCE_RED], days: [] as { day: number; studentName: string }[], count: 0 },
       { id: 'studentAbsence', label: 'غياب الطالب', statuses: [AttendanceStatus.PAID_ABSENCE, AttendanceStatus.PAID_ABSENCE_DOUBLE], days: [] as { day: number; studentName: string }[], count: 0 },
       { id: 'teacherApology', label: 'اعتذار المعلم', statuses: [AttendanceStatus.UNEXCUSED_ABSENCE], days: [] as { day: number; studentName: string }[], count: 0 },
@@ -5778,6 +5778,7 @@ function App() {
         }
       }
     }
+    categories[0].days = [...categories[1].days, ...categories[3].days];
     const studentMissed = categories[1].count + categories[2].count;
     const commitment = scheduled ? Math.max(0, Math.round((scheduled - studentMissed) / scheduled * 1000) / 10) : null;
     return { categories, scheduled, commitment };
@@ -6724,7 +6725,7 @@ function App() {
                                   e.stopPropagation();
                                   const rect = e.currentTarget.getBoundingClientRect();
                                   setMissedClassesMenu({ isOpen: true, academyName: academy,
-                                    x: Math.max(8, Math.min(rect.right - 256, window.innerWidth - 264)),
+                                    x: Math.max(24, Math.min(rect.right - 256, window.innerWidth - 264)),
                                     y: Math.max(8, Math.min(rect.bottom + 4, window.innerHeight - 320)) });
                                 }}>
                                 <Percent size={17} />
@@ -7605,7 +7606,7 @@ function App() {
               e.stopPropagation();
               const rect = e.currentTarget.getBoundingClientRect();
               setMissedClassesMenu({ isOpen: true, studentId: row.studentId,
-                x: Math.max(8, Math.min(rect.right - 256, window.innerWidth - 264)),
+                x: Math.max(24, Math.min(rect.right - 256, window.innerWidth - 264)),
                 y: Math.max(8, Math.min(rect.bottom + 4, window.innerHeight - 320)) });
             }}>
             <Percent size={17} />
@@ -8181,23 +8182,27 @@ function App() {
                 to { opacity: 1; transform: translateY(0) scale(1); }
               }
             `}</style>
-            <p className="px-3 py-2 text-base font-normal text-red-500">من {toHindiDigits(breakdown.scheduled)} حصة مقررة في الشهر</p>
-              {breakdown.categories.map(category => {
+            <p className="px-3 py-2 text-center text-lg font-normal text-red-500">{toHindiDigits(breakdown.scheduled)} حصة مقررة في الشهر</p>
+              {breakdown.categories.map((category, index) => {
               const percent = breakdown.scheduled ? Math.round(category.count / breakdown.scheduled * 1000) / 10 : null;
               return (
-                <button key={category.id} type="button"
+                <React.Fragment key={category.id}>
+                {index === 1 && (
+                  <div className="flex items-center justify-between gap-3 px-3 py-2.5 text-lg font-normal text-gray-500 opacity-60">
+                    <span>{missedClassesMenu.academyName ? 'التزام الطلاب' : 'التزام الطالب'}</span>
+                    <span dir="ltr">{breakdown.commitment === null ? '—' : `${toHindiDigits(breakdown.commitment)}%`}</span>
+                  </div>
+                )}
+                <button type="button"
                   onClick={() => copyDays(category)}
-                  className="w-full flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-right text-lg font-normal text-gray-700 hover:bg-blue-50 transition-colors"
+                  className={`w-full flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-right text-lg font-normal transition-colors ${category.id === 'rescheduled' ? 'bg-blue-50/70 text-blue-700 hover:bg-blue-100' : 'text-gray-700 hover:bg-blue-50'}`}
                   title="نسخ الأيام بالعربي والإنجليزي">
                   <span>{category.label}</span>
                   {category.id !== 'rescheduled' && <span className="font-normal text-blue-600" dir="ltr">{percent === null ? '—' : `${toHindiDigits(percent)}%`}</span>}
                 </button>
+                </React.Fragment>
               );
               })}
-              <div className="flex items-center justify-between gap-3 border-t border-gray-100 px-3 py-2.5 text-lg font-normal text-gray-500 opacity-60">
-                <span>{missedClassesMenu.academyName ? 'التزام الطلاب' : 'التزام الطالب'}</span>
-                <span dir="ltr">{breakdown.commitment === null ? '—' : `${toHindiDigits(breakdown.commitment)}%`}</span>
-              </div>
           </div>
           );
         })()
