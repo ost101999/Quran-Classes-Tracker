@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { Settings, Plus, Download, Upload, Trash2, Calendar, ArrowLeft, ArrowRight, ChevronDown, ChevronUp, Link, History, Clock, Users2, Banknote, BarChart3, Minus, Pin, Phone, MessageCircle, Copy, UserX, UserCheck, Shield, Wand2, Check, ArrowDown, Repeat, Eye, EyeOff, Bell, X } from 'lucide-react';
+import { Settings, Plus, Download, Upload, Trash2, Calendar, ArrowLeft, ArrowRight, ChevronDown, ChevronUp, Link, History, Clock, Users2, Banknote, BarChart3, Minus, Pin, Phone, MessageCircle, Copy, UserX, UserCheck, Shield, Wand2, Check, ArrowDown, Repeat, Eye, EyeOff, Bell, X, Percent } from 'lucide-react';
 
 // Custom animation styles
 const customStyles = `
@@ -4336,68 +4336,6 @@ function App() {
     setStudents(prev => prev.map(s => s.id === studentId ? { ...s, isPinnedToEnd: !s.isPinnedToEnd } : s));
   };
 
-  const copyMissedClassesReport = (studentId: string, lang: 'ar' | 'en' = 'ar') => {
-    const student = students.find(s => s.id === studentId);
-    if (!student) return;
-
-    const missedClasses: string[] = [];
-    const daysInM = new Date(year, month + 1, 0).getDate();
-
-    for (let day = 1; day <= daysInM; day++) {
-      const key = `${studentId}_${day}_${month}_${year}`;
-      const status = attendance[key];
-
-      if (status === AttendanceStatus.UNEXCUSED_ABSENCE || status === AttendanceStatus.ABSENCE_RED || status === AttendanceStatus.POSTPONED) {
-        // Skip POSTPONED days that are linked to a makeup class (already compensated)
-        if (status === AttendanceStatus.POSTPONED) {
-          const hasLink = makeupLinks.some(l => l.studentId === studentId && l.missedDay === day && l.month === month && l.year === year);
-          if (hasLink) continue;
-        }
-
-        const date = new Date(year, month, day);
-        let line = '';
-
-        if (lang === 'ar') {
-          const dayName = DAYS_OF_WEEK[date.getDay()].name;
-          const formattedDate = `${day}/${month + 1}`;
-          let reason = '';
-
-          if (status === AttendanceStatus.UNEXCUSED_ABSENCE) {
-            reason = 'اعتذار من المعلم';
-          } else if (status === AttendanceStatus.ABSENCE_RED || status === AttendanceStatus.POSTPONED) {
-            reason = 'اعتذار من الطالب';
-          }
-          line = `• ${dayName} ${formattedDate} (${reason})`;
-
-        } else {
-          // English Formating
-          const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
-          const dateStr = date.toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
-          let reason = '';
-
-          if (status === AttendanceStatus.UNEXCUSED_ABSENCE) {
-            reason = 'Teacher Apology';
-          } else if (status === AttendanceStatus.ABSENCE_RED || status === AttendanceStatus.POSTPONED) {
-            reason = 'Student Apology';
-          }
-          line = `• ${dayName}, ${dateStr} (${reason})`;
-        }
-
-        missedClasses.push(line);
-      }
-    }
-
-    if (missedClasses.length > 0) {
-      const report = missedClasses.join('\r\n\r\n');
-      navigator.clipboard.writeText(report);
-      showToast(lang === 'ar' ? 'تم نسخ تقرير الحصص الفائتة' : 'Missed classes report copied');
-    } else {
-      showToast(lang === 'ar' ? 'لا توجد حصص فائتة' : 'No missed classes');
-    }
-    setMissedClassesMenu(null);
-    setSearchQuery('');
-  };
-
   const handleEndEnrollment = (student: Student) => {
     let nextMonth = month + 1;
     let nextYear = year;
@@ -5773,27 +5711,33 @@ function App() {
     return count;
   };
 
-  const calculateMissed = (studentId: string) => {
-    let count = 0;
+  const getAbsenceBreakdown = (studentId: string) => {
     const student = students.find(s => s.id === studentId);
-    if (!student) return 0;
-
-    for (let i = 1; i <= daysInMonth; i++) {
-
-
-      const key = `${studentId}_${i}_${month}_${year}`;
-      const status = attendance[key];
-
-      if ([AttendanceStatus.ABSENCE_RED, AttendanceStatus.UNEXCUSED_ABSENCE].includes(status as AttendanceStatus)) {
-        count++;
+    if (!student) return null;
+    const categories = [
+      { id: 'studentApology', label: 'اعتذار الطالب', statuses: [AttendanceStatus.ABSENCE_RED], days: [] as number[], count: 0 },
+      { id: 'studentAbsence', label: 'غياب الطالب', statuses: [AttendanceStatus.PAID_ABSENCE, AttendanceStatus.PAID_ABSENCE_DOUBLE], days: [] as number[], count: 0 },
+      { id: 'teacherApology', label: 'اعتذار المعلم', statuses: [AttendanceStatus.UNEXCUSED_ABSENCE], days: [] as number[], count: 0 },
+    ];
+    let scheduled = 0;
+    const holidays = academyRates[student.academy]?.holidays || [];
+    for (let day = 1; day <= daysInMonth; day++) {
+      const status = attendance[`${studentId}_${day}_${month}_${year}`];
+      const scheduledCount = getScheduledCountOnDate(student, day);
+      if (!holidays.includes(getDayOfWeek(day)) && status !== AttendanceStatus.EXEMPT) scheduled += scheduledCount;
+      const category = categories.find(item => item.statuses.includes(status));
+      if (category) {
+        category.days.push(day);
+        category.count += status === AttendanceStatus.PAID_ABSENCE_DOUBLE ? 2 : Math.max(1, scheduledCount);
       }
     }
-    return count;
+    return { categories, scheduled };
   };
 
   useEffect(() => {
     if (!showMissedCount) {
       setStudentOptionsMenu(prev => ({ ...prev, isOpen: false }));
+      setMissedClassesMenu(null);
     }
   }, [showMissedCount]);
 
@@ -6688,7 +6632,7 @@ function App() {
                         backgroundBlendMode: 'overlay'
                       }}
                     >
-                      الفائتة
+                      النسب
                     </th>
                   )}
                 </tr>
@@ -7575,33 +7519,30 @@ function App() {
                                 );
                               })
                             }
-                            {showMissedCount && (() => {
-                              const count = calculateMissed(student.id);
-                              return (
+                            {showMissedCount && (
                                 <td
                                   className="p-2 bg-white group-hover:bg-blue-100 border-l border-gray-100 min-w-[70px] w-[70px] align-middle transition-colors text-center"
                                 >
-                                  {count > 0 && (
-                                    <div
+                                    <button
+                                      type="button"
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         const rect = e.currentTarget.getBoundingClientRect();
                                         setMissedClassesMenu({
                                           isOpen: true,
-                                          x: rect.right - 96,
-                                          y: rect.bottom + 4,
+                                          x: Math.max(8, Math.min(rect.right - 256, window.innerWidth - 264)),
+                                          y: Math.max(8, Math.min(rect.bottom + 4, window.innerHeight - 240)),
                                           studentId: student.id
                                         });
                                       }}
-                                      className="inline-flex items-center justify-center px-3 py-1.5 cursor-pointer rounded-lg bg-red-50 hover:bg-red-100 text-red-600 font-bold font-arabic text-sm transition-all border border-red-100 active:scale-95 shadow-sm"
-                                      title="انقر لنسخ تقرير الحصص الفائتة"
+                                      className="inline-flex items-center justify-center p-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 transition-all border border-blue-100 active:scale-95 shadow-sm"
+                                      title="نسب الاعتذار والغياب"
+                                      aria-label={`نسب الاعتذار والغياب للطالب ${student.name}`}
                                     >
-                                      {toHindiDigits(count)}
-                                    </div>
-                                  )}
+                                      <Percent size={17} />
+                                    </button>
                                 </td>
-                              );
-                            })()}
+                            )}
                           </tr>
                         );
                       })}
@@ -8144,9 +8085,12 @@ function App() {
 
       {/* Missed Classes Context Menu */}
       {
-        missedClassesMenu && missedClassesMenu.isOpen && (
+        missedClassesMenu && missedClassesMenu.isOpen && (() => {
+          const breakdown = getAbsenceBreakdown(missedClassesMenu.studentId);
+          if (!breakdown) return null;
+          return (
           <div
-            className="fixed z-[100] bg-white/90 backdrop-blur-md rounded-2xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.15)] border border-white/50 py-2.5 w-24 overflow-hidden context-menu flex flex-col gap-0.5"
+            className="fixed z-[100] bg-white rounded-2xl shadow-xl border border-gray-100 p-2 w-64 context-menu" dir="rtl"
             style={{
               top: missedClassesMenu.y,
               left: missedClassesMenu.x,
@@ -8159,23 +8103,35 @@ function App() {
                 to { opacity: 1; transform: translateY(0) scale(1); }
               }
             `}</style>
-            {/* Arabic Option */}
-            <button
-              onClick={() => copyMissedClassesReport(missedClassesMenu.studentId, 'ar')}
-              className="w-full text-center px-4 py-2.5 text-gray-700 hover:bg-white hover:text-blue-600 font-arabic text-xl transition-all block"
-            >
-              نسخ
-            </button>
-
-            {/* English Option */}
-            <button
-              onClick={() => copyMissedClassesReport(missedClassesMenu.studentId, 'en')}
-              className="w-full text-center px-4 py-2 text-gray-700 hover:bg-white hover:text-blue-600 font-english text-base transition-all block"
-            >
-              Copy
-            </button>
+            <p className="px-3 py-2 text-sm text-gray-500">من {toHindiDigits(breakdown.scheduled)} حصة مقررة في الشهر</p>
+            {breakdown.categories.map(category => {
+              const percent = breakdown.scheduled ? Math.round(category.count / breakdown.scheduled * 1000) / 10 : null;
+              return (
+                <button key={category.id} type="button"
+                  onClick={async () => {
+                    if (!category.days.length) {
+                      showToast('لا توجد أيام لهذه الحالة');
+                      return;
+                    }
+                    const lines = category.days.map(day => `• ${DAYS_OF_WEEK[new Date(year, month, day).getDay()].name} ${day}/${month + 1}`);
+                    try {
+                      await navigator.clipboard.writeText(lines.join('\r\n\r\n'));
+                      showToast('تم نسخ الأيام');
+                      setMissedClassesMenu(null);
+                    } catch {
+                      showToast('تعذر نسخ الأيام');
+                    }
+                  }}
+                  className="w-full flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-right text-gray-700 hover:bg-blue-50 transition-colors"
+                  title="اضغط لنسخ الأيام">
+                  <span>{category.label}</span>
+                  <span className="font-bold text-blue-600" dir="ltr">{percent === null ? '—' : `${toHindiDigits(percent)}%`}</span>
+                </button>
+              );
+            })}
           </div>
-        )
+          );
+        })()
       }
 
       {/* Toast Notification */}
@@ -17477,7 +17433,7 @@ const StickyHeader = React.forwardRef<HTMLDivElement, {
                       backgroundBlendMode: 'overlay'
                     }}
                   >
-                    الفائتة
+                    النسب
                   </th>
                 )}
               </tr>
