@@ -3,6 +3,10 @@ import { Settings, Plus, Download, Upload, Trash2, Calendar, ArrowLeft, ArrowRig
 
 // Custom animation styles
 const customStyles = `
+  @keyframes absenceIconAppear {
+    from { opacity: 0; transform: translate(8px, -50%); }
+    to { opacity: 1; transform: translate(0, -50%); }
+  }
   @keyframes pulse-scale-glow {
     0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
     50% { transform: scale(1.15); box-shadow: 0 0 10px 2px rgba(239, 68, 68, 0.6); }
@@ -2417,6 +2421,7 @@ function App() {
     x: number;
     y: number;
     studentId: string;
+    categoryId?: string;
   } | null>(null);
 
   // Global Keyboard Shortcuts (T for Tajweed, E/Shift for Edit Mode)
@@ -3849,6 +3854,45 @@ function App() {
   const [showStickyHeader, setShowStickyHeader] = useState(false);
   const [studentWidth, setStudentWidth] = useState<number>(150);
   const [tableWidth, setTableWidth] = useState<number>(0);
+  const [absenceIconRows, setAbsenceIconRows] = useState<{ studentId: string; top: number; left: number }[]>([]);
+
+  useEffect(() => {
+    if (!showMissedCount || isTableLoading) {
+      setAbsenceIconRows([]);
+      return;
+    }
+    const container = tableScrollRef.current;
+    const main = mainRef.current;
+    if (!container || !main) return;
+    let frame = 0;
+    const update = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const mainRect = main.getBoundingClientRect();
+        const containerRect = container.getBoundingClientRect();
+        const rows = Array.from(container.querySelectorAll<HTMLTableRowElement>('tr[data-student-id]'))
+          .filter(row => row.getClientRects().length > 0)
+          .map(row => {
+            const rect = row.getBoundingClientRect();
+            return { studentId: row.dataset.studentId!, top: rect.top - mainRect.top + rect.height / 2, left: containerRect.left - mainRect.left - 8 };
+          });
+        setAbsenceIconRows(current => JSON.stringify(current) === JSON.stringify(rows) ? current : rows);
+      });
+    };
+    const mutationObserver = new MutationObserver(update);
+    mutationObserver.observe(container, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style'] });
+    const resizeObserver = new ResizeObserver(update);
+    resizeObserver.observe(container);
+    if (originalTableRef.current) resizeObserver.observe(originalTableRef.current);
+    window.addEventListener('resize', update);
+    update();
+    return () => {
+      cancelAnimationFrame(frame);
+      mutationObserver.disconnect();
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', update);
+    };
+  }, [showMissedCount, isTableLoading]);
 
   // Sync sticky header scroll position when it appears
   useEffect(() => {
@@ -6619,32 +6663,17 @@ function App() {
                       </th>
                     );
                   })}
-                  {showMissedCount && (
-                    <th
-                      className="p-4 font-arabic text-xl min-w-[70px] w-[70px] text-center px-2 font-normal bg-[#002060]"
-                      style={{
-                        color: 'white',
-                        backgroundImage: `
-                          radial-gradient(circle at 50% 50%, transparent 0%, #002060 100%),
-                          repeating-linear-gradient(45deg, rgba(255,255,255,0.03) 0px, rgba(255,255,255,0.03) 2px, transparent 2px, transparent 10px),
-                          repeating-linear-gradient(-45deg, rgba(255,255,255,0.03) 0px, rgba(255,255,255,0.03) 2px, transparent 2px, transparent 10px)
-                        `,
-                        backgroundBlendMode: 'overlay'
-                      }}
-                    >
-                      النسب
-                    </th>
-                  )}
+
                 </tr>
               </thead>
 
               <tbody className="bg-white">
                 {/* Spacer Row */}
-                <tr className="h-16 bg-white"><td colSpan={daysInMonth + (showMissedCount ? 2 : 1)}></td></tr>
+                <tr className="h-16 bg-white"><td colSpan={daysInMonth + 1}></td></tr>
 
                 {sortedAcademies.length === 0 && (
                   <tr>
-                    <td colSpan={daysInMonth + (showMissedCount ? 2 : 1)} className="py-20 text-center">
+                    <td colSpan={daysInMonth + 1} className="py-20 text-center">
                       <div className="flex flex-col items-center gap-4 text-gray-400">
                         <div className="w-20 h-20 rounded-full bg-gray-50 flex items-center justify-center">
                           <Users2 size={40} className="text-gray-300" />
@@ -6663,7 +6692,7 @@ function App() {
                       {/* Section Header */}
                       <tr id={`academy-${academy}`} className={`scroll-mt-40 group ${allHiddenBySearch ? 'hidden' : ''}`}>
                         <td
-                          colSpan={daysInMonth + (showMissedCount ? 2 : 1)}
+                          colSpan={daysInMonth + 1}
                           className="bg-gray-50/80 p-4 text-center select-none"
                         >
                           <div
@@ -7519,30 +7548,7 @@ function App() {
                                 );
                               })
                             }
-                            {showMissedCount && (
-                                <td
-                                  className="p-2 bg-white group-hover:bg-blue-100 border-l border-gray-100 min-w-[70px] w-[70px] align-middle transition-colors text-center"
-                                >
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        const rect = e.currentTarget.getBoundingClientRect();
-                                        setMissedClassesMenu({
-                                          isOpen: true,
-                                          x: Math.max(8, Math.min(rect.right - 256, window.innerWidth - 264)),
-                                          y: Math.max(8, Math.min(rect.bottom + 4, window.innerHeight - 240)),
-                                          studentId: student.id
-                                        });
-                                      }}
-                                      className="inline-flex items-center justify-center p-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 transition-all border border-blue-100 active:scale-95 shadow-sm"
-                                      title="نسب الاعتذار والغياب"
-                                      aria-label={`نسب الاعتذار والغياب للطالب ${student.name}`}
-                                    >
-                                      <Percent size={17} />
-                                    </button>
-                                </td>
-                            )}
+
                           </tr>
                         );
                       })}
@@ -7571,6 +7577,21 @@ function App() {
             </div>
           </div>
         </div>
+        {showMissedCount && absenceIconRows.map(row => (
+          <button key={row.studentId} type="button"
+            style={{ position: 'absolute', top: row.top, left: row.left - 36, animation: 'absenceIconAppear 0.3s ease-out both' }}
+            className="z-20 inline-flex items-center justify-center p-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-100 shadow-sm transition-colors"
+            aria-label="نسب الاعتذار والغياب" title="نسب الاعتذار والغياب"
+            onClick={(e) => {
+              e.stopPropagation();
+              const rect = e.currentTarget.getBoundingClientRect();
+              setMissedClassesMenu({ isOpen: true, studentId: row.studentId,
+                x: Math.max(8, Math.min(rect.right - 256, window.innerWidth - 264)),
+                y: Math.max(8, Math.min(rect.bottom + 4, window.innerHeight - 240)) });
+            }}>
+            <Percent size={17} />
+          </button>
+        ))}
       </main >
 
       {/* 3. Modal for New Student */}
@@ -8103,29 +8124,46 @@ function App() {
                 to { opacity: 1; transform: translateY(0) scale(1); }
               }
             `}</style>
-            <p className="px-3 py-2 text-sm text-gray-500">من {toHindiDigits(breakdown.scheduled)} حصة مقررة في الشهر</p>
-            {breakdown.categories.map(category => {
+            <p className="px-3 py-2 text-base font-normal text-red-500">من {toHindiDigits(breakdown.scheduled)} حصة مقررة في الشهر</p>
+            {missedClassesMenu.categoryId ? (() => {
+              const category = breakdown.categories.find(item => item.id === missedClassesMenu.categoryId);
+              if (!category) return null;
+              const copyDays = async (language: 'ar' | 'en') => {
+                if (!category.days.length) {
+                  showToast('لا توجد أيام لهذه الحالة');
+                  return;
+                }
+                const lines = category.days.map(day => {
+                  const date = new Date(year, month, day);
+                  return language === 'ar'
+                    ? `• ${DAYS_OF_WEEK[date.getDay()].name} ${day}/${month + 1}`
+                    : `• ${date.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'short' })}`;
+                });
+                try {
+                  await navigator.clipboard.writeText(lines.join('\r\n\r\n'));
+                  showToast('تم نسخ الأيام');
+                  setMissedClassesMenu(null);
+                } catch {
+                  showToast('تعذر نسخ الأيام');
+                }
+              };
+              return (
+                <div className="px-2 pb-2 text-lg font-normal">
+                  <button type="button" onClick={() => setMissedClassesMenu(current => current ? { ...current, categoryId: undefined } : null)}
+                    className="w-full text-right px-2 py-2 text-gray-600 hover:bg-gray-50 rounded-lg">‹ {category.label}</button>
+                  <button type="button" onClick={() => copyDays('ar')} className="w-full text-right px-2 py-2 text-blue-600 hover:bg-blue-50 rounded-lg">نسخ بالعربي</button>
+                  <button type="button" onClick={() => copyDays('en')} className="w-full text-right px-2 py-2 text-blue-600 hover:bg-blue-50 rounded-lg">Copy in English</button>
+                </div>
+              );
+            })() : breakdown.categories.map(category => {
               const percent = breakdown.scheduled ? Math.round(category.count / breakdown.scheduled * 1000) / 10 : null;
               return (
                 <button key={category.id} type="button"
-                  onClick={async () => {
-                    if (!category.days.length) {
-                      showToast('لا توجد أيام لهذه الحالة');
-                      return;
-                    }
-                    const lines = category.days.map(day => `• ${DAYS_OF_WEEK[new Date(year, month, day).getDay()].name} ${day}/${month + 1}`);
-                    try {
-                      await navigator.clipboard.writeText(lines.join('\r\n\r\n'));
-                      showToast('تم نسخ الأيام');
-                      setMissedClassesMenu(null);
-                    } catch {
-                      showToast('تعذر نسخ الأيام');
-                    }
-                  }}
-                  className="w-full flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-right text-gray-700 hover:bg-blue-50 transition-colors"
-                  title="اضغط لنسخ الأيام">
+                  onClick={() => setMissedClassesMenu(current => current ? { ...current, categoryId: category.id } : null)}
+                  className="w-full flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-right text-lg font-normal text-gray-700 hover:bg-blue-50 transition-colors"
+                  title="اختر لغة نسخ الأيام">
                   <span>{category.label}</span>
-                  <span className="font-bold text-blue-600" dir="ltr">{percent === null ? '—' : `${toHindiDigits(percent)}%`}</span>
+                  <span className="font-normal text-blue-600" dir="ltr">{percent === null ? '—' : `${toHindiDigits(percent)}%`}</span>
                 </button>
               );
             })}
@@ -8296,7 +8334,6 @@ function App() {
         getRemainingClasses={getRemainingClasses}
         getRemainingClassesInfo={getRemainingClassesInfo}
         scrollToFirstPending={scrollToFirstPending}
-        showMissedCount={showMissedCount}
       />
 
       {/* Smart Report Modal */}
@@ -17345,8 +17382,7 @@ const StickyHeader = React.forwardRef<HTMLDivElement, {
   getRemainingClasses: (dayNum: number) => number;
   getRemainingClassesInfo?: (dayNum: number) => { count: number; totalMinutes: number; hours: number };
   scrollToFirstPending: (dayNum: number) => void;
-  showMissedCount: boolean;
-}>(({ show, isTableLoading, studentWidth, tableWidth, month, year, daysInMonth, dayOff, today, toHindiDigits, getDayOfWeek, getRemainingClasses, getRemainingClassesInfo, scrollToFirstPending, showMissedCount }, ref) => {
+}>(({ show, isTableLoading, studentWidth, tableWidth, month, year, daysInMonth, dayOff, today, toHindiDigits, getDayOfWeek, getRemainingClasses, getRemainingClassesInfo, scrollToFirstPending }, ref) => {
   const isWeekend = (day: number) => getDayOfWeek(day) === dayOff;
   const isTodayColumn = (dayNum: number) => {
     return month === today.month && year === today.year && dayNum === today.day;
@@ -17420,22 +17456,7 @@ const StickyHeader = React.forwardRef<HTMLDivElement, {
                     </th>
                   );
                 })}
-                {showMissedCount && (
-                  <th
-                    className="p-4 font-arabic text-xl min-w-[70px] w-[70px] text-center px-2 font-normal bg-[#002060]"
-                    style={{
-                      color: 'white',
-                      backgroundImage: `
-                        radial-gradient(circle at 50% 50%, transparent 0%, #002060 100%),
-                        repeating-linear-gradient(45deg, rgba(255,255,255,0.03) 0px, rgba(255,255,255,0.03) 2px, transparent 2px, transparent 10px),
-                        repeating-linear-gradient(-45deg, rgba(255,255,255,0.03) 0px, rgba(255,255,255,0.03) 2px, transparent 2px, transparent 10px)
-                      `,
-                      backgroundBlendMode: 'overlay'
-                    }}
-                  >
-                    النسب
-                  </th>
-                )}
+
               </tr>
             </thead>
           </table>
