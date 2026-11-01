@@ -468,6 +468,7 @@ function App() {
   const [isLoaded, setIsLoaded] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<number>(0);
   const [uploadStatus, setUploadStatus] = useState<{ isSyncing: boolean; hasPending: boolean; error: string | null; lastSuccessAt: number | null } | null>(null);
+  const [downloadStatus, setDownloadStatus] = useState<'checking' | 'waiting' | 'current' | 'empty' | 'error'>('checking');
   const [students, setStudents] = useState<Student[]>(initialStudents);
   const [attendance, setAttendance] = useState<AttendanceRecord>({});
   const [past, setPast] = useState<HistorySnapshot[]>([]);
@@ -1965,11 +1966,20 @@ function App() {
   useEffect(() => {
     if (!isLoaded) return;
     let isCancelled = false;
+    let retryTimer: number | undefined;
+
+    const retrySoon = () => {
+      if (!isCancelled && retryTimer === undefined) {
+        retryTimer = window.setTimeout(() => { retryTimer = undefined; void pollCloudChanges(); }, 5000);
+      }
+    };
 
     const pollCloudChanges = async () => {
       try {
-        const res = await fetch(`${CLOUD_APPSTATE_BASE_URL}/lastUpdated.json`);
-        if (!res.ok || isCancelled) return;
+        setDownloadStatus('checking');
+        const res = await fetch(`${CLOUD_APPSTATE_BASE_URL}/lastUpdated.json`, { cache: 'no-store' });
+        if (!res.ok) throw new Error(`Failed to check cloud: ${res.status}`);
+        if (isCancelled) return;
 
         const remoteLastUpdated = await res.json();
 
@@ -1978,12 +1988,14 @@ function App() {
           const syncStatus = await window.electronAPI.getSyncStatus();
           if (syncStatus.isSyncing || syncStatus.hasPending) {
             console.log('Local changes pending. Skipping cloud poll to prevent overwriting local state.');
+            if (!isCancelled) { setDownloadStatus('waiting'); retrySoon(); }
             return;
           }
         }
 
-        // If remote timestamp is newer than our local state, fetch the lightweight core state
-        if (remoteLastUpdated && typeof remoteLastUpdated === 'number' && remoteLastUpdated > lastUpdated) {
+        // The other device's clock may be behind this one, so compare revisions
+        // for equality instead of assuming timestamps always increase.
+        if (remoteLastUpdated && typeof remoteLastUpdated === 'number' && remoteLastUpdated !== lastUpdated) {
           console.log(`Cloud state is newer (${remoteLastUpdated} > ${lastUpdated}). Fetching incrementally...`);
 
           const coreKeys = [
@@ -1996,7 +2008,7 @@ function App() {
           ];
 
           const fetchPromises = coreKeys.map(async (key) => {
-            const res = await fetch(`${CLOUD_APPSTATE_BASE_URL}/${key}.json`);
+            const res = await fetch(`${CLOUD_APPSTATE_BASE_URL}/${key}.json`, { cache: 'no-store' });
             if (!res.ok) throw new Error(`Failed to fetch ${key}: ${res.status}`);
             return { key, data: await res.json() };
           });
@@ -2008,6 +2020,10 @@ function App() {
           let fullData: any = {};
           coreResults.forEach(r => { if (r.data !== null) fullData[r.key] = r.data; });
 
+          // Firebase returns null for empty arrays and objects. Treat empty core
+          // collections as deletions instead of keeping stale local entries.
+          fullData.students = coreResults.find(r => r.key === 'students')?.data || [];
+          fullData.attendance = coreResults.find(r => r.key === 'attendance')?.data || {};
           fullData.savedReports = coreResults.find(r => r.key === 'savedReports')?.data || {};
           fullData.savedReportDrafts = coreResults.find(r => r.key === 'savedReportDrafts')?.data || {};
           // Backup folders are machine-specific even though the other backup settings sync.
@@ -2029,10 +2045,12 @@ function App() {
             const syncStatus = await window.electronAPI.getSyncStatus();
             if (syncStatus.isSyncing || syncStatus.hasPending || (Date.now() - lastLocalActionTime.current < 5000)) {
               console.log('Local changes were made recently! Aborting cloud state overwrite.');
+              if (!isCancelled) { setDownloadStatus('waiting'); retrySoon(); }
               return;
             }
           } else if (Date.now() - lastLocalActionTime.current < 5000) {
             console.log('Local changes were made recently! Aborting cloud state overwrite.');
+            if (!isCancelled) { setDownloadStatus('waiting'); retrySoon(); }
             return;
           }
 
@@ -2111,8 +2129,10 @@ function App() {
           }
           setLastUpdated(remoteLastUpdated);
         }
+        if (!isCancelled) setDownloadStatus(remoteLastUpdated ? 'current' : 'empty');
       } catch (err) {
         console.warn('Background sync check failed:', err);
+        if (!isCancelled) setDownloadStatus('error');
       }
     };
 
@@ -2123,13 +2143,14 @@ function App() {
     return () => {
       isCancelled = true;
       window.clearInterval(pollInterval);
+      if (retryTimer !== undefined) window.clearTimeout(retryTimer);
     };
   }, [isLoaded, lastUpdated, students, attendance, month, year, dayOff, academyOrder, academyRates,
     monthlyObligations, paymentStatus, autoBackupConfig, externalLinks, dayTransitionTime, makeupLinks,
     showMakeupLines, confirmNonTodayAttendance, whatsappTarget, whatsappMode, studentProgress,
     preferredModes, lastReports, studentNotesHistory, defaultNoorBook, savedReports, savedReportDrafts,
     subscriptionSettings, tajweedBank, tajweedAssignments, tajweedSubmissions, tajweedLessonEditorUiState,
-    seenUngradedTajweedAssignmentIds]);
+    seenUngradedTajweedAssignmentIds, uploadStatus?.hasPending, uploadStatus?.isSyncing]);
 
 
   // UI State
@@ -5928,10 +5949,13 @@ function App() {
       <style>{customStyles}</style>
 
       {uploadStatus && (
-        <div dir="rtl" role="status" className={`fixed bottom-3 right-3 z-[80] rounded-xl px-3 py-2 shadow-lg text-sm font-arabic ${uploadStatus.error ? 'bg-red-100 text-red-800' : uploadStatus.hasPending ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-800'}`}>
-          {uploadStatus.error ? 'تعذّر رفع التعديلات، ستتم إعادة المحاولة' : uploadStatus.isSyncing ? 'جاري رفع التعديلات…' : uploadStatus.hasPending ? 'تعديلات بانتظار الرفع…' : 'لا توجد تعديلات بانتظار الرفع'}
-          {!uploadStatus.hasPending && uploadStatus.lastSuccessAt && <span> · آخر رفع {new Date(uploadStatus.lastSuccessAt).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}</span>}
-          {uploadStatus.error && <button type="button" className="mr-2 underline font-bold" onClick={() => { void window.electronAPI?.retrySync?.(); }}>إعادة المحاولة الآن</button>}
+        <div dir="rtl" role="status" className={`fixed bottom-3 right-3 z-[80] rounded-xl px-3 py-2 shadow-lg text-sm font-arabic ${uploadStatus.error || downloadStatus === 'error' ? 'bg-red-100 text-red-800' : uploadStatus.hasPending || downloadStatus === 'checking' || downloadStatus === 'waiting' ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-800'}`}>
+          <div>
+            {uploadStatus.error ? 'الرفع: تعذّر الاتصال، ستتم إعادة المحاولة' : uploadStatus.isSyncing ? 'الرفع: جاري رفع التعديلات…' : uploadStatus.hasPending ? 'الرفع: تعديلات بانتظار الرفع…' : 'الرفع: لا توجد تعديلات معلّقة'}
+            {!uploadStatus.hasPending && uploadStatus.lastSuccessAt && <span> · آخر رفع {new Date(uploadStatus.lastSuccessAt).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}</span>}
+            {uploadStatus.error && <button type="button" className="mr-2 underline font-bold" onClick={() => { void window.electronAPI?.retrySync?.(); }}>إعادة المحاولة الآن</button>}
+          </div>
+          <div>{downloadStatus === 'checking' ? 'الاستقبال: جاري فحص البيانات الأساسية…' : downloadStatus === 'waiting' ? 'الاستقبال: بانتظار انتهاء التعديلات المحلية…' : downloadStatus === 'error' ? 'الاستقبال: تعذّر التحقق، ستتم إعادة المحاولة' : downloadStatus === 'empty' ? 'الاستقبال: لا يوجد إصدار سحابي للبيانات الأساسية' : 'الاستقبال: تم فحص تحديثات البيانات الأساسية'}</div>
         </div>
       )}
 

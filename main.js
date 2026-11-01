@@ -6,6 +6,7 @@ const puppeteer = require('puppeteer');
 const { createChromeTabBridge } = require('./chrome-tab-bridge');
 const { focusChromeWindow } = require('./chrome-window-focus');
 const { createSyncQueue } = require('./sync-queue');
+const { buildFirebasePatch } = require('./firebase-patch');
 const chromeTabBridge = createChromeTabBridge({ onFocus: focusChromeWindow });
 
 // Helper for waiting
@@ -1473,58 +1474,7 @@ const initializeLastSyncedState = () => {
 const performFirebaseSync = async (data) => {
     const https = require('https');
 
-    // Firebase Realtime DB throws 400 if keys contain: . $ # [ ] /
-    // We must recursively sanitize all keys in the `data` object
-    const sanitizeKeys = (obj) => {
-        if (Array.isArray(obj)) {
-            return obj.map(item => sanitizeKeys(item));
-        } else if (obj !== null && typeof obj === 'object') {
-            return Object.keys(obj).reduce((acc, key) => {
-                const safeKey = String(key).replace(/[.#$\[\]\/]/g, '_');
-                acc[safeKey] = sanitizeKeys(obj[key]);
-                return acc;
-            }, {});
-        }
-        return obj;
-    };
-
-    const safeData = sanitizeKeys(data);
-
-    if (!lastSyncedState) {
-        lastSyncedState = {};
-    }
-
-    // Build the PATCH payload
-    const patch = {};
-    const keys = Object.keys(safeData);
-
-    keys.forEach(key => {
-        const currVal = safeData[key];
-        const lastVal = lastSyncedState[key];
-
-        if (key === 'tajweedBank' || key === 'tajweedSubmissions' || key === 'tajweedAssignments' || key === 'attendance') {
-            const currObj = currVal && typeof currVal === 'object' ? currVal : {};
-            const lastObj = lastVal && typeof lastVal === 'object' ? lastVal : {};
-
-            // Find changed or added keys
-            Object.keys(currObj).forEach(subKey => {
-                if (JSON.stringify(currObj[subKey]) !== JSON.stringify(lastObj[subKey])) {
-                    patch[`${key}/${subKey}`] = currObj[subKey];
-                }
-            });
-
-            // Find deleted keys
-            Object.keys(lastObj).forEach(subKey => {
-                if (currObj[subKey] === undefined) {
-                    patch[`${key}/${subKey}`] = null;
-                }
-            });
-        } else {
-            if (JSON.stringify(currVal) !== JSON.stringify(lastVal)) {
-                patch[key] = currVal;
-            }
-        }
-    });
+    const patch = buildFirebasePatch(data, lastSyncedState);
 
     const patchKeys = Object.keys(patch);
     if (patchKeys.length === 0) {
