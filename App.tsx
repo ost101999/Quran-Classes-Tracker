@@ -2413,6 +2413,8 @@ function App() {
     y: number;
     studentId?: string;
     academyName?: string;
+    reportMonth: number;
+    reportYear: number;
   } | null>(null);
 
   // Global Keyboard Shortcuts (T for Tajweed, E/Shift for Edit Mode)
@@ -5703,7 +5705,7 @@ function App() {
     return count;
   };
 
-  const getAbsenceBreakdown = (studentId?: string, academyName?: string) => {
+  const getAbsenceBreakdown = (reportMonth: number, reportYear: number, studentId?: string, academyName?: string) => {
     const reportStudents = studentId ? students.filter(s => s.id === studentId) : (academyName ? groupedStudents[academyName] || [] : []);
     if (studentId && !reportStudents.length) return null;
     const categories = [
@@ -5713,23 +5715,36 @@ function App() {
       { id: 'teacherApology', label: 'اعتذار المعلم', statuses: [AttendanceStatus.UNEXCUSED_ABSENCE], days: [] as { day: number; studentId: string; studentName: string }[], count: 0 },
     ];
     let scheduled = 0;
+    let hasRecordedFallback = false;
+    let hasScheduledDays = false;
+    const reportDays = new Date(reportYear, reportMonth + 1, 0).getDate();
     for (const student of reportStudents) {
       const holidays = academyRates[student.academy]?.holidays || [];
-      for (let day = 1; day <= daysInMonth; day++) {
-        const status = attendance[`${student.id}_${day}_${month}_${year}`];
-        const scheduledCount = getScheduledCountOnDate(student, day);
-        if (!holidays.includes(getDayOfWeek(day)) && status !== AttendanceStatus.EXEMPT) scheduled += scheduledCount;
+      let studentScheduled = 0;
+      let studentRecorded = 0;
+      for (let day = 1; day <= reportDays; day++) {
+        const status = attendance[`${student.id}_${day}_${reportMonth}_${reportYear}`];
+        const scheduledCount = getScheduledCountOnDate(student, day, reportMonth, reportYear);
+        if (!holidays.includes(new Date(reportYear, reportMonth, day).getDay()) && status !== AttendanceStatus.EXEMPT) studentScheduled += scheduledCount;
         const category = categories.find(item => item.statuses.includes(status));
         if (category) {
           category.days.push({ day, studentId: student.id, studentName: student.name });
           category.count += status === AttendanceStatus.PAID_ABSENCE_DOUBLE ? 2 : Math.max(1, scheduledCount);
         }
+        if (category) {
+          studentRecorded += status === AttendanceStatus.PAID_ABSENCE_DOUBLE ? 2 : Math.max(1, scheduledCount);
+        } else {
+          studentRecorded += getStatusSessionValue(status, student, day, reportMonth, reportYear);
+        }
       }
+      if (studentScheduled) hasScheduledDays = true;
+      else if (studentRecorded) hasRecordedFallback = true;
+      scheduled += studentScheduled || studentRecorded;
     }
     categories[0].days = [...categories[1].days, ...categories[3].days];
     const studentMissed = categories[1].count + categories[2].count;
     const commitment = scheduled ? Math.max(0, Math.round((scheduled - studentMissed) / scheduled * 1000) / 10) : null;
-    return { categories, scheduled, commitment };
+    return { categories, scheduled, commitment, hasRecordedFallback, hasScheduledDays };
   };
 
   useEffect(() => {
@@ -6679,9 +6694,9 @@ function App() {
                                   y: Math.max(8, Math.min(rect.bottom + 5, window.innerHeight - 180)), academy });
                                 return;
                               }
-                              setMissedClassesMenu({ isOpen: true, academyName: academy,
+                              setMissedClassesMenu({ isOpen: true, academyName: academy, reportMonth: month, reportYear: year,
                                 x: Math.max(24, Math.min(rect.left, window.innerWidth - 264)),
-                                y: Math.max(8, Math.min(rect.bottom + 4, window.innerHeight - 320)) });
+                                y: Math.max(8, Math.min(rect.bottom + 4, window.innerHeight - 370)) });
                             }}
                           >
                             <span>{academy}</span>
@@ -6818,9 +6833,9 @@ function App() {
                                 if (showMissedCount && !isMultiSelectMode && !isTajweedShortcutPressed) {
                                   e.stopPropagation();
                                   const rect = e.currentTarget.getBoundingClientRect();
-                                  setMissedClassesMenu({ isOpen: true, studentId: student.id,
+                                  setMissedClassesMenu({ isOpen: true, studentId: student.id, reportMonth: month, reportYear: year,
                                     x: Math.max(24, Math.min(rect.left - 256, window.innerWidth - 264)),
-                                    y: Math.max(8, Math.min(rect.bottom + 4, window.innerHeight - 320)) });
+                                    y: Math.max(8, Math.min(rect.bottom + 4, window.innerHeight - 370)) });
                                   return;
                                 }
                                 // If in multi-select mode, toggle selection instead of opening details
@@ -8075,8 +8090,16 @@ function App() {
       {/* Missed Classes Context Menu */}
       {
         missedClassesMenu && missedClassesMenu.isOpen && (() => {
-          const breakdown = getAbsenceBreakdown(missedClassesMenu.studentId, missedClassesMenu.academyName);
+          const { reportMonth, reportYear } = missedClassesMenu;
+          const breakdown = getAbsenceBreakdown(reportMonth, reportYear, missedClassesMenu.studentId, missedClassesMenu.academyName);
           if (!breakdown) return null;
+          const navigateReportMonth = (offset: number) => {
+            setMissedClassesMenu(prev => {
+              if (!prev) return prev;
+              const date = new Date(prev.reportYear, prev.reportMonth + offset, 1);
+              return { ...prev, reportMonth: date.getMonth(), reportYear: date.getFullYear() };
+            });
+          };
           const copyDays = async (category: typeof breakdown.categories[number]) => {
             if (!category.days.length) {
               showToast('لا توجد أيام لهذه الحالة');
@@ -8084,9 +8107,9 @@ function App() {
             }
             const sortedDays = [...category.days].sort((a, b) => a.day - b.day);
             const formatDays = (days: typeof sortedDays, language: 'ar' | 'en', separator = '\r\n\r\n') => days.map(({ day }) => {
-              const date = new Date(year, month, day);
+              const date = new Date(reportYear, reportMonth, day);
               const dateLabel = language === 'ar'
-                ? `${DAYS_OF_WEEK[date.getDay()].name} ${day}/${month + 1}`
+                ? `${DAYS_OF_WEEK[date.getDay()].name} ${day}/${reportMonth + 1}`
                 : date.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'short' });
               return `• ${dateLabel}`;
             }).join(separator);
@@ -8133,7 +8156,7 @@ function App() {
           };
           return (
           <div
-            className="fixed z-[100] bg-white rounded-2xl shadow-xl border border-gray-100 p-2 w-64 context-menu" dir="rtl"
+            className="fixed z-[100] bg-white rounded-2xl shadow-xl border border-gray-100 p-2 w-64 max-h-[calc(100vh-16px)] overflow-y-auto context-menu" dir="rtl"
             onClick={(event) => event.stopPropagation()}
             style={{
               top: missedClassesMenu.y,
@@ -8147,7 +8170,12 @@ function App() {
                 to { opacity: 1; transform: translateY(0) scale(1); }
               }
             `}</style>
-            <p className="px-3 py-2 text-center text-lg font-normal text-red-500">{toHindiDigits(breakdown.scheduled)} حصة مقررة في الشهر</p>
+            <div className="flex items-center justify-between px-2 py-1 text-gray-600">
+              <button type="button" onClick={() => navigateReportMonth(1)} aria-label="الشهر التالي" title="الشهر التالي" className="rounded-lg p-1 hover:bg-blue-50"><ArrowRight size={18} /></button>
+              <span className="font-medium">{MONTHS[reportMonth]} {toHindiDigits(reportYear)}</span>
+              <button type="button" onClick={() => navigateReportMonth(-1)} aria-label="الشهر السابق" title="الشهر السابق" className="rounded-lg p-1 hover:bg-blue-50"><ArrowLeft size={18} /></button>
+            </div>
+            <p className="px-3 py-2 text-center text-lg font-normal text-red-500">{toHindiDigits(breakdown.scheduled)} {breakdown.hasRecordedFallback ? (breakdown.hasScheduledDays ? 'حصة مقررة أو مسجلة' : 'حصة مسجلة') : 'حصة مقررة'} في الشهر</p>
               {breakdown.categories.map((category, index) => {
               const percent = breakdown.scheduled ? Math.round(category.count / breakdown.scheduled * 1000) / 10 : null;
               return (
