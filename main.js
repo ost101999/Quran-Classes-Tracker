@@ -3,6 +3,9 @@ const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
 const puppeteer = require('puppeteer');
+const { createChromeTabBridge } = require('./chrome-tab-bridge');
+const { focusChromeWindow } = require('./chrome-window-focus');
+const chromeTabBridge = createChromeTabBridge({ onFocus: focusChromeWindow });
 
 // Helper for waiting
 const waitForTimeout = (ms) => new Promise(resolve => setTimeout(resolve, ms));
@@ -1151,6 +1154,10 @@ ipcMain.handle('open-external', async (event, url, options) => {
     const normalizedUrl = normalizeUrl(url);
     if (!normalizedUrl) return { success: false, error: 'Empty URL' };
 
+    if (options?.reuseExisting && await chromeTabBridge.focusExisting(normalizedUrl)) {
+        return { success: true, reused: true };
+    }
+
     if (options && options.background && process.platform === 'win32') {
         try {
             // Radical Strategy: "The Iron Dome"
@@ -1392,6 +1399,7 @@ function registerLocalFileProtocol() {
 }
 
 app.whenReady().then(() => {
+    chromeTabBridge.start();
     registerLocalFileProtocol();
     createWindow();
     initializeLastSyncedState();

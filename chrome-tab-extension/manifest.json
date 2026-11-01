@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "Quran Classes Tracker - استدعاء التبويب",
+  "version": "1.0.0",
+  "description": "يستدعي رابط الحصة المفتوح عند نسخ التقرير.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA35b4X4ooF7bsxtITgLUHSPueazSJXrJIQgbr9Ltbrew0d7MiV088R4zyvg979Tdnc04wfI/66fMAr6v1/kmdD/DrS3b7Gm/AXlUplWiB995iLg5GXfgx/CrkDFN8IxPmthp3x4Y2v36PK8Zd05u11x/t+AxMDuBEmWp7NRv4pdrySBdiISI0PIusaiBXJnJ4YbO1c5Zgvlar/dEIq85qeEq/ILA1a0esMd2uBUlmpPO0Jit+ihdLUPvYEsf5SwiRbtK7sR3wIYaXSbHceefummibyKVVquqNSPumUwlTUdbzVa6GK/2zsZh98OIqLQQYY50ux8lsNHINpSvsLMrb/QIDAQAB",
+  "permissions": ["tabs", "alarms"],
+  "host_permissions": ["http://127.0.0.1:39271/*"],
+  "background": { "service_worker": "background.js" }
+}

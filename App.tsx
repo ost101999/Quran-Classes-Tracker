@@ -371,13 +371,13 @@ const withStudentPortalRefresh = (url: string) => {
 };
 
 // Helper to open external links in default browser (Chrome)
-const openExternalLink = (url: string, e?: React.MouseEvent) => {
+const openExternalLink = (url: string, e?: React.MouseEvent, reuseExisting = false) => {
   e?.preventDefault();
   e?.stopPropagation();
   const normalizedUrl = normalizeUrl(url);
   if (!normalizedUrl) return;
   if (window.electronAPI?.openExternal) {
-    window.electronAPI.openExternal(normalizedUrl);
+    window.electronAPI.openExternal(normalizedUrl, { reuseExisting });
   } else {
     window.open(normalizedUrl, '_blank');
   }
@@ -2342,7 +2342,7 @@ function App() {
 
       triggerLinkAnimation(studentId, () => {
         if (shouldOpenExternally) {
-          openExternalLink(refreshedMeetingLink);
+          openExternalLink(refreshedMeetingLink, undefined, true);
         } else {
           handleOpenLink(refreshedMeetingLink, `رابط الحصة: ${student?.name || ''}`);
         }

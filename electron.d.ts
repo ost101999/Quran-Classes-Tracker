@@ -7,7 +7,7 @@ declare global {
             saveZoom?: (zoomFactor: number) => Promise<{ success: boolean; error?: string }>;
             loadZoom?: () => Promise<number | null>;
             saveTajweedAudio: (base64Data: string, fileName: string) => Promise<{ success: boolean; localPath?: string; error?: string }>;
-            openExternal: (url: string, options?: { background?: boolean }) => Promise<void>;
+            openExternal: (url: string, options?: { background?: boolean; reuseExisting?: boolean }) => Promise<{ success: boolean; reused?: boolean; error?: string }>;
             sendWhatsAppAuto: (targetName: string, message: string) => Promise<{ success: boolean; error?: string }>;
             selectBackupFolder: () => Promise<string | null>;
             saveBackupToPath: (folderPath: string, data: any, maxFiles?: number) => Promise<{ success: boolean; filePath?: string; totalFiles?: number; error?: string }>;

@@ -17,6 +17,9 @@
     "directories": {
       "output": "dist_electron"
     },
+    "extraResources": [
+      { "from": "chrome-tab-extension", "to": "chrome-tab-extension" }
+    ],
     "win": {
       "target": "nsis",
       "icon": "public/ChatGPT Image 21 يناير 2026، 04_27_04 ص.png  ( 2 ).ico"
