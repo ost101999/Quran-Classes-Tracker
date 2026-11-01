@@ -2,7 +2,7 @@ declare global {
     interface Window {
         electronAPI: {
             platform?: string;
-            saveData: (data: any) => Promise<{ success: boolean; error?: string }>;
+            saveData: (data: any, skipSync?: boolean) => Promise<{ success: boolean; error?: string }>;
             loadData: () => Promise<any>;
             saveZoom?: (zoomFactor: number) => Promise<{ success: boolean; error?: string }>;
             loadZoom?: () => Promise<number | null>;
@@ -15,11 +15,21 @@ declare global {
             offEscapeBtn: () => void;
             onNavigateInternal?: (callback: (url: string) => void) => void;
             offNavigateInternal?: () => void;
-            getSyncStatus?: () => Promise<{ isSyncing: boolean, hasPending: boolean }>;
+            getSyncStatus?: () => Promise<SyncStatus>;
+            retrySync?: () => Promise<SyncStatus>;
+            onSyncStatus?: (callback: (status: SyncStatus) => void) => void;
+            offSyncStatus?: () => void;
             onCloudSyncSuccess?: (callback: (timestamp: number) => void) => void;
             offCloudSyncSuccess?: () => void;
         };
     }
+}
+
+interface SyncStatus {
+    isSyncing: boolean;
+    hasPending: boolean;
+    error: string | null;
+    lastSuccessAt: number | null;
 }
 
 export { };

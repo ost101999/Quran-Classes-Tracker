@@ -1,10 +1,11 @@
-const { app, BrowserWindow, ipcMain, shell, clipboard, protocol, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, clipboard, protocol, Menu, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
 const puppeteer = require('puppeteer');
 const { createChromeTabBridge } = require('./chrome-tab-bridge');
 const { focusChromeWindow } = require('./chrome-window-focus');
+const { createSyncQueue } = require('./sync-queue');
 const chromeTabBridge = createChromeTabBridge({ onFocus: focusChromeWindow });
 
 // Helper for waiting
@@ -1429,11 +1430,8 @@ const CLOUD_APPSTATE_URL = 'https://quran-classes-tracker-default-rtdb.firebasei
 
 // --- Firebase Sync Optimization Globals ---
 let lastSyncedState = null;
-let syncTimeout = null;
-let isSyncing = false;
-let pendingSyncData = null;
-
 const LAST_SYNCED_PATH = path.join(app.getPath('userData'), 'last-synced-state.json');
+const PENDING_SYNC_PATH = path.join(app.getPath('userData'), 'pending-sync.json');
 
 const initializeLastSyncedState = () => {
     try {
@@ -1447,7 +1445,16 @@ const initializeLastSyncedState = () => {
         }
 
         // At startup, check if we have any pending local changes that weren't synced to Firebase
-        if (fs.existsSync(DATA_PATH)) {
+        if (fs.existsSync(PENDING_SYNC_PATH)) {
+            // data.json is written first, so it may contain a newer edit if the
+            // app stopped before the pending snapshot could be updated.
+            let pendingData = JSON.parse(fs.readFileSync(PENDING_SYNC_PATH, 'utf8'));
+            if (fs.existsSync(DATA_PATH)) {
+                try { pendingData = JSON.parse(fs.readFileSync(DATA_PATH, 'utf8')); }
+                catch (error) { console.error('Using pending snapshot because data.json could not be read:', error); }
+            }
+            queueFirebaseSync(pendingData);
+        } else if (fs.existsSync(DATA_PATH)) {
             const localContent = fs.readFileSync(DATA_PATH, 'utf8');
             const localData = JSON.parse(localContent);
             
@@ -1553,7 +1560,7 @@ const performFirebaseSync = async (data) => {
             res.on('data', (chunk) => { responseData += chunk; });
             res.on('end', () => {
                 logMsg(`Response completely received. Body size: ${responseData.length} bytes`);
-                if (res.statusCode >= 400) {
+                if (res.statusCode < 200 || res.statusCode >= 300) {
                     logMsg(`FIREBASE ERROR BODY: ${responseData}`);
                     reject(new Error(`Firebase responded with status ${res.statusCode}`));
                 } else {
@@ -1567,7 +1574,7 @@ const performFirebaseSync = async (data) => {
                     if (mainWindow && !mainWindow.isDestroyed()) {
                         mainWindow.webContents.send('cloud-sync-success', syncTimestamp);
                     }
-                    resolve();
+                    resolve(syncTimestamp);
                 }
             });
         });
@@ -1577,53 +1584,29 @@ const performFirebaseSync = async (data) => {
             reject(e);
         });
 
+        req.setTimeout(15000, () => req.destroy(new Error('Firebase request timed out')));
+
         req.write(payload);
         req.end();
     });
 };
 
-const triggerFirebaseSync = async () => {
-    if (isSyncing) {
-        return;
-    }
-
-    if (!pendingSyncData) return;
-
-    const dataToSync = pendingSyncData;
-    pendingSyncData = null;
-    isSyncing = true;
-
-    try {
-        await performFirebaseSync(dataToSync);
-    } catch (e) {
-        console.error('Firebase Sync Error:', e);
-    } finally {
-        isSyncing = false;
-        if (pendingSyncData) {
-            triggerFirebaseSync();
-        }
-    }
-};
-
-const queueFirebaseSync = (data) => {
-    pendingSyncData = data;
-
-    if (syncTimeout) {
-        clearTimeout(syncTimeout);
-    }
-
-    syncTimeout = setTimeout(() => {
-        syncTimeout = null;
-        triggerFirebaseSync();
-    }, 5000); // 5 seconds debounce
-};
-
-ipcMain.handle('get-sync-status', () => {
-    return {
-        isSyncing: isSyncing,
-        hasPending: !!syncTimeout || !!pendingSyncData
-    };
+const syncQueue = createSyncQueue({
+    send: performFirebaseSync,
+    savePending: (data) => {
+        const tempPath = `${PENDING_SYNC_PATH}.tmp`;
+        fs.writeFileSync(tempPath, JSON.stringify(data));
+        fs.renameSync(tempPath, PENDING_SYNC_PATH);
+    },
+    clearPending: () => { if (fs.existsSync(PENDING_SYNC_PATH)) fs.unlinkSync(PENDING_SYNC_PATH); },
+    onChange: (status) => {
+        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('sync-status', status);
+    },
 });
+const queueFirebaseSync = (data) => syncQueue.enqueue(data);
+
+ipcMain.handle('get-sync-status', () => syncQueue.status());
+ipcMain.handle('retry-sync', () => syncQueue.flush());
 
 ipcMain.handle('save-zoom', async (event, zoomFactor) => {
     try {
@@ -1821,8 +1804,36 @@ ipcMain.handle('save-backup-to-path', async (event, { folderPath, data, maxFiles
     }
 });
 
-// Cleanup WhatsApp browser on app quit
-app.on('before-quit', async () => {
+let allowQuit = false;
+let quitInProgress = false;
+// Try the pending upload before a normal application quit. A forced OS shutdown
+// can bypass this event; the pending snapshot will still be retried next launch.
+app.on('before-quit', async (event) => {
+    if (!allowQuit && syncQueue.status().hasPending) {
+        event.preventDefault();
+        if (quitInProgress) return;
+        quitInProgress = true;
+        const status = await syncQueue.flush();
+        if (status.hasPending) {
+            const result = await dialog.showMessageBox({
+                type: 'warning',
+                buttons: ['العودة للتطبيق', 'إغلاق رغم عدم المزامنة'],
+                defaultId: 0,
+                cancelId: 0,
+                title: 'المزامنة لم تكتمل',
+                message: 'توجد تعديلات لم تُرفع بعد.',
+                detail: 'ستظل محفوظة على هذا الجهاز وستُحاول المزامنة مرة أخرى عند فتح التطبيق. لن تظهر على الجهاز الآخر حتى تنجح المزامنة.',
+            });
+            if (result.response === 0) {
+                quitInProgress = false;
+                if (!mainWindow || mainWindow.isDestroyed()) createWindow();
+                return;
+            }
+        }
+        allowQuit = true;
+        app.quit();
+        return;
+    }
     if (whatsappBrowser) {
         try { // Cleanup
             await whatsappBrowser.close();

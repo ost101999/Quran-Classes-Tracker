@@ -467,6 +467,7 @@ function App() {
 
   const [isLoaded, setIsLoaded] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<number>(0);
+  const [uploadStatus, setUploadStatus] = useState<{ isSyncing: boolean; hasPending: boolean; error: string | null; lastSuccessAt: number | null } | null>(null);
   const [students, setStudents] = useState<Student[]>(initialStudents);
   const [attendance, setAttendance] = useState<AttendanceRecord>({});
   const [past, setPast] = useState<HistorySnapshot[]>([]);
@@ -692,6 +693,9 @@ function App() {
   const [isTajweedGradingModalOpen, setIsTajweedGradingModalOpen] = useState(false);
   const [tajweedGradingFocusStudentId, setTajweedGradingFocusStudentId] = useState<string | null>(null);
   const [seenUngradedTajweedAssignmentIds, setSeenUngradedTajweedAssignmentIds] = useState<Set<string>>(new Set());
+  const [makeupLinks, setMakeupLinks] = useState<MakeupLink[]>([]);
+  const [savedReports, setSavedReports] = useState<Record<string, string>>({});
+  const [savedReportDrafts, setSavedReportDrafts] = useState<Record<string, any>>({});
   const [assigningTajweedForStudent, setAssigningTajweedForStudent] = useState<Student | null>(null);
 
   const ungradedTajweedAssignmentIdsByStudent = useMemo<Record<string, string[]>>(() => {
@@ -1952,16 +1956,9 @@ function App() {
 
   // --- Sync IPC Listener ---
   useEffect(() => {
-    if (window.electronAPI?.onCloudSyncSuccess) {
-      window.electronAPI.onCloudSyncSuccess((timestamp: number) => {
-        setLastUpdated(timestamp);
-      });
-      return () => {
-        if (window.electronAPI?.offCloudSyncSuccess) {
-          window.electronAPI.offCloudSyncSuccess();
-        }
-      };
-    }
+    window.electronAPI?.onSyncStatus?.(setUploadStatus);
+    window.electronAPI?.getSyncStatus?.().then(setUploadStatus);
+    return () => window.electronAPI?.offSyncStatus?.();
   }, []);
 
   // --- Real-time Cloud Sync for Core State ---
@@ -1995,54 +1992,28 @@ function App() {
             'makeupLinks', 'showMakeupLines', 'confirmNonTodayAttendance', 'whatsappTarget', 'whatsappMode',
             'studentProgress', 'preferredModes', 'defaultNoorBook', 'subscriptionSettings',
             'seenUngradedTajweedVersion', 'seenUngradedTajweedAssignmentIds', 'studentNotesHistory',
-            'lastReports', 'tajweedBank'
+            'lastReports', 'tajweedBank', 'savedReports', 'savedReportDrafts', 'tajweedLessonEditorUiState'
           ];
 
           const fetchPromises = coreKeys.map(async (key) => {
-            try {
-              const res = await fetch(`${CLOUD_APPSTATE_BASE_URL}/${key}.json`);
-              return { key, data: res.ok ? await res.json() : null };
-            } catch (e) {
-              return { key, data: null };
-            }
+            const res = await fetch(`${CLOUD_APPSTATE_BASE_URL}/${key}.json`);
+            if (!res.ok) throw new Error(`Failed to fetch ${key}: ${res.status}`);
+            return { key, data: await res.json() };
           });
 
-          const fetchIncremental = async (nodeKey: string, localObj: any) => {
-            try {
-              const shallowRes = await fetch(`${CLOUD_APPSTATE_BASE_URL}/${nodeKey}.json?shallow=true`);
-              if (!shallowRes.ok) return {};
-              const remoteKeys = (await shallowRes.json()) || {};
-              const localKeysList = Object.keys(localObj || {});
-              const newKeys = Object.keys(remoteKeys).filter(k => !localKeysList.includes(k));
-
-              if (newKeys.length === 0) return {};
-
-              const itemPromises = newKeys.map(async (k) => {
-                const res = await fetch(`${CLOUD_APPSTATE_BASE_URL}/${nodeKey}/${k}.json`);
-                return { key: k, data: res.ok ? await res.json() : null };
-              });
-              const fetched = await Promise.all(itemPromises);
-              const newData: any = {};
-              fetched.forEach(f => { if (f.data) newData[f.key] = f.data; });
-              return newData;
-            } catch (e) {
-              return {};
-            }
-          };
-
-          const [coreResults, newSavedReports, newSavedDrafts] = await Promise.all([
-            Promise.all(fetchPromises),
-            fetchIncremental('savedReports', savedReports),
-            fetchIncremental('savedReportDrafts', savedReportDrafts)
-          ]);
+          const coreResults = await Promise.all(fetchPromises);
 
           if (isCancelled) return;
 
           let fullData: any = {};
           coreResults.forEach(r => { if (r.data !== null) fullData[r.key] = r.data; });
 
-          fullData.savedReports = { ...savedReports, ...newSavedReports };
-          fullData.savedReportDrafts = { ...savedReportDrafts, ...newSavedDrafts };
+          fullData.savedReports = coreResults.find(r => r.key === 'savedReports')?.data || {};
+          fullData.savedReportDrafts = coreResults.find(r => r.key === 'savedReportDrafts')?.data || {};
+          // Backup folders are machine-specific even though the other backup settings sync.
+          if (fullData.autoBackupConfig) {
+            fullData.autoBackupConfig = { ...fullData.autoBackupConfig, backupPath: autoBackupConfig.backupPath };
+          }
 
           // Preserve local Tajweed data so saveData doesn't wipe them. They are synced separately.
           fullData.tajweedAssignments = tajweedAssignments;
@@ -2082,6 +2053,7 @@ function App() {
             if (fullData.savedReports) setSavedReports(fullData.savedReports);
             if (fullData.savedReportDrafts) setSavedReportDrafts(fullData.savedReportDrafts);
             if (fullData.lastReports) setLastReports(fullData.lastReports);
+            if (fullData.studentNotesHistory) setStudentNotesHistory(fullData.studentNotesHistory);
             if (fullData.autoBackupConfig) setAutoBackupConfig(fullData.autoBackupConfig);
             if (fullData.externalLinks) setExternalLinks(fullData.externalLinks);
             if (fullData.dayTransitionTime) setDayTransitionTime(fullData.dayTransitionTime);
@@ -2098,11 +2070,9 @@ function App() {
             if (fullData.tajweedLessonEditorUiState) setTajweedLessonEditorUiState(fullData.tajweedLessonEditorUiState);
           }
 
-          setLastUpdated(remoteLastUpdated);
-
           // Force an immediate save to local disk, but skip pushing back to Firebase
           if (window.electronAPI && fullData) {
-            window.electronAPI.saveData({
+            const result = await window.electronAPI.saveData({
               students: fullData.students || students,
               attendance: fullData.attendance || attendance,
               month: fullData.month !== null && fullData.month !== undefined ? fullData.month : month,
@@ -2123,6 +2093,7 @@ function App() {
               studentProgress: fullData.studentProgress || studentProgress,
               preferredModes: fullData.preferredModes || preferredModes,
               lastReports: fullData.lastReports || lastReports,
+              studentNotesHistory: fullData.studentNotesHistory || studentNotesHistory,
               defaultNoorBook: fullData.defaultNoorBook || defaultNoorBook,
               savedReports: fullData.savedReports || savedReports,
               savedReportDrafts: fullData.savedReportDrafts || savedReportDrafts,
@@ -2136,7 +2107,9 @@ function App() {
 
               lastUpdated: remoteLastUpdated,
             }, true); // true = skipSync
+            if (!result.success) throw new Error(result.error || 'Could not save cloud data locally');
           }
+          setLastUpdated(remoteLastUpdated);
         }
       } catch (err) {
         console.warn('Background sync check failed:', err);
@@ -2151,7 +2124,12 @@ function App() {
       isCancelled = true;
       window.clearInterval(pollInterval);
     };
-  }, [isLoaded, lastUpdated]);
+  }, [isLoaded, lastUpdated, students, attendance, month, year, dayOff, academyOrder, academyRates,
+    monthlyObligations, paymentStatus, autoBackupConfig, externalLinks, dayTransitionTime, makeupLinks,
+    showMakeupLines, confirmNonTodayAttendance, whatsappTarget, whatsappMode, studentProgress,
+    preferredModes, lastReports, studentNotesHistory, defaultNoorBook, savedReports, savedReportDrafts,
+    subscriptionSettings, tajweedBank, tajweedAssignments, tajweedSubmissions, tajweedLessonEditorUiState,
+    seenUngradedTajweedAssignmentIds]);
 
 
   // UI State
@@ -2489,7 +2467,6 @@ function App() {
   }, []);
 
   // --- Makeup Class Linking ---
-  const [makeupLinks, setMakeupLinks] = useState<MakeupLink[]>([]);
 
   const [makeupLinkingMode, setMakeupLinkingMode] = useState<{
     isLoading: boolean;
@@ -2606,8 +2583,6 @@ function App() {
   }, [lastReports, smartReportModal?.isOpen, smartReportModal?.studentId]);
 
   // --- Saved Reports State (for viewing past reports) ---
-  const [savedReports, setSavedReports] = useState<Record<string, string>>({});
-  const [savedReportDrafts, setSavedReportDrafts] = useState<Record<string, any>>({});
   const [savedReportViewModal, setSavedReportViewModal] = useState<{
     isOpen: boolean;
     studentId: string;
@@ -5952,6 +5927,14 @@ function App() {
     <div className="min-h-screen pb-20">
       <style>{customStyles}</style>
 
+      {uploadStatus && (
+        <div dir="rtl" role="status" className={`fixed bottom-3 right-3 z-[80] rounded-xl px-3 py-2 shadow-lg text-sm font-arabic ${uploadStatus.error ? 'bg-red-100 text-red-800' : uploadStatus.hasPending ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-800'}`}>
+          {uploadStatus.error ? 'تعذّر رفع التعديلات، ستتم إعادة المحاولة' : uploadStatus.isSyncing ? 'جاري رفع التعديلات…' : uploadStatus.hasPending ? 'تعديلات بانتظار الرفع…' : 'لا توجد تعديلات بانتظار الرفع'}
+          {!uploadStatus.hasPending && uploadStatus.lastSuccessAt && <span> · آخر رفع {new Date(uploadStatus.lastSuccessAt).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}</span>}
+          {uploadStatus.error && <button type="button" className="mr-2 underline font-bold" onClick={() => { void window.electronAPI?.retrySync?.(); }}>إعادة المحاولة الآن</button>}
+        </div>
+      )}
+
       {/* Search Overlay */}
       {isSearchOpen && (
         <div
@@ -8758,9 +8741,9 @@ function App() {
                                         )
                                           ? questionMeta.options[answer.selectedOptionIndex] || ''
                                           : '';
-                                        const audioSrc = answer.audioLocalPath
+                                        const audioSrc = answer.audioBase64 || (answer.audioLocalPath
                                           ? `local-file://${encodeURIComponent(answer.audioLocalPath)}`
-                                          : answer.audioBase64;
+                                          : undefined);
 
                                         return (
                                           <div key={`${item.submission.id}_${answer.questionId}_${answerIndex}`} className="rounded-lg border border-slate-200 bg-white px-3 py-2">

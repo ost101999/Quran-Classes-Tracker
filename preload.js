@@ -17,6 +17,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onNavigateInternal: (callback) => ipcRenderer.on('navigate-internal', (_event, url) => callback(url)),
     offNavigateInternal: () => ipcRenderer.removeAllListeners('navigate-internal'),
     getSyncStatus: () => ipcRenderer.invoke('get-sync-status'),
+    retrySync: () => ipcRenderer.invoke('retry-sync'),
+    onSyncStatus: (callback) => ipcRenderer.on('sync-status', (_event, status) => callback(status)),
+    offSyncStatus: () => ipcRenderer.removeAllListeners('sync-status'),
     onCloudSyncSuccess: (callback) => ipcRenderer.on('cloud-sync-success', (_event, timestamp) => callback(timestamp)),
     offCloudSyncSuccess: () => ipcRenderer.removeAllListeners('cloud-sync-success'),
 });
