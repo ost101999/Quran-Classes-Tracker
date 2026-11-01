@@ -8147,11 +8147,19 @@ function App() {
               if (!studentGroups.has(entry.studentId)) studentGroups.set(entry.studentId, { name: entry.studentName, days: [] });
               studentGroups.get(entry.studentId)!.days.push(entry);
             }
+            const englishTitles: Record<string, string> = {
+              rescheduled: 'Classes to Reschedule',
+              studentApology: missedClassesMenu.academyName ? 'Students’ Apologies' : 'Student Apologies',
+              studentAbsence: missedClassesMenu.academyName ? 'Students’ Absences' : 'Student Absences',
+              teacherApology: 'Teacher Apologies',
+            };
+            const arabicTitle = missedClassesMenu.academyName && category.id === 'studentApology' ? 'اعتذارات الطلبة'
+              : missedClassesMenu.academyName && category.id === 'studentAbsence' ? 'غياب الطلبة' : category.label;
             const text = missedClassesMenu.academyName
               ? (['en', 'ar'] as const).map(language =>
-                Array.from(studentGroups.values(), group => `👤 *${group.name}*\r\n${formatDays(group.days, language, '\r\n')}`).join('\r\n\r\n')
+                `*${language === 'en' ? englishTitles[category.id] : arabicTitle}*\r\n\r\n${Array.from(studentGroups.values(), group => `👤 *${group.name}*\r\n${formatDays(group.days, language, '\r\n')}`).join('\r\n\r\n')}`
               ).join('\r\n\r\n')
-              : `${formatDays(sortedDays, 'ar')}\r\n\r\n${formatDays(sortedDays, 'en')}`;
+              : `*${arabicTitle}*\r\n\r\n${formatDays(sortedDays, 'ar')}\r\n\r\n*${englishTitles[category.id]}*\r\n\r\n${formatDays(sortedDays, 'en')}`;
             try {
               try {
                 if (!navigator.clipboard?.writeText) throw new Error('Clipboard API unavailable');
