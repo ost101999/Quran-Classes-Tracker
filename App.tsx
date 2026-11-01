@@ -5759,10 +5759,10 @@ function App() {
     const reportStudents = studentId ? students.filter(s => s.id === studentId) : (academyName ? groupedStudents[academyName] || [] : []);
     if (studentId && !reportStudents.length) return null;
     const categories = [
-      { id: 'rescheduled', label: 'الحصص المراد إعادة جدولتها', statuses: [] as AttendanceStatus[], days: [] as { day: number; studentName: string }[], count: 0 },
-      { id: 'studentApology', label: 'اعتذار الطالب', statuses: [AttendanceStatus.ABSENCE_RED], days: [] as { day: number; studentName: string }[], count: 0 },
-      { id: 'studentAbsence', label: 'غياب الطالب', statuses: [AttendanceStatus.PAID_ABSENCE, AttendanceStatus.PAID_ABSENCE_DOUBLE], days: [] as { day: number; studentName: string }[], count: 0 },
-      { id: 'teacherApology', label: 'اعتذار المعلم', statuses: [AttendanceStatus.UNEXCUSED_ABSENCE], days: [] as { day: number; studentName: string }[], count: 0 },
+      { id: 'rescheduled', label: 'الحصص المراد إعادة جدولتها', statuses: [] as AttendanceStatus[], days: [] as { day: number; studentId: string; studentName: string }[], count: 0 },
+      { id: 'studentApology', label: 'اعتذار الطالب', statuses: [AttendanceStatus.ABSENCE_RED], days: [] as { day: number; studentId: string; studentName: string }[], count: 0 },
+      { id: 'studentAbsence', label: 'غياب الطالب', statuses: [AttendanceStatus.PAID_ABSENCE, AttendanceStatus.PAID_ABSENCE_DOUBLE], days: [] as { day: number; studentId: string; studentName: string }[], count: 0 },
+      { id: 'teacherApology', label: 'اعتذار المعلم', statuses: [AttendanceStatus.UNEXCUSED_ABSENCE], days: [] as { day: number; studentId: string; studentName: string }[], count: 0 },
     ];
     let scheduled = 0;
     for (const student of reportStudents) {
@@ -5773,7 +5773,7 @@ function App() {
         if (!holidays.includes(getDayOfWeek(day)) && status !== AttendanceStatus.EXEMPT) scheduled += scheduledCount;
         const category = categories.find(item => item.statuses.includes(status));
         if (category) {
-          category.days.push({ day, studentName: student.name });
+          category.days.push({ day, studentId: student.id, studentName: student.name });
           category.count += status === AttendanceStatus.PAID_ABSENCE_DOUBLE ? 2 : Math.max(1, scheduledCount);
         }
       }
@@ -8135,14 +8135,21 @@ function App() {
               return;
             }
             const sortedDays = [...category.days].sort((a, b) => a.day - b.day);
-            const formatDays = (language: 'ar' | 'en') => sortedDays.map(({ day, studentName }) => {
+            const formatDays = (days: typeof sortedDays, language: 'ar' | 'en') => days.map(({ day }) => {
               const date = new Date(year, month, day);
               const dateLabel = language === 'ar'
                 ? `${DAYS_OF_WEEK[date.getDay()].name} ${day}/${month + 1}`
                 : date.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'short' });
-              return `• ${dateLabel}${missedClassesMenu.academyName ? ` — ${studentName}` : ''}`;
+              return `• ${dateLabel}`;
             }).join('\r\n\r\n');
-            const text = `${formatDays('ar')}\r\n\r\n${formatDays('en')}`;
+            const studentGroups = new Map<string, { name: string; days: typeof sortedDays }>();
+            for (const entry of sortedDays) {
+              if (!studentGroups.has(entry.studentId)) studentGroups.set(entry.studentId, { name: entry.studentName, days: [] });
+              studentGroups.get(entry.studentId)!.days.push(entry);
+            }
+            const text = missedClassesMenu.academyName
+              ? Array.from(studentGroups.values(), group => `${group.name}\r\n${formatDays(group.days, 'ar')}\r\n\r\n${formatDays(group.days, 'en')}`).join('\r\n\r\n')
+              : `${formatDays(sortedDays, 'ar')}\r\n\r\n${formatDays(sortedDays, 'en')}`;
             try {
               try {
                 if (!navigator.clipboard?.writeText) throw new Error('Clipboard API unavailable');
@@ -8189,7 +8196,7 @@ function App() {
                 <React.Fragment key={category.id}>
                 {index === 1 && (
                   <div className="flex items-center justify-between gap-3 px-3 py-2.5 text-lg font-normal text-gray-500 opacity-60">
-                    <span>{missedClassesMenu.academyName ? 'التزام الطلاب' : 'التزام الطالب'}</span>
+                    <span>{missedClassesMenu.academyName ? 'التزام الطلبة' : 'التزام الطالب'}</span>
                     <span dir="ltr">{breakdown.commitment === null ? '—' : `${toHindiDigits(breakdown.commitment)}%`}</span>
                   </div>
                 )}
@@ -8197,7 +8204,7 @@ function App() {
                   onClick={() => copyDays(category)}
                   className={`w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-lg font-normal transition-colors ${category.id === 'rescheduled' ? 'justify-center text-center bg-blue-50/70 text-blue-700 hover:bg-blue-100' : 'justify-between text-right text-gray-700 hover:bg-blue-50'}`}
                   title="نسخ الأيام بالعربي والإنجليزي">
-                  <span>{category.label}</span>
+                  <span>{missedClassesMenu.academyName && category.id === 'studentApology' ? 'اعتذارات الطلبة' : missedClassesMenu.academyName && category.id === 'studentAbsence' ? 'غياب الطلبة' : category.label}</span>
                   {category.id !== 'rescheduled' && <span className="font-normal text-blue-600" dir="ltr">{percent === null ? '—' : `${toHindiDigits(percent)}%`}</span>}
                 </button>
                 </React.Fragment>
