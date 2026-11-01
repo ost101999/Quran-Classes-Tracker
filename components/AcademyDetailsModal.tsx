@@ -24,22 +24,6 @@ const toWesternDigits = (str: string): string => {
     return str.replace(/[٠-٩]/g, (d) => "٠١٢٣٤٥٦٧٨٩".indexOf(d).toString());
 };
 
-// Helper to check if a string is a valid URL
-const isValidUrl = (url: string): boolean => {
-    if (!url || url.length < 3) return false;
-    try {
-        const pattern = new RegExp('^(https?:\\/\\/)?' + // protocol
-            '((([a-z\\d]([a-z\\d-]*[a-z\\d])*)\\.)+[a-z]{2,}|' + // domain name
-            '((\\d{1,3}\\.){3}\\d{1,3}))' + // OR ip (v4) address
-            '(\\:\\d+)?(\\/[-a-z\\d%_.~+]*)*' + // port and path
-            '(\\?[;&a-z\\d%_.~+=-]*)?' + // query string
-            '(\\#[-a-z\\d_]*)?$', 'i'); // fragment locator
-        return !!pattern.test(url);
-    } catch {
-        return false;
-    }
-};
-
 // Helper to convert Western digits to Hindi
 const toHindiDigits = (num: number | string): string => {
     return num.toString()
@@ -238,7 +222,6 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
     const currencies = Object.keys(stats.incomeByCurrency);
 
     const [confirmDelete, setConfirmDelete] = useState(false);
-    const [isEditing, setIsEditing] = useState(false);
     const monthKey = `${month}_${year}`;
     const initialDeduction = academyRate?.monthlyDeductions?.[monthKey] ?? academyRate?.deductedMinutes ?? 0;
     const initialAddition = academyRate?.monthlyAdditions?.[monthKey] ?? 0;
@@ -248,16 +231,16 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
     const [editedAddition, setEditedAddition] = useState(initialAddition);
     const [editedDeductionType, setEditedDeductionType] = useState<'minutes' | 'currency'>(initialDeductionType);
     const [editedAdditionType, setEditedAdditionType] = useState<'minutes' | 'currency'>(initialAdditionType);
-    const [editedName, setEditedName] = useState(academyName);
-    const [editedRate, setEditedRate] = useState(academyRate?.rate || 0);
-    const [editedCurrency, setEditedCurrency] = useState(academyRate?.currency || 'جنيه');
-    const [editedBillingStartDay, setEditedBillingStartDay] = useState(academyRate?.billingStartDay || 1);
-    const [editedLink, setEditedLink] = useState(academyRate?.externalLink || '');
+    const editedName = academyName;
+    const editedRate = academyRate?.rate || 0;
+    const editedCurrency = academyRate?.currency || 'جنيه';
+    const editedBillingStartDay = academyRate?.billingStartDay || 1;
+    const editedLink = academyRate?.externalLink || '';
     const [deductionHistory, setDeductionHistory] = useState<number[]>([initialDeduction]);
     const [additionHistory, setAdditionHistory] = useState<number[]>([initialAddition]);
     const [historyIndex, setHistoryIndex] = useState(0);
     const [historyAdditionIndex, setHistoryAdditionIndex] = useState(0);
-    const [editedDisableReports, setEditedDisableReports] = useState(academyRate?.disableReports || false);
+    const editedDisableReports = academyRate?.disableReports || false;
 
     useEffect(() => {
         const key = `${month}_${year}`;
@@ -466,21 +449,6 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [historyIndex, historyAdditionIndex, deductionHistory, additionHistory, editedName, editedRate, editedCurrency, editedDeduction, editedAddition]);
-
-    const handleSave = () => {
-        const newMonthlyDeductions = { ...(academyRate?.monthlyDeductions || {}) };
-        newMonthlyDeductions[`${month}_${year}`] = editedDeduction;
-        const newMonthlyAdditions = { ...(academyRate?.monthlyAdditions || {}) };
-        newMonthlyAdditions[`${month}_${year}`] = editedAddition;
-        
-        const newMonthlyDeductionTypes = { ...(academyRate?.monthlyDeductionTypes || {}) } as Record<string, 'minutes' | 'currency'>;
-        newMonthlyDeductionTypes[`${month}_${year}`] = editedDeductionType;
-        const newMonthlyAdditionTypes = { ...(academyRate?.monthlyAdditionTypes || {}) } as Record<string, 'minutes' | 'currency'>;
-        newMonthlyAdditionTypes[`${month}_${year}`] = editedAdditionType;
-
-        onUpdate(academyName, editedName, editedRate, editedCurrency, newMonthlyDeductions, editedBillingStartDay, editedLink, academyRate?.holidays || [], editedDisableReports, newMonthlyAdditions, newMonthlyDeductionTypes, newMonthlyAdditionTypes);
-        setIsEditing(false);
-    };
 
     return (
         <div
@@ -881,91 +849,12 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
                         )}
                     </div>
 
-                    {
-                        !isEditing ? (
                             <div className="pt-2">
-                                <h2 className={`text-2xl font-bold text-gray-800 cursor-pointer hover:text-blue-600 transition-colors ${isNameEnglish ? 'font-english' : 'font-arabic'}`} onClick={() => setIsEditing(true)}>
+                                <h2 className={`text-2xl font-bold text-gray-800 ${isNameEnglish ? 'font-english' : 'font-arabic'}`}>
                                     {academyName}
                                 </h2>
                                 <p className={`text-gray-500 text-xl mt-1 ${isEnglish ? 'font-english' : 'font-arabic'}`}>{isEnglish ? 'Academy Report' : 'تقرير الأكاديمية'}</p>
                             </div>
-                        ) : (
-                            <div className="pt-2 px-10 space-y-3">
-                                <input
-                                    autoFocus
-                                    value={editedName}
-                                    onChange={(e) => setEditedName(e.target.value)}
-                                    className="w-full text-center text-xl font-bold border-b-2 border-blue-500 outline-none bg-transparent"
-                                />
-                                <div className="flex items-center justify-center gap-3">
-                                    <label className="text-sm text-gray-500">سعر الساعة:</label>
-                                    <input
-                                        type="number"
-                                        value={editedRate}
-                                        onChange={(e) => setEditedRate(Number(e.target.value))}
-                                        className="w-20 text-center border rounded-lg p-1"
-                                    />
-                                    <select
-                                        value={editedCurrency}
-                                        onChange={(e) => setEditedCurrency(e.target.value)}
-                                        className="border rounded-lg p-1 text-sm text-gray-600"
-                                    >
-                                        <option value="جنيه">جنيه</option>
-                                        <option value="دولار">دولار</option>
-                                        <option value="ريال">ريال</option>
-                                    </select>
-                                </div>
-                                <div className="flex items-center justify-center gap-3">
-                                    <div className="flex items-center gap-1.5 flex-1 justify-end min-w-0">
-                                        {isValidUrl(editedLink) && (
-                                            <div className="flex items-center gap-1 animate-in fade-in zoom-in duration-300">
-                                                <div className="bg-emerald-100 text-emerald-600 rounded-full p-0.5 shadow-sm border border-emerald-200">
-                                                    <Check size={12} strokeWidth={4} />
-                                                </div>
-                                            </div>
-                                        )}
-                                        <label className="text-sm text-gray-500 font-arabic whitespace-nowrap">الرابط:</label>
-                                    </div>
-                                    <input
-                                        value={editedLink}
-                                        onChange={(e) => setEditedLink(e.target.value)}
-                                        placeholder="رابط ملف الأكاديمية"
-                                        className={`flex-1 border rounded-lg p-1 text-xs dir-ltr transition-all duration-300 ${isValidUrl(editedLink) ? 'text-gray-900 font-medium' : 'text-gray-400'}`}
-                                        style={{ direction: 'ltr' }}
-                                    />
-                                </div>
-                                <div className="flex items-center justify-center gap-2 pt-2">
-                                    <input
-                                        type="checkbox"
-                                        id="disableReportsInline"
-                                        checked={editedDisableReports}
-                                        onChange={(e) => setEditedDisableReports(e.target.checked)}
-                                        className="w-4 h-4 rounded accent-blue-600 cursor-pointer"
-                                    />
-                                    <label htmlFor="disableReportsInline" className="text-sm text-gray-500 cursor-pointer select-none">
-                                        تعطيل التقارير
-                                    </label>
-                                </div>
-                                <div className="flex justify-center gap-2 mt-4">
-                                    <button
-                                        onClick={handleSave}
-                                        className="bg-blue-600 text-white px-4 py-1.5 rounded-xl text-sm font-bold shadow-lg shadow-blue-200"
-                                    >
-                                        حفظ
-                                    </button>
-                                    <button
-                                        onClick={() => {
-                                            setIsEditing(false);
-                                            setEditedName(academyName);
-                                        }}
-                                        className="bg-gray-100 text-gray-600 px-4 py-1.5 rounded-xl text-sm"
-                                    >
-                                        إلغاء
-                                    </button>
-                                </div>
-                            </div>
-                        )
-                    }
                 </div >
 
                 <ReportMonthNavigation month={month} year={year} changeMonth={changeMonth} />
