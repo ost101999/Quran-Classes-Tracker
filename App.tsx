@@ -451,6 +451,7 @@ const desanitizeStateKeys = (
 };
 
 function App() {
+  const isMac = window.electronAPI?.platform ? window.electronAPI.platform === 'darwin' : /Mac/i.test(navigator.platform);
 
   type HistorySnapshot = {
     att: AttendanceRecord;
@@ -6122,8 +6123,8 @@ function App() {
                   e.preventDefault();
                   setSelectedAcademyForDetails(academy);
                 }}
-                className={`px-4 py-1.5 rounded-full transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] text-base font-normal font-academy-nav border border-transparent whitespace-nowrap select-none cursor-pointer active:cursor-grabbing flex items-center gap-2 ${selectedAcademy === academy
-                  ? 'bg-[#ffe05d] text-gray-900 scale-105 shadow-[0_0_20px_rgba(255,224,93,0.3)] z-10'
+                className={`px-4 py-1.5 rounded-full transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] text-base ${isMac ? 'font-normal font-academy-nav' : 'font-arabic'} border border-transparent whitespace-nowrap select-none cursor-pointer active:cursor-grabbing flex items-center gap-2 ${selectedAcademy === academy
+                  ? `bg-[#ffe05d] text-gray-900 scale-105 shadow-[0_0_20px_rgba(255,224,93,0.3)] z-10 ${isMac ? '' : 'font-bold'}`
                   : 'bg-gray-700/50 text-gray-200 hover:bg-gray-600/80 hover:text-white hover:border-gray-500'
                   } ${draggedAcademyIndex === index ? 'opacity-40 scale-90 grayscale ring-2 ring-[#ffe05d] ring-offset-2 ring-offset-gray-900 border-dashed border-[#ffe05d]/50' : ''} ${dragOverIndex === index && draggedAcademyIndex !== index ? 'scale-110 -translate-y-1 !bg-gray-600 shadow-xl' : ''}`}
               >

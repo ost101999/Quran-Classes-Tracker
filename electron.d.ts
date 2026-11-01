@@ -1,6 +1,7 @@
 declare global {
     interface Window {
         electronAPI: {
+            platform?: string;
             saveData: (data: any) => Promise<{ success: boolean; error?: string }>;
             loadData: () => Promise<any>;
             saveZoom?: (zoomFactor: number) => Promise<{ success: boolean; error?: string }>;
