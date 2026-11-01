@@ -8159,7 +8159,7 @@ function App() {
               ? (['en', 'ar'] as const).map(language =>
                 `*${language === 'en' ? englishTitles[category.id] : arabicTitle}*\r\n\r\n${Array.from(studentGroups.values(), group => `👤 *${group.name}*\r\n${formatDays(group.days, language, '\r\n')}`).join('\r\n\r\n')}`
               ).join('\r\n\r\n')
-              : `*${arabicTitle}*\r\n\r\n${formatDays(sortedDays, 'ar')}\r\n\r\n*${englishTitles[category.id]}*\r\n\r\n${formatDays(sortedDays, 'en')}`;
+              : `👤 *${sortedDays[0].studentName}*\r\n*${arabicTitle}*\r\n\r\n${formatDays(sortedDays, 'ar')}\r\n\r\n👤 *${sortedDays[0].studentName}*\r\n*${englishTitles[category.id]}*\r\n\r\n${formatDays(sortedDays, 'en')}`;
             try {
               try {
                 if (!navigator.clipboard?.writeText) throw new Error('Clipboard API unavailable');
