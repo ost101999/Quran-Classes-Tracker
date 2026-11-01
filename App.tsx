@@ -1,12 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { Settings, Plus, Download, Upload, Trash2, Calendar, ArrowLeft, ArrowRight, ChevronDown, ChevronUp, Link, History, Clock, Users2, Banknote, BarChart3, Minus, Pin, Phone, MessageCircle, Copy, UserX, UserCheck, Shield, Wand2, Check, ArrowDown, Repeat, Eye, EyeOff, Bell, X, Percent } from 'lucide-react';
+import { Settings, Plus, Download, Upload, Trash2, Calendar, ArrowLeft, ArrowRight, ChevronDown, ChevronUp, Link, History, Clock, Users2, Banknote, BarChart3, Minus, Pin, Phone, MessageCircle, Copy, UserX, UserCheck, Shield, Wand2, Check, ArrowDown, Repeat, Eye, EyeOff, Bell, X } from 'lucide-react';
 
 // Custom animation styles
 const customStyles = `
-  @keyframes absenceIconAppear {
-    from { opacity: 0; transform: translate(8px, -50%); }
-    to { opacity: 1; transform: translate(0, -50%); }
-  }
   @keyframes pulse-scale-glow {
     0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
     50% { transform: scale(1.15); box-shadow: 0 0 10px 2px rgba(239, 68, 68, 0.6); }
@@ -3854,46 +3850,6 @@ function App() {
   const [showStickyHeader, setShowStickyHeader] = useState(false);
   const [studentWidth, setStudentWidth] = useState<number>(150);
   const [tableWidth, setTableWidth] = useState<number>(0);
-  const [absenceIconRows, setAbsenceIconRows] = useState<{ studentId: string; top: number; left: number }[]>([]);
-
-  useEffect(() => {
-    if (!showMissedCount || isTableLoading) {
-      setAbsenceIconRows([]);
-      return;
-    }
-    const container = tableScrollRef.current;
-    const main = mainRef.current;
-    if (!container || !main) return;
-    let frame = 0;
-    const update = () => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => {
-        const mainRect = main.getBoundingClientRect();
-        const containerRect = container.getBoundingClientRect();
-        const rows = Array.from(container.querySelectorAll<HTMLTableRowElement>('tr[data-student-id]'))
-          .filter(row => row.getClientRects().length > 0)
-          .map(row => {
-            const rect = row.getBoundingClientRect();
-            return { studentId: row.dataset.studentId!, top: rect.top - mainRect.top + rect.height / 2, left: containerRect.left - mainRect.left - 8 };
-          });
-        setAbsenceIconRows(current => JSON.stringify(current) === JSON.stringify(rows) ? current : rows);
-      });
-    };
-    const mutationObserver = new MutationObserver(update);
-    mutationObserver.observe(container, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style'] });
-    const resizeObserver = new ResizeObserver(update);
-    resizeObserver.observe(container);
-    if (originalTableRef.current) resizeObserver.observe(originalTableRef.current);
-    window.addEventListener('resize', update);
-    update();
-    return () => {
-      cancelAnimationFrame(frame);
-      mutationObserver.disconnect();
-      resizeObserver.disconnect();
-      window.removeEventListener('resize', update);
-    };
-  }, [showMissedCount, isTableLoading]);
-
   // Sync sticky header scroll position when it appears
   useEffect(() => {
     if (showStickyHeader && stickyHeaderRef.current && tableScrollRef.current) {
@@ -6713,24 +6669,19 @@ function App() {
                                 academy: academy
                               });
                             }}
-                            className={`relative inline-flex items-center gap-3 px-6 py-2 bg-white rounded-full shadow-sm border border-gray-100 text-2xl text-gray-800 select-none cursor-pointer hover:bg-gray-50 hover:shadow-md transition-all ${/[a-zA-Z]/.test(academy) ? 'font-english' : 'font-arabic'}`}
-                            onClick={() => setSelectedAcademyForDetails(academy)}
+                            className={`relative inline-flex items-center gap-3 px-6 py-2 rounded-full shadow-sm border border-gray-100 bg-white hover:bg-gray-50 text-2xl text-gray-800 select-none cursor-pointer hover:shadow-md transition-all ${/[a-zA-Z]/.test(academy) ? 'font-english' : 'font-arabic'}`}
+                            style={showMissedCount ? { color: 'rgba(107, 114, 128, 0.6)' } : undefined}
+                            title={showMissedCount ? 'عرض نسب الأكاديمية' : undefined}
+                            onClick={(e) => {
+                              if (!showMissedCount) { setSelectedAcademyForDetails(academy); return; }
+                              e.stopPropagation();
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              setMissedClassesMenu({ isOpen: true, academyName: academy,
+                                x: Math.max(24, Math.min(rect.left, window.innerWidth - 264)),
+                                y: Math.max(8, Math.min(rect.bottom + 4, window.innerHeight - 320)) });
+                            }}
                           >
                             <span>{academy}</span>
-                            {showMissedCount && (
-                              <button type="button" title="نسب الأكاديمية" aria-label={`نسب الأكاديمية ${academy}`}
-                                className="absolute left-full ml-2 top-1/2 inline-flex items-center justify-center p-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-100 shadow-sm"
-                                style={{ animation: 'absenceIconAppear 0.3s ease-out both' }}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  const rect = e.currentTarget.getBoundingClientRect();
-                                  setMissedClassesMenu({ isOpen: true, academyName: academy,
-                                    x: Math.max(24, Math.min(rect.right - 256, window.innerWidth - 264)),
-                                    y: Math.max(8, Math.min(rect.bottom + 4, window.innerHeight - 320)) });
-                                }}>
-                                <Percent size={17} />
-                              </button>
-                            )}
                             {academyRates[academy]?.externalLink && (
                               <button
                                 type="button"
@@ -6837,6 +6788,7 @@ function App() {
                           >
                             <td
                               className={`sticky right-0 student-name-sticky z-[25] p-0 text-center text-gray-800 whitespace-nowrap cursor-pointer hover:brightness-100 transition-all select-none relative group/student border-none shadow-none min-w-[220px] w-[220px] backdrop-blur-[6px] ${isEnding ? 'opacity-40 grayscale saturate-50' : ''} ${selectedStudentIds.has(student.id) ? 'opacity-60' : ''}`}
+                              title={showMissedCount ? 'عرض نسب الطالب' : undefined}
                               style={{
                                 background: (() => {
                                   const rgb = student.color ? {
@@ -6858,6 +6810,14 @@ function App() {
                                 // Ctrl/Cmd + click on student name opens student link directly.
                                 if ((e.ctrlKey || e.metaKey) && !isMultiSelectMode && !isTajweedShortcutPressed) {
                                   handleOpenLink(buildStudentPortalUrl(student), student.name);
+                                  return;
+                                }
+                                if (showMissedCount && !isMultiSelectMode && !isTajweedShortcutPressed) {
+                                  e.stopPropagation();
+                                  const rect = e.currentTarget.getBoundingClientRect();
+                                  setMissedClassesMenu({ isOpen: true, studentId: student.id,
+                                    x: Math.max(24, Math.min(rect.left - 256, window.innerWidth - 264)),
+                                    y: Math.max(8, Math.min(rect.bottom + 4, window.innerHeight - 320)) });
                                   return;
                                 }
                                 // If in multi-select mode, toggle selection instead of opening details
@@ -6970,7 +6930,7 @@ function App() {
                               <div className="w-full h-full p-4 flex items-center justify-center relative">
 
                                 <div className={`flex items-center justify-center gap-2 ${/[a-zA-Z]/.test(student.name) ? 'font-english text-xl' : 'font-arabic text-2xl'}`}>
-                                  <span className={searchQuery.trim() && searchMatches(student.name) ? 'text-amber-600' : ''}>{student.name}</span>
+                                  <span className={searchQuery.trim() && searchMatches(student.name) ? 'text-amber-600' : ''} style={showMissedCount ? { color: 'rgba(107, 114, 128, 0.6)' } : undefined}>{student.name}</span>
                                   {unseenUngradedTajweedCount > 0 && (
                                     <span
                                       className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold leading-none shadow-sm"
@@ -7597,21 +7557,6 @@ function App() {
             </div>
           </div>
         </div>
-        {showMissedCount && absenceIconRows.map(row => (
-          <button key={row.studentId} type="button"
-            style={{ position: 'absolute', top: row.top, left: row.left - 36, animation: 'absenceIconAppear 0.3s ease-out both' }}
-            className="z-20 inline-flex items-center justify-center p-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-100 shadow-sm transition-colors"
-            aria-label="نسب الاعتذار والغياب" title="نسب الاعتذار والغياب"
-            onClick={(e) => {
-              e.stopPropagation();
-              const rect = e.currentTarget.getBoundingClientRect();
-              setMissedClassesMenu({ isOpen: true, studentId: row.studentId,
-                x: Math.max(24, Math.min(rect.right - 256, window.innerWidth - 264)),
-                y: Math.max(8, Math.min(rect.bottom + 4, window.innerHeight - 320)) });
-            }}>
-            <Percent size={17} />
-          </button>
-        ))}
       </main >
 
       {/* 3. Modal for New Student */}
