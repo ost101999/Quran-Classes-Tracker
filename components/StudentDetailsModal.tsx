@@ -1,4 +1,5 @@
 import { formatAttendanceDays } from './reportAttendanceDays';
+import ReportMonthNavigation, { useReportMonth } from './ReportMonthNavigation';
 import React, { useRef, useState } from 'react';
 import { X, Calendar, Clock, Calculator, Copy, Check, DollarSign, Wallet, FileText, AlignLeft, ChevronLeft, ChevronRight, Image as ImageIcon, Link } from 'lucide-react';
 import { Student, AttendanceRecord, AttendanceStatus } from '../types';
@@ -66,7 +67,8 @@ const getSessionsPlural = (num: number): string => {
     return 'حصة';
 };
 
-export default function StudentDetailsModal({ student, attendance, onClose, month, year, usdRate, onOpenLink, billingStartDay = 1 }: Props) {
+export default function StudentDetailsModal({ student, attendance, onClose, month: initialMonth, year: initialYear, usdRate, onOpenLink, billingStartDay = 1 }: Props) {
+    const { month, year, changeMonth } = useReportMonth(initialMonth, initialYear);
     const reportRef = useRef<HTMLDivElement>(null);
     const [isCopying, setIsCopying] = useState(false);
     const [isCopyingLink, setIsCopyingLink] = useState(false);
@@ -698,6 +700,8 @@ export default function StudentDetailsModal({ student, attendance, onClose, mont
                     </h2>
                     <p className={`text-gray-500 text-lg mt-1 ${isNameEnglish ? 'font-english' : 'font-arabic'}`}>{student.academy}</p>
                 </div>
+
+                <ReportMonthNavigation month={month} year={year} changeMonth={changeMonth} />
 
                 {/* Content */}
                 <div className="p-8 space-y-6">

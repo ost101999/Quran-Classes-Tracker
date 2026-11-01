@@ -1,4 +1,5 @@
 import { formatAttendanceDays } from './reportAttendanceDays';
+import ReportMonthNavigation, { useReportMonth } from './ReportMonthNavigation';
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Calendar, Clock, Copy, Check, Wallet, FileText, AlignLeft, DollarSign, ChevronRight, ChevronLeft, Trash2, Edit2, ShieldAlert, ExternalLink, RotateCcw, Users, Image as ImageIcon } from 'lucide-react';
 import { Student, AttendanceRecord, AttendanceStatus } from '../types';
@@ -13,7 +14,6 @@ interface Props {
     onDelete: () => void;
     onUpdate: (oldName: string, newName: string, rate: number, currency: string, monthlyDeductions: Record<string, number>, billingStartDay: number, externalLink: string, holidays: number[], disableReports?: boolean, monthlyAdditions?: Record<string, number>, monthlyDeductionTypes?: Record<string, 'minutes' | 'currency'>, monthlyAdditionTypes?: Record<string, 'minutes' | 'currency'>) => void;
     academyRate?: { rate: number; currency: string; deductedMinutes?: number; monthlyDeductions?: Record<string, number>; monthlyAdditions?: Record<string, number>; monthlyDeductionTypes?: Record<string, 'minutes' | 'currency'>; monthlyAdditionTypes?: Record<string, 'minutes' | 'currency'>; billingStartDay?: number; externalLink?: string; holidays?: number[], disableReports?: boolean };
-    month: number;
     year: number;
     usdRate: number;
 }
@@ -84,7 +84,8 @@ const getSessionsPlural = (num: number): string => {
     return 'حصة';
 };
 
-const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendance, month, year, onClose, onDelete, onUpdate, academyRate, usdRate }) => {
+const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendance, month: initialMonth, year: initialYear, onClose, onDelete, onUpdate, academyRate, usdRate }) => {
+    const { month, year, changeMonth } = useReportMonth(initialMonth, initialYear);
     const reportRef = useRef<HTMLDivElement>(null);
     const [isCopying, setIsCopying] = useState(false);
     const [includePricing, setIncludePricing] = useState(true);
@@ -257,6 +258,20 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
     const [historyIndex, setHistoryIndex] = useState(0);
     const [historyAdditionIndex, setHistoryAdditionIndex] = useState(0);
     const [editedDisableReports, setEditedDisableReports] = useState(academyRate?.disableReports || false);
+
+    useEffect(() => {
+        const key = `${month}_${year}`;
+        const deduction = academyRate?.monthlyDeductions?.[key] ?? academyRate?.deductedMinutes ?? 0;
+        const addition = academyRate?.monthlyAdditions?.[key] ?? 0;
+        setEditedDeduction(deduction);
+        setEditedAddition(addition);
+        setEditedDeductionType(academyRate?.monthlyDeductionTypes?.[key] ?? 'minutes');
+        setEditedAdditionType(academyRate?.monthlyAdditionTypes?.[key] ?? 'minutes');
+        setDeductionHistory([deduction]);
+        setAdditionHistory([addition]);
+        setHistoryIndex(0);
+        setHistoryAdditionIndex(0);
+    }, [month, year]);
 
     const handleCopy = async (withPricing: boolean, withBreakdown: boolean = false) => {
         if (!reportRef.current || isCopying) return;
@@ -952,6 +967,8 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
                         )
                     }
                 </div >
+
+                <ReportMonthNavigation month={month} year={year} changeMonth={changeMonth} />
 
                 {/* Content */}
                 < div className="p-6 space-y-4" >
