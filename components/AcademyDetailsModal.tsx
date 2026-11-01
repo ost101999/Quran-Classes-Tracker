@@ -75,6 +75,7 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
     const [includePricing, setIncludePricing] = useState(true);
     const [includeBreakdown, setIncludeBreakdown] = useState(false);
     const [showCopyMenu, setShowCopyMenu] = useState(false);
+    const [showAdjustments, setShowAdjustments] = useState(false);
     const [textSelectMode, setTextSelectMode] = useState(false);
     const [attendanceDetail, setAttendanceDetail] = useState<boolean | null>(null);
     const [imageSelectMode, setImageSelectMode] = useState(false);
@@ -849,12 +850,15 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
                         )}
                     </div>
 
-                            <div className="pt-2">
-                                <h2 className={`text-2xl font-bold text-gray-800 ${isNameEnglish ? 'font-english' : 'font-arabic'}`}>
-                                    {academyName}
-                                </h2>
-                                <p className={`text-gray-500 text-xl mt-1 ${isEnglish ? 'font-english' : 'font-arabic'}`}>{isEnglish ? 'Academy Report' : 'تقرير الأكاديمية'}</p>
-                            </div>
+                    <div className="pt-2">
+                        <h2>
+                            <button type="button" onClick={() => setShowAdjustments(value => !value)} aria-expanded={showAdjustments} aria-controls="academy-adjustments"
+                                className={`text-2xl font-bold text-gray-800 hover:text-blue-600 transition-colors ${isNameEnglish ? 'font-english' : 'font-arabic'}`}>
+                                {academyName}
+                            </button>
+                        </h2>
+                        <p className={`text-gray-500 text-xl mt-1 ${isEnglish ? 'font-english' : 'font-arabic'}`}>{isEnglish ? 'Academy Report' : 'تقرير الأكاديمية'}</p>
+                    </div>
                 </div >
 
                 <ReportMonthNavigation month={month} year={year} changeMonth={changeMonth} />
@@ -907,26 +911,13 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
                                         </div>
                                     </div>
 
-                                    {/* Hour Rate Info - Moved here */}
-                                    {academyRate && (
-                                        <div className="text-center -mt-2">
-                                            <span className="text-red-300 text-lg font-arabic opacity-80">
-                                                سعر الساعة: {toHindiDigits(academyRate.rate)} {academyRate.currency}
-                                            </span>
-                                        </div>
-                                    )}
-
                                     {/* Egyptian Equivalent (for USD) */}
                                     {curr === 'دولار' && usdRate > 0 && (
                                         <div className="text-center space-y-3 pt-2">
-                                            <div className="text-gray-400 text-xl">يعادله بالمصري حالياً</div>
                                             <div className="inline-flex items-center gap-2 px-6 py-3 bg-green-50 rounded-xl">
                                                 <span className="text-2xl font-bold text-green-600">
                                                     {toHindiDigits((stats.incomeByCurrency[curr] * usdRate).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 }))} جنيه
                                                 </span>
-                                            </div>
-                                            <div className="text-lg text-gray-400">
-                                                سعر الصرف: ١ دولار = {toHindiDigits(usdRate.toFixed(2))} جنيه
                                             </div>
                                         </div>
                                     )}
@@ -935,10 +926,17 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
                                 <div className="text-center text-gray-400 py-2">لا يوجد دخل مسجل</div>
                             )
                         }
+                        {academyRate && (
+                            <div className="text-center pt-2">
+                                <span className="text-red-300 text-lg font-arabic opacity-80">
+                                    سعر الساعة: {toHindiDigits(academyRate.rate)} {academyRate.currency}
+                                </span>
+                            </div>
+                        )}
                     </div >
 
                     {/* Pill Design for Deduction - Conditional Theme */}
-                    <div className="flex flex-col gap-3 pt-0">
+                    {showAdjustments && <div id="academy-adjustments" className="flex flex-col gap-3 pt-0">
                         <div className="flex items-center justify-center">
                             <div className={`
                                 inline-flex items-center gap-4 px-5 py-2 rounded-full border shadow-sm transition-all duration-300
@@ -1073,7 +1071,7 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
                                 </div>
                             </div>
                         </div>
-                    </div>
+                    </div>}
 
                     {/* Delete Action */}
                     < div className="pt-3 border-t border-gray-100" >
