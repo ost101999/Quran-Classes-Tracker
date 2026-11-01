@@ -8135,13 +8135,13 @@ function App() {
               return;
             }
             const sortedDays = [...category.days].sort((a, b) => a.day - b.day);
-            const formatDays = (days: typeof sortedDays, language: 'ar' | 'en') => days.map(({ day }) => {
+            const formatDays = (days: typeof sortedDays, language: 'ar' | 'en', separator = '\r\n\r\n') => days.map(({ day }) => {
               const date = new Date(year, month, day);
               const dateLabel = language === 'ar'
                 ? `${DAYS_OF_WEEK[date.getDay()].name} ${day}/${month + 1}`
                 : date.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'short' });
               return `• ${dateLabel}`;
-            }).join('\r\n\r\n');
+            }).join(separator);
             const studentGroups = new Map<string, { name: string; days: typeof sortedDays }>();
             for (const entry of sortedDays) {
               if (!studentGroups.has(entry.studentId)) studentGroups.set(entry.studentId, { name: entry.studentName, days: [] });
@@ -8149,7 +8149,7 @@ function App() {
             }
             const text = missedClassesMenu.academyName
               ? (['en', 'ar'] as const).map(language =>
-                Array.from(studentGroups.values(), group => `${group.name}\r\n${formatDays(group.days, language)}`).join('\r\n\r\n')
+                Array.from(studentGroups.values(), group => `👤 *${group.name}*\r\n${formatDays(group.days, language, '\r\n')}`).join('\r\n\r\n')
               ).join('\r\n\r\n')
               : `${formatDays(sortedDays, 'ar')}\r\n\r\n${formatDays(sortedDays, 'en')}`;
             try {
