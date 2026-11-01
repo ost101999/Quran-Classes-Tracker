@@ -8195,7 +8195,7 @@ function App() {
                 )}
                 <button type="button"
                   onClick={() => copyDays(category)}
-                  className={`w-full flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-right text-lg font-normal transition-colors ${category.id === 'rescheduled' ? 'bg-blue-50/70 text-blue-700 hover:bg-blue-100' : 'text-gray-700 hover:bg-blue-50'}`}
+                  className={`w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-lg font-normal transition-colors ${category.id === 'rescheduled' ? 'justify-center text-center bg-blue-50/70 text-blue-700 hover:bg-blue-100' : 'justify-between text-right text-gray-700 hover:bg-blue-50'}`}
                   title="نسخ الأيام بالعربي والإنجليزي">
                   <span>{category.label}</span>
                   {category.id !== 'rescheduled' && <span className="font-normal text-blue-600" dir="ltr">{percent === null ? '—' : `${toHindiDigits(percent)}%`}</span>}
