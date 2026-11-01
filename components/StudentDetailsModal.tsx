@@ -748,21 +748,16 @@ export default function StudentDetailsModal({ student, attendance, onClose, mont
                             </div>
                         </div>
 
-                        {/* Egyptian Equivalent (for USD) */}
                         {student.location === 'دولار' && usdRate > 0 && (
-                            <div className="text-center space-y-4 pt-6 mt-6 border-t border-dashed border-gray-200">
-                                <div className="text-gray-400 text-xl">يعادله بالمصري حالياً</div>
+                            <div className="text-center pt-6 mt-6 border-t border-dashed border-gray-200">
                                 <div className="inline-flex items-center gap-2 px-6 py-3 bg-green-50 rounded-xl">
                                     <span className="text-3xl font-bold text-green-600 font-amiri">
-                                        {(() => {
-                                            const egpAmount = totalDueAmount * usdRate;
-                                            const formatted = egpAmount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
-                                            return toHindiDigits(formatted);
-                                        })()} جنيه
+                                        {toHindiDigits((totalDueAmount * usdRate).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 }))} جنيه
                                     </span>
                                 </div>
                             </div>
                         )}
+
                     </div>
 
 
