@@ -6660,22 +6660,23 @@ function App() {
                           <div
                             onContextMenu={(e) => {
                               e.preventDefault();
-                              const rect = e.currentTarget.getBoundingClientRect();
-                              setAcademyContextMenu({
-                                isOpen: true,
-                                isClosing: false,
-                                x: rect.right - 220, // Sync viewport coordinates
-                                y: rect.bottom + 5,  // Sync viewport coordinates
-                                academy: academy
-                              });
+                              e.stopPropagation();
+                              setAcademyContextMenu(prev => ({ ...prev, isOpen: false, isClosing: false }));
+                              setMissedClassesMenu(null);
+                              setSelectedAcademyForDetails(academy);
                             }}
                             className={`relative inline-flex items-center gap-3 px-6 py-2 rounded-full shadow-sm border border-gray-100 bg-white hover:bg-gray-50 text-2xl text-gray-800 select-none cursor-pointer hover:shadow-md transition-all ${/[a-zA-Z]/.test(academy) ? 'font-english' : 'font-arabic'}`}
                             style={showMissedCount ? { color: 'rgba(107, 114, 128, 0.6)' } : undefined}
                             title={showMissedCount ? 'عرض نسب الأكاديمية' : undefined}
                             onClick={(e) => {
-                              if (!showMissedCount) { setSelectedAcademyForDetails(academy); return; }
                               e.stopPropagation();
                               const rect = e.currentTarget.getBoundingClientRect();
+                              if (!showMissedCount) {
+                                setAcademyContextMenu({ isOpen: true, isClosing: false,
+                                  x: Math.max(8, Math.min(rect.right - 220, window.innerWidth - 228)),
+                                  y: Math.max(8, Math.min(rect.bottom + 5, window.innerHeight - 180)), academy });
+                                return;
+                              }
                               setMissedClassesMenu({ isOpen: true, academyName: academy,
                                 x: Math.max(24, Math.min(rect.left, window.innerWidth - 264)),
                                 y: Math.max(8, Math.min(rect.bottom + 4, window.innerHeight - 320)) });
