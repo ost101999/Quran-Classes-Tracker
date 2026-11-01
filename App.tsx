@@ -1976,8 +1976,9 @@ function App() {
 
     const pollCloudChanges = async () => {
       try {
-        setDownloadStatus('checking');
-        const res = await fetch(`${CLOUD_APPSTATE_BASE_URL}/lastUpdated.json`, { cache: 'no-store' });
+        // Keep the last successful result visible during routine background checks.
+        setDownloadStatus(status => status === 'current' ? status : 'checking');
+        const res = await fetch(`${CLOUD_APPSTATE_BASE_URL}/lastUpdated.json`, { cache: 'no-store', signal: AbortSignal.timeout(20000) });
         if (!res.ok) throw new Error(`Failed to check cloud: ${res.status}`);
         if (isCancelled) return;
 
@@ -1996,6 +1997,7 @@ function App() {
         // The other device's clock may be behind this one, so compare revisions
         // for equality instead of assuming timestamps always increase.
         if (remoteLastUpdated && typeof remoteLastUpdated === 'number' && remoteLastUpdated !== lastUpdated) {
+          if (!isCancelled) setDownloadStatus('checking');
           console.log(`Cloud state is newer (${remoteLastUpdated} > ${lastUpdated}). Fetching incrementally...`);
 
           const coreKeys = [
@@ -2008,7 +2010,7 @@ function App() {
           ];
 
           const fetchPromises = coreKeys.map(async (key) => {
-            const res = await fetch(`${CLOUD_APPSTATE_BASE_URL}/${key}.json`, { cache: 'no-store' });
+            const res = await fetch(`${CLOUD_APPSTATE_BASE_URL}/${key}.json`, { cache: 'no-store', signal: AbortSignal.timeout(20000) });
             if (!res.ok) throw new Error(`Failed to fetch ${key}: ${res.status}`);
             return { key, data: await res.json() };
           });
@@ -2128,6 +2130,9 @@ function App() {
             if (!result.success) throw new Error(result.error || 'Could not save cloud data locally');
           }
           setLastUpdated(remoteLastUpdated);
+          // Applying the downloaded state can restart this effect while the
+          // local save is in progress. Record success alongside the revision.
+          setDownloadStatus('current');
         }
         if (!isCancelled) setDownloadStatus(remoteLastUpdated ? 'current' : 'empty');
       } catch (err) {
@@ -5949,7 +5954,7 @@ function App() {
       <style>{customStyles}</style>
 
       {uploadStatus && (
-        <div dir="rtl" role="status" className={`fixed bottom-3 right-3 z-[80] rounded-xl px-3 py-2 shadow-lg text-sm font-arabic ${uploadStatus.error || downloadStatus === 'error' ? 'bg-red-100 text-red-800' : uploadStatus.hasPending || downloadStatus === 'checking' || downloadStatus === 'waiting' ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-800'}`}>
+        <div dir="rtl" role="status" className={`fixed bottom-3 right-3 z-[80] rounded-xl px-3 py-2 shadow-lg text-sm font-arabic opacity-30 hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200 ${uploadStatus.error || downloadStatus === 'error' ? 'bg-red-100 text-red-800' : uploadStatus.hasPending || downloadStatus === 'checking' || downloadStatus === 'waiting' ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-800'}`}>
           <div>
             {uploadStatus.error ? 'الرفع: تعذّر الاتصال، ستتم إعادة المحاولة' : uploadStatus.isSyncing ? 'الرفع: جاري رفع التعديلات…' : uploadStatus.hasPending ? 'الرفع: تعديلات بانتظار الرفع…' : 'الرفع: لا توجد تعديلات معلّقة'}
             {!uploadStatus.hasPending && uploadStatus.lastSuccessAt && <span> · آخر رفع {new Date(uploadStatus.lastSuccessAt).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}</span>}
