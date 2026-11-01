@@ -8148,7 +8148,9 @@ function App() {
               studentGroups.get(entry.studentId)!.days.push(entry);
             }
             const text = missedClassesMenu.academyName
-              ? Array.from(studentGroups.values(), group => `${group.name}\r\n${formatDays(group.days, 'ar')}\r\n\r\n${formatDays(group.days, 'en')}`).join('\r\n\r\n')
+              ? (['en', 'ar'] as const).map(language =>
+                Array.from(studentGroups.values(), group => `${group.name}\r\n${formatDays(group.days, language)}`).join('\r\n\r\n')
+              ).join('\r\n\r\n')
               : `${formatDays(sortedDays, 'ar')}\r\n\r\n${formatDays(sortedDays, 'en')}`;
             try {
               try {
