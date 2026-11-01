@@ -2420,8 +2420,8 @@ function App() {
     isOpen: boolean;
     x: number;
     y: number;
-    studentId: string;
-    categoryId?: string;
+    studentId?: string;
+    academyName?: string;
   } | null>(null);
 
   // Global Keyboard Shortcuts (T for Tajweed, E/Shift for Edit Mode)
@@ -5755,27 +5755,32 @@ function App() {
     return count;
   };
 
-  const getAbsenceBreakdown = (studentId: string) => {
-    const student = students.find(s => s.id === studentId);
-    if (!student) return null;
+  const getAbsenceBreakdown = (studentId?: string, academyName?: string) => {
+    const reportStudents = studentId ? students.filter(s => s.id === studentId) : (academyName ? groupedStudents[academyName] || [] : []);
+    if (studentId && !reportStudents.length) return null;
     const categories = [
-      { id: 'studentApology', label: 'اعتذار الطالب', statuses: [AttendanceStatus.ABSENCE_RED], days: [] as number[], count: 0 },
-      { id: 'studentAbsence', label: 'غياب الطالب', statuses: [AttendanceStatus.PAID_ABSENCE, AttendanceStatus.PAID_ABSENCE_DOUBLE], days: [] as number[], count: 0 },
-      { id: 'teacherApology', label: 'اعتذار المعلم', statuses: [AttendanceStatus.UNEXCUSED_ABSENCE], days: [] as number[], count: 0 },
+      { id: 'rescheduled', label: 'إعادة الجدولة', statuses: [AttendanceStatus.POSTPONED], days: [] as { day: number; studentName: string }[], count: 0 },
+      { id: 'studentApology', label: 'اعتذار الطالب', statuses: [AttendanceStatus.ABSENCE_RED], days: [] as { day: number; studentName: string }[], count: 0 },
+      { id: 'studentAbsence', label: 'غياب الطالب', statuses: [AttendanceStatus.PAID_ABSENCE, AttendanceStatus.PAID_ABSENCE_DOUBLE], days: [] as { day: number; studentName: string }[], count: 0 },
+      { id: 'teacherApology', label: 'اعتذار المعلم', statuses: [AttendanceStatus.UNEXCUSED_ABSENCE], days: [] as { day: number; studentName: string }[], count: 0 },
     ];
     let scheduled = 0;
-    const holidays = academyRates[student.academy]?.holidays || [];
-    for (let day = 1; day <= daysInMonth; day++) {
-      const status = attendance[`${studentId}_${day}_${month}_${year}`];
-      const scheduledCount = getScheduledCountOnDate(student, day);
-      if (!holidays.includes(getDayOfWeek(day)) && status !== AttendanceStatus.EXEMPT) scheduled += scheduledCount;
-      const category = categories.find(item => item.statuses.includes(status));
-      if (category) {
-        category.days.push(day);
-        category.count += status === AttendanceStatus.PAID_ABSENCE_DOUBLE ? 2 : Math.max(1, scheduledCount);
+    for (const student of reportStudents) {
+      const holidays = academyRates[student.academy]?.holidays || [];
+      for (let day = 1; day <= daysInMonth; day++) {
+        const status = attendance[`${student.id}_${day}_${month}_${year}`];
+        const scheduledCount = getScheduledCountOnDate(student, day);
+        if (!holidays.includes(getDayOfWeek(day)) && status !== AttendanceStatus.EXEMPT) scheduled += scheduledCount;
+        const category = categories.find(item => item.statuses.includes(status));
+        if (category) {
+          category.days.push({ day, studentName: student.name });
+          category.count += status === AttendanceStatus.PAID_ABSENCE_DOUBLE ? 2 : Math.max(1, scheduledCount);
+        }
       }
     }
-    return { categories, scheduled };
+    const studentMissed = categories[1].count + categories[2].count;
+    const commitment = scheduled ? Math.max(0, Math.round((scheduled - studentMissed) / scheduled * 1000) / 10) : null;
+    return { categories, scheduled, commitment };
   };
 
   useEffect(() => {
@@ -6707,10 +6712,24 @@ function App() {
                                 academy: academy
                               });
                             }}
-                            className={`inline-flex items-center gap-3 px-6 py-2 bg-white rounded-full shadow-sm border border-gray-100 text-2xl text-gray-800 select-none cursor-pointer hover:bg-gray-50 hover:shadow-md transition-all ${/[a-zA-Z]/.test(academy) ? 'font-english' : 'font-arabic'}`}
+                            className={`relative inline-flex items-center gap-3 px-6 py-2 bg-white rounded-full shadow-sm border border-gray-100 text-2xl text-gray-800 select-none cursor-pointer hover:bg-gray-50 hover:shadow-md transition-all ${/[a-zA-Z]/.test(academy) ? 'font-english' : 'font-arabic'}`}
                             onClick={() => setSelectedAcademyForDetails(academy)}
                           >
                             <span>{academy}</span>
+                            {showMissedCount && (
+                              <button type="button" title="نسب الأكاديمية" aria-label={`نسب الأكاديمية ${academy}`}
+                                className="absolute left-full ml-2 top-1/2 inline-flex items-center justify-center p-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-100 shadow-sm"
+                                style={{ animation: 'absenceIconAppear 0.3s ease-out both' }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const rect = e.currentTarget.getBoundingClientRect();
+                                  setMissedClassesMenu({ isOpen: true, academyName: academy,
+                                    x: Math.max(8, Math.min(rect.right - 256, window.innerWidth - 264)),
+                                    y: Math.max(8, Math.min(rect.bottom + 4, window.innerHeight - 320)) });
+                                }}>
+                                <Percent size={17} />
+                              </button>
+                            )}
                             {academyRates[academy]?.externalLink && (
                               <button
                                 type="button"
@@ -7587,7 +7606,7 @@ function App() {
               const rect = e.currentTarget.getBoundingClientRect();
               setMissedClassesMenu({ isOpen: true, studentId: row.studentId,
                 x: Math.max(8, Math.min(rect.right - 256, window.innerWidth - 264)),
-                y: Math.max(8, Math.min(rect.bottom + 4, window.innerHeight - 240)) });
+                y: Math.max(8, Math.min(rect.bottom + 4, window.innerHeight - 320)) });
             }}>
             <Percent size={17} />
           </button>
@@ -8107,11 +8126,49 @@ function App() {
       {/* Missed Classes Context Menu */}
       {
         missedClassesMenu && missedClassesMenu.isOpen && (() => {
-          const breakdown = getAbsenceBreakdown(missedClassesMenu.studentId);
+          const breakdown = getAbsenceBreakdown(missedClassesMenu.studentId, missedClassesMenu.academyName);
           if (!breakdown) return null;
+          const copyDays = async (category: typeof breakdown.categories[number]) => {
+            if (!category.days.length) {
+              showToast('لا توجد أيام لهذه الحالة');
+              return;
+            }
+            const sortedDays = [...category.days].sort((a, b) => a.day - b.day);
+            const formatDays = (language: 'ar' | 'en') => sortedDays.map(({ day, studentName }) => {
+              const date = new Date(year, month, day);
+              const dateLabel = language === 'ar'
+                ? `${DAYS_OF_WEEK[date.getDay()].name} ${day}/${month + 1}`
+                : date.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'short' });
+              return `• ${dateLabel}${missedClassesMenu.academyName ? ` — ${studentName}` : ''}`;
+            }).join('\r\n\r\n');
+            const text = `${formatDays('ar')}\r\n\r\n${formatDays('en')}`;
+            try {
+              try {
+                if (!navigator.clipboard?.writeText) throw new Error('Clipboard API unavailable');
+                await navigator.clipboard.writeText(text);
+              } catch {
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                textarea.style.position = 'fixed';
+                textarea.style.opacity = '0';
+                document.body.appendChild(textarea);
+                textarea.select();
+                try {
+                  if (!document.execCommand('copy')) throw new Error('Copy failed');
+                } finally {
+                  textarea.remove();
+                }
+              }
+              showToast('تم نسخ الأيام بالعربي والإنجليزي');
+              setMissedClassesMenu(null);
+            } catch {
+              showToast('تعذر نسخ الأيام');
+            }
+          };
           return (
           <div
             className="fixed z-[100] bg-white rounded-2xl shadow-xl border border-gray-100 p-2 w-64 context-menu" dir="rtl"
+            onClick={(event) => event.stopPropagation()}
             style={{
               top: missedClassesMenu.y,
               left: missedClassesMenu.x,
@@ -8125,48 +8182,22 @@ function App() {
               }
             `}</style>
             <p className="px-3 py-2 text-base font-normal text-red-500">من {toHindiDigits(breakdown.scheduled)} حصة مقررة في الشهر</p>
-            {missedClassesMenu.categoryId ? (() => {
-              const category = breakdown.categories.find(item => item.id === missedClassesMenu.categoryId);
-              if (!category) return null;
-              const copyDays = async (language: 'ar' | 'en') => {
-                if (!category.days.length) {
-                  showToast('لا توجد أيام لهذه الحالة');
-                  return;
-                }
-                const lines = category.days.map(day => {
-                  const date = new Date(year, month, day);
-                  return language === 'ar'
-                    ? `• ${DAYS_OF_WEEK[date.getDay()].name} ${day}/${month + 1}`
-                    : `• ${date.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'short' })}`;
-                });
-                try {
-                  await navigator.clipboard.writeText(lines.join('\r\n\r\n'));
-                  showToast('تم نسخ الأيام');
-                  setMissedClassesMenu(null);
-                } catch {
-                  showToast('تعذر نسخ الأيام');
-                }
-              };
-              return (
-                <div className="px-2 pb-2 text-lg font-normal">
-                  <button type="button" onClick={() => setMissedClassesMenu(current => current ? { ...current, categoryId: undefined } : null)}
-                    className="w-full text-right px-2 py-2 text-gray-600 hover:bg-gray-50 rounded-lg">‹ {category.label}</button>
-                  <button type="button" onClick={() => copyDays('ar')} className="w-full text-right px-2 py-2 text-blue-600 hover:bg-blue-50 rounded-lg">نسخ بالعربي</button>
-                  <button type="button" onClick={() => copyDays('en')} className="w-full text-right px-2 py-2 text-blue-600 hover:bg-blue-50 rounded-lg">Copy in English</button>
-                </div>
-              );
-            })() : breakdown.categories.map(category => {
+              {breakdown.categories.map(category => {
               const percent = breakdown.scheduled ? Math.round(category.count / breakdown.scheduled * 1000) / 10 : null;
               return (
                 <button key={category.id} type="button"
-                  onClick={() => setMissedClassesMenu(current => current ? { ...current, categoryId: category.id } : null)}
+                  onClick={() => copyDays(category)}
                   className="w-full flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-right text-lg font-normal text-gray-700 hover:bg-blue-50 transition-colors"
-                  title="اختر لغة نسخ الأيام">
+                  title="نسخ الأيام بالعربي والإنجليزي">
                   <span>{category.label}</span>
-                  <span className="font-normal text-blue-600" dir="ltr">{percent === null ? '—' : `${toHindiDigits(percent)}%`}</span>
+                  {category.id !== 'rescheduled' && <span className="font-normal text-blue-600" dir="ltr">{percent === null ? '—' : `${toHindiDigits(percent)}%`}</span>}
                 </button>
               );
-            })}
+              })}
+              <div className="flex items-center justify-between gap-3 border-t border-gray-100 px-3 py-2.5 text-lg font-normal text-gray-500 opacity-60">
+                <span>{missedClassesMenu.academyName ? 'التزام الطلاب' : 'التزام الطالب'}</span>
+                <span dir="ltr">{breakdown.commitment === null ? '—' : `${toHindiDigits(breakdown.commitment)}%`}</span>
+              </div>
           </div>
           );
         })()
