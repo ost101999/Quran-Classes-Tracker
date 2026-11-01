@@ -2166,6 +2166,13 @@ function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isMonthlyStatsOpen, setIsMonthlyStatsOpen] = useState(false);
   const [isLastMonthStatsOpen, setIsLastMonthStatsOpen] = useState(false);
+  const [statsPeriod, setStatsPeriod] = useState({ month, year });
+  const navigateStatsMonth = (offset: number) => {
+    setStatsPeriod(current => {
+      const date = new Date(current.year, current.month + offset, 1);
+      return { month: date.getMonth(), year: date.getFullYear() };
+    });
+  };
 
 
   const [actionConfigModal, setActionConfigModal] = useState<{
@@ -6520,7 +6527,7 @@ function App() {
             </div>
 
             <button
-              onClick={() => setIsMonthlyStatsOpen(true)}
+              onClick={() => { setStatsPeriod({ month, year }); setIsMonthlyStatsOpen(true); }}
               className="h-10 px-5 bg-[#ffe05d] text-gray-900 rounded-xl flex items-center gap-2 shadow-sm hover:bg-[#fcd030] hover:shadow-md transition-all font-arabic font-bold text-lg"
               title="إحصائيات الشهر"
             >
@@ -6529,7 +6536,7 @@ function App() {
             </button>
 
             <button
-              onClick={() => setIsLastMonthStatsOpen(true)}
+              onClick={() => { const date = new Date(year, month - 1, 1); setStatsPeriod({ month: date.getMonth(), year: date.getFullYear() }); setIsLastMonthStatsOpen(true); }}
               className="h-10 px-5 bg-indigo-50 text-indigo-600 border border-indigo-100 rounded-xl flex items-center gap-2 shadow-sm hover:bg-indigo-100 hover:shadow-md transition-all font-arabic font-bold text-lg"
               title="إحصائيات الشهر الماضي"
             >
@@ -7789,10 +7796,12 @@ function App() {
       {
         isMonthlyStatsOpen && (
           <MonthlyStatsModal
+            key={`${statsPeriod.month}_${statsPeriod.year}`}
+            onNavigateMonth={navigateStatsMonth}
             students={students}
             attendance={attendance}
-            month={month}
-            year={year}
+            month={statsPeriod.month}
+            year={statsPeriod.year}
             usdRate={usdRate}
             onClose={() => setIsMonthlyStatsOpen(false)}
             academyRates={academyRates}
@@ -7800,13 +7809,13 @@ function App() {
             onTogglePayment={togglePaymentStatus}
             showPaymentToggles={true}
             initialObligations={(() => {
-              const key = `${month}_${year}`;
+              const key = `${statsPeriod.month}_${statsPeriod.year}`;
               if (monthlyObligations[key] !== undefined) return monthlyObligations[key];
 
               // Sticky Logic: Find most recent past obligation
               // Limit search to 24 months back
-              let pMonth = month - 1;
-              let pYear = year;
+              let pMonth = statsPeriod.month - 1;
+              let pYear = statsPeriod.year;
 
               for (let i = 0; i < 24; i++) {
                 if (pMonth < 0) {
@@ -7822,7 +7831,7 @@ function App() {
             onSaveObligations={(amount) => {
               setMonthlyObligations(prev => ({
                 ...prev,
-                [`${month}_${year}`]: amount
+                [`${statsPeriod.month}_${statsPeriod.year}`]: amount
               }));
             }}
           />
@@ -7831,14 +7840,12 @@ function App() {
 
       {
         isLastMonthStatsOpen && (() => {
-          let prevMonth = month - 1;
-          let prevYear = year;
-          if (prevMonth < 0) {
-            prevMonth = 11;
-            prevYear--;
-          }
+          const prevMonth = statsPeriod.month;
+          const prevYear = statsPeriod.year;
           return (
             <MonthlyStatsModal
+              key={`${statsPeriod.month}_${statsPeriod.year}`}
+              onNavigateMonth={navigateStatsMonth}
               students={students}
               attendance={attendance}
               month={prevMonth}

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, TrendingUp, Calendar, DollarSign, Wallet, ChevronDown, ChevronUp, Save } from 'lucide-react';
+import { X, TrendingUp, Calendar, DollarSign, Wallet, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Save } from 'lucide-react';
 import { Student, AttendanceRecord, AttendanceStatus } from '../types';
 
 interface Props {
@@ -9,6 +9,7 @@ interface Props {
     year: number;
     usdRate: number;
     onClose: () => void;
+    onNavigateMonth: (offset: number) => void;
     initialObligations: number;
     onSaveObligations: (amount: number) => void;
     paymentStatus?: Record<string, boolean>;
@@ -54,7 +55,7 @@ const MONTHS = [
     'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
 ];
 
-const MonthlyStatsModal: React.FC<Props> = ({ students, attendance, month, year, usdRate, onClose, academyRates, initialObligations, onSaveObligations, paymentStatus, onTogglePayment, showPaymentToggles }) => {
+const MonthlyStatsModal: React.FC<Props> = ({ students, attendance, month, year, usdRate, onClose, onNavigateMonth, academyRates, initialObligations, onSaveObligations, paymentStatus, onTogglePayment, showPaymentToggles }) => {
     const [showEgpDetails, setShowEgpDetails] = useState(false);
     const [showUsdDetails, setShowUsdDetails] = useState(false);
     const [obligations, setObligations] = useState<string>(initialObligations ? initialObligations.toLocaleString('en-US') : '');
@@ -337,7 +338,11 @@ const MonthlyStatsModal: React.FC<Props> = ({ students, attendance, month, year,
                     >
                         <X size={24} />
                     </button>
-                    <h2 className="text-3xl font-bold text-gray-800">إحصائيات {MONTHS[month]} {toHindiDigits(year)}</h2>
+                    <div className="flex items-center justify-center gap-1 sm:gap-3 pl-8">
+                        <button type="button" onClick={() => onNavigateMonth(1)} aria-label="الشهر التالي" title="الشهر التالي" className="p-2 rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-800 transition-colors"><ChevronRight size={22} /></button>
+                        <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 whitespace-nowrap">إحصائيات {MONTHS[month]} {toHindiDigits(year)}</h2>
+                        <button type="button" onClick={() => onNavigateMonth(-1)} aria-label="الشهر السابق" title="الشهر السابق" className="p-2 rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-800 transition-colors"><ChevronLeft size={22} /></button>
+                    </div>
                 </div>
 
                 {/* Content */}
