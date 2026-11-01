@@ -1,3 +1,4 @@
+import { formatAttendanceDays } from './reportAttendanceDays';
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Calendar, Clock, Copy, Check, Wallet, FileText, AlignLeft, DollarSign, ChevronRight, ChevronLeft, Trash2, Edit2, ShieldAlert, ExternalLink, RotateCcw, Users, Image as ImageIcon } from 'lucide-react';
 import { Student, AttendanceRecord, AttendanceStatus } from '../types';
@@ -90,6 +91,7 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
     const [includeBreakdown, setIncludeBreakdown] = useState(false);
     const [showCopyMenu, setShowCopyMenu] = useState(false);
     const [textSelectMode, setTextSelectMode] = useState(false);
+    const [attendanceDetail, setAttendanceDetail] = useState<boolean | null>(null);
     const [imageSelectMode, setImageSelectMode] = useState(false);
     const [paypalSelectMode, setPaypalSelectMode] = useState(false);
     const [reportLanguage, setReportLanguage] = useState<'ar' | 'en'>(/[a-zA-Z]/.test(academyName) ? 'en' : 'ar');
@@ -325,6 +327,7 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
                     lines.push(`🔹 *${student.name.trim()}*`);
                     lines.push(`   ${toHindiDigits(formattedHours)} ${getHoursPlural(studentHours)}  |  ${toHindiDigits(studentClasses)} ${getSessionsPlural(studentClasses)}`);
                 }
+                if (attendanceDetail) lines.push(`   ${formatAttendanceDays(student, attendance, month, year, isEnglish, academyRate?.billingStartDay || 1)}`);
                 lines.push('');
             }
         });
@@ -641,7 +644,7 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
 
                     <div className="absolute right-6 top-1/2 -translate-y-1/2">
                         <button
-                            onClick={() => setShowCopyMenu(!showCopyMenu)}
+                            onClick={() => { setShowCopyMenu(!showCopyMenu); setTextSelectMode(false); setImageSelectMode(false); setPaypalSelectMode(false); setAttendanceDetail(null); }}
                             className={`p-2 rounded-full transition-all duration-300 ${isCopying ? 'bg-emerald-50 text-emerald-500 scale-110' : 'hover:bg-blue-50 text-blue-600 hover:scale-110 active:scale-95'
                                 }`}
                             title={isEnglish ? 'Copy Academy Report' : 'نسخ تقرير الأكاديمية'}
@@ -652,7 +655,7 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
                         {/* Copy Menu Dropdown */}
                         {showCopyMenu && (
                             <>
-                                <div className="fixed inset-0 z-[100]" onClick={() => { setShowCopyMenu(false); setTextSelectMode(false); setImageSelectMode(false); }} />
+                                <div className="fixed inset-0 z-[100]" onClick={() => { setShowCopyMenu(false); setTextSelectMode(false); setImageSelectMode(false); setPaypalSelectMode(false); setAttendanceDetail(null); }} />
                                 <div className="absolute right-0 mt-3 w-64 bg-white/90 backdrop-blur-xl rounded-[24px] shadow-[0_20px_50px_rgba(0,0,0,0.15)] border border-white/40 p-2 z-[110] animate-in fade-in zoom-in-95 slide-in-from-top-2 duration-200 origin-top-right">
                                     <div className="flex flex-col gap-1">
 
@@ -671,7 +674,7 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
                                                 </div>
 
                                                 <button
-                                                    onClick={() => setTextSelectMode(true)}
+                                                    onClick={() => { setAttendanceDetail(null); setTextSelectMode(true); }}
                                                     className="w-full flex items-center justify-between px-4 py-4 hover:bg-emerald-600 group transition-all duration-300 rounded-[18px] text-right"
                                                 >
                                                     <div className="flex items-center gap-4">
@@ -752,6 +755,29 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
                                                     </div>
                                                 </button>
                                             </>
+                                        ) : attendanceDetail === null ? (
+                                            <>
+                                                <div className="flex items-center px-2 pb-2 mb-1 border-b border-gray-100/50">
+                                                    <button onClick={() => setTextSelectMode(false)} className="p-2 hover:bg-gray-100 rounded-full text-gray-400 hover:text-gray-600"><ChevronRight size={20} /></button>
+                                                    <span className="flex-1 text-center text-gray-400 text-sm">خيارات الحضور</span>
+                                                    <div className="w-9" />
+                                                </div>
+                                                <button onClick={() => setAttendanceDetail(false)} className="w-full flex items-center justify-between px-4 py-4 hover:bg-emerald-600 group transition-all duration-300 rounded-[18px] text-right">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center group-hover:bg-white/20 group-hover:text-white transition-all duration-300"><AlignLeft size={22} strokeWidth={2.2} /></div>
+                                                        <span className="text-gray-600 group-hover:text-white font-normal text-xl font-arabic leading-relaxed whitespace-nowrap">إيجاز أيام الحضور</span>
+                                                    </div>
+                                                    <ChevronLeft size={20} className="text-gray-300 group-hover:text-white/70 transition-colors" />
+                                                </button>
+                                                <div className="h-px bg-gray-100/50 mx-4 my-1" />
+                                                <button onClick={() => setAttendanceDetail(true)} className="w-full flex items-center justify-between px-4 py-4 hover:bg-emerald-600 group transition-all duration-300 rounded-[18px] text-right">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center group-hover:bg-white/20 group-hover:text-white transition-all duration-300"><Calendar size={22} strokeWidth={2.2} /></div>
+                                                        <span className="text-gray-600 group-hover:text-white font-normal text-xl font-arabic leading-relaxed whitespace-nowrap">تفصيل أيام الحضور</span>
+                                                    </div>
+                                                    <ChevronLeft size={20} className="text-gray-300 group-hover:text-white/70 transition-colors" />
+                                                </button>
+                                            </>
                                         ) : paypalSelectMode ? (
                                             <>
                                                 <div className="flex items-center px-2 pb-2 mb-1 border-b border-gray-100/50">
@@ -795,7 +821,7 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
                                             <>
                                                 <div className="flex items-center px-2 pb-2 mb-1 border-b border-gray-100/50">
                                                     <button
-                                                        onClick={() => setTextSelectMode(false)}
+                                                        onClick={() => setAttendanceDetail(null)}
                                                         className="p-2 hover:bg-gray-100 rounded-full text-gray-400 hover:text-gray-600 transition-colors"
                                                     >
                                                         <ChevronRight size={20} />
