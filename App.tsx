@@ -6671,7 +6671,7 @@ function App() {
 
         <div
           ref={tableScrollRef}
-          className={`bg-white rounded-3xl relative z-10 shadow-[0_8px_30px_-12px_rgba(0,0,0,0.1),0_-8px_30px_-12px_rgba(0,0,0,0.1)] group/table-container w-full overflow-x-auto ${isTableScrolled ? 'is-table-scrolled' : ''}`}
+          className={`bg-white rounded-3xl relative z-10 shadow-[0_8px_30px_-12px_rgba(0,0,0,0.1),0_-8px_30px_-12px_rgba(0,0,0,0.1)] group/table-container w-full overflow-x-auto overflow-y-hidden ${isTableScrolled ? 'is-table-scrolled' : ''}`}
           onScroll={(e) => {
             if (stickyHeaderRef.current) {
               stickyHeaderRef.current.scrollLeft = e.currentTarget.scrollLeft;
