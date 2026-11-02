@@ -6534,8 +6534,9 @@ function App() {
                       <th
                         key={dayNum}
                         id={isToday ? 'today-column' : undefined}
-                        className={`p-3 min-w-[70px] antialiased relative`}
+                        className={`p-3 min-w-[70px] antialiased relative transition-opacity duration-200`}
                         style={{
+                          opacity: activePendingDay !== null && activePendingDay !== dayNum ? 0.35 : 1,
                           backgroundColor: isToday ? 'rgba(255, 224, 93, 0.4)' : isWknd ? 'rgba(129, 255, 234, 0.1)' : 'transparent'
                         }}
                       >
@@ -7350,6 +7351,7 @@ function App() {
                                       group/cell
                                       ${hasActiveLinks ? 'relative' : ''}
                                   `}
+                                    style={{ opacity: activePendingDay !== null && activePendingDay !== dayNum ? 0.3 : 1 }}
                                   >
                                     {/* Connecting Line - Curved Approach - MultiLine with Stable Lanes */}
                                     {showMakeupLines && activeLinks.map((link) => {
@@ -8285,6 +8287,7 @@ function App() {
         daysInMonth={daysInMonth}
         dayOff={dayOff}
         today={today}
+        activePendingDay={activePendingDay}
         toHindiDigits={toHindiDigits}
         getDayOfWeek={getDayOfWeek}
         getRemainingClasses={getRemainingClasses}
@@ -17333,12 +17336,13 @@ const StickyHeader = React.forwardRef<HTMLDivElement, {
   daysInMonth: number;
   dayOff: number;
   today: { day: number; month: number; year: number };
+  activePendingDay: number | null;
   toHindiDigits: (n: number | string) => string;
   getDayOfWeek: (d: number) => number;
   getRemainingClasses: (dayNum: number) => number;
   getRemainingClassesInfo?: (dayNum: number) => { count: number; totalMinutes: number; hours: number };
   togglePendingFilter: (dayNum: number) => void;
-}>(({ show, isTableLoading, studentWidth, tableWidth, month, year, daysInMonth, dayOff, today, toHindiDigits, getDayOfWeek, getRemainingClasses, getRemainingClassesInfo, togglePendingFilter }, ref) => {
+}>(({ show, isTableLoading, studentWidth, tableWidth, month, year, daysInMonth, dayOff, today, activePendingDay, toHindiDigits, getDayOfWeek, getRemainingClasses, getRemainingClassesInfo, togglePendingFilter }, ref) => {
   const isWeekend = (day: number) => getDayOfWeek(day) === dayOff;
   const isTodayColumn = (dayNum: number) => {
     return month === today.month && year === today.year && dayNum === today.day;
@@ -17382,8 +17386,9 @@ const StickyHeader = React.forwardRef<HTMLDivElement, {
                   return (
                     <th
                       key={dayNum}
-                      className={`p-3 min-w-[70px] antialiased relative`}
+                      className={`p-3 min-w-[70px] antialiased relative transition-opacity duration-200`}
                       style={{
+                        opacity: activePendingDay !== null && activePendingDay !== dayNum ? 0.35 : 1,
                         backgroundColor: isToday ? 'rgba(255, 224, 93, 0.4)' : isWknd ? 'rgba(129, 255, 234, 0.1)' : 'transparent'
                       }}
                     >
