@@ -524,6 +524,7 @@ function App() {
   const [dayTransitionTime, setDayTransitionTime] = useState<string>('00:00');
 
   const [selectedAcademy, setSelectedAcademy] = useState<string | null>(null);
+  const [pendingFilter, setPendingFilter] = useState<{ day: number; month: number; year: number } | null>(null);
   const [showMakeupLines, setShowMakeupLines] = useState<boolean>(true);
   const [showMissedCount, setShowMissedCount] = useState<boolean>(false);
   const tableScrollRef = useRef<HTMLDivElement>(null);
@@ -5788,152 +5789,66 @@ function App() {
     }
   };
 
+  // Use the same eligibility rules for the counter and the filtered table.
+  const isPendingClass = useCallback((student: Student, dayNum: number) => {
+    if (student.deletedAt && (year > student.deletedAt.year ||
+      (year === student.deletedAt.year && month >= student.deletedAt.month))) return false;
+
+    const dayOfWeek = getDayOfWeek(dayNum);
+    const status = attendance[`${student.id}_${dayNum}_${month}_${year}`];
+    const isHoliday = (academyRates[student.academy]?.holidays || []).includes(dayOfWeek);
+    const isDone = [
+      AttendanceStatus.PRESENT,
+      AttendanceStatus.PAID_ABSENCE,
+      AttendanceStatus.PAID_ABSENCE_DOUBLE,
+      AttendanceStatus.POSTPONED,
+      AttendanceStatus.UNEXCUSED_ABSENCE,
+      AttendanceStatus.ABSENCE_RED,
+      AttendanceStatus.DOUBLE_CLASS,
+      AttendanceStatus.TRANSFERRED,
+      AttendanceStatus.TRANSFERRED_ABSENT
+    ].includes(status as AttendanceStatus);
+    const isPending = status !== AttendanceStatus.EXEMPT && !isDone;
+    const isMakeupTarget = makeupLinks.some(l =>
+      l.studentId === student.id && l.makeupDay === dayNum && l.month === month && l.year === year
+    );
+
+    return status === AttendanceStatus.EXTRA_DAY || status === AttendanceStatus.EXTRA_DOUBLE ||
+      (isScheduledOnDate(student, dayNum) && !isHoliday && isPending) || (isMakeupTarget && isPending);
+  }, [year, month, getDayOfWeek, attendance, academyRates, makeupLinks, isScheduledOnDate]);
+
   const getRemainingClassesInfo = useCallback((dayNum: number) => {
     let count = 0;
     let totalMinutes = 0;
-    const dayOfWeek = getDayOfWeek(dayNum);
-
     students.forEach(student => {
-      // 1. Check if student is active this month
-      if (student.deletedAt) {
-        if (year > student.deletedAt.year) return;
-        if (year === student.deletedAt.year && month >= student.deletedAt.month) return;
+      if (!isPendingClass(student, dayNum)) return;
+      const status = attendance[`${student.id}_${dayNum}_${month}_${year}`];
+      const scheduledCount = getScheduledCountOnDate(student, dayNum);
+      const multiplier = status === AttendanceStatus.EXTRA_DOUBLE ? 2 : (scheduledCount > 1 ? scheduledCount : 1);
+      count += multiplier;
+
+      let durationMins = 30;
+      if (student.duration && student.duration !== 'خليط') {
+        const westernStr = student.duration.toString().replace(/[٠-٩]/g, d => "٠١٢٣٤٥٦٧٨٩".indexOf(d).toString()).trim();
+        const parsed = parseInt(westernStr, 10);
+        if (!isNaN(parsed) && parsed > 0) durationMins = parsed;
       }
-
-      const key = `${student.id}_${dayNum}_${month}_${year}`;
-      const status = attendance[key];
-
-      const academyHolidays = academyRates[student.academy]?.holidays || [];
-      const isHoliday = academyHolidays.includes(dayOfWeek);
-      const isScheduled = isScheduledOnDate(student, dayNum);
-
-      const isExempt = status === AttendanceStatus.EXEMPT;
-      const isDone = [
-        AttendanceStatus.PRESENT,
-        AttendanceStatus.PAID_ABSENCE,
-        AttendanceStatus.PAID_ABSENCE_DOUBLE,
-        AttendanceStatus.POSTPONED,
-        AttendanceStatus.UNEXCUSED_ABSENCE,
-        AttendanceStatus.ABSENCE_RED,
-        AttendanceStatus.DOUBLE_CLASS,
-        AttendanceStatus.TRANSFERRED,
-        AttendanceStatus.TRANSFERRED_ABSENT
-      ].includes(status as AttendanceStatus);
-
-      const isPending = !isExempt && !isDone;
-
-      const isMakeupTarget = makeupLinks.some(l =>
-        l.studentId === student.id &&
-        l.makeupDay === dayNum &&
-        l.month === month &&
-        l.year === year
-      );
-
-      if (
-        status === AttendanceStatus.EXTRA_DAY ||
-        status === AttendanceStatus.EXTRA_DOUBLE ||
-        (isScheduled && !isHoliday && isPending) ||
-        (isMakeupTarget && isPending)
-      ) {
-        const scheduledCount = getScheduledCountOnDate(student, dayNum);
-        const multiplier = status === AttendanceStatus.EXTRA_DOUBLE ? 2 : (scheduledCount > 1 ? scheduledCount : 1);
-        count += multiplier;
-
-        let durationMins = 30;
-        if (student.duration && student.duration !== 'خليط') {
-          const westernStr = student.duration.toString().replace(/[٠-٩]/g, d => "٠١٢٣٤٥٦٧٨٩".indexOf(d).toString()).trim();
-          const parsed = parseInt(westernStr, 10);
-          if (!isNaN(parsed) && parsed > 0) durationMins = parsed;
-        }
-        totalMinutes += durationMins * multiplier;
-      }
+      totalMinutes += durationMins * multiplier;
     });
-
-    const rawHours = totalMinutes / 60;
-    const hours = Math.round(rawHours * 100) / 100;
-
-    return { count, totalMinutes, hours };
-  }, [getDayOfWeek, students, year, month, attendance, academyRates, isScheduledOnDate, makeupLinks, getScheduledCountOnDate]);
+    return { count, totalMinutes, hours: Math.round(totalMinutes / 60 * 100) / 100 };
+  }, [students, isPendingClass, attendance, month, year, getScheduledCountOnDate]);
 
   const getRemainingClasses = useCallback((dayNum: number) => {
     return getRemainingClassesInfo(dayNum).count;
   }, [getRemainingClassesInfo]);
 
-  const scrollToFirstPending = (dayNum: number) => {
-    const dayOfWeek = getDayOfWeek(dayNum);
-    // Find the first student in the visual order that has a pending class
+  useEffect(() => {
+    setPendingFilter(null);
+  }, [month, year]);
 
-    // Flatten the grouped students to respect the visual order (Academy Order -> Student Order)
-    const allStudentsOrdered = sortedAcademies.flatMap(academy => groupedStudents[academy] || []);
-
-    for (const student of allStudentsOrdered) {
-      // Check eligibility (copy of logic from getRemainingClasses)
-      if (student.deletedAt) {
-        if (year > student.deletedAt.year) continue;
-        if (year === student.deletedAt.year && month >= student.deletedAt.month) continue;
-      }
-
-
-
-      const key = `${student.id}_${dayNum}_${month}_${year}`;
-      const status = attendance[key];
-      const academyHolidays = academyRates[student.academy]?.holidays || [];
-      const isHoliday = academyHolidays.includes(dayOfWeek);
-      const isScheduled = isScheduledOnDate(student, dayNum);
-
-      const isExempt = status === AttendanceStatus.EXEMPT;
-      const isDone = [
-        AttendanceStatus.PRESENT,
-        AttendanceStatus.PAID_ABSENCE,
-        AttendanceStatus.PAID_ABSENCE_DOUBLE,
-        AttendanceStatus.POSTPONED,
-        AttendanceStatus.UNEXCUSED_ABSENCE,
-        AttendanceStatus.ABSENCE_RED,
-        AttendanceStatus.DOUBLE_CLASS,
-        AttendanceStatus.TRANSFERRED,
-        AttendanceStatus.TRANSFERRED_ABSENT
-      ].includes(status as AttendanceStatus);
-
-      const isPending = !isExempt && !isDone;
-
-      const isMakeupTarget = makeupLinks.some(l =>
-        l.studentId === student.id &&
-        l.makeupDay === dayNum &&
-        l.month === month &&
-        l.year === year
-      );
-
-      if (
-        status === AttendanceStatus.EXTRA_DAY ||
-        status === AttendanceStatus.EXTRA_DOUBLE ||
-        (isScheduled && !isHoliday && isPending) ||
-        (isMakeupTarget && isPending)
-      ) {
-        // Found the first pending one!
-        const element = document.getElementById(`cell-${student.id}-${dayNum}`);
-        if (element) {
-          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-          // Target the circle div inside the cell
-          const circle = element.querySelector('.js-cell-circle');
-          if (circle) {
-            const originalBoxShadow = circle.style.boxShadow; // Keep inline style if any (usually empty)
-            const originalBorderColor = circle.style.borderColor;
-
-            circle.style.transition = 'box-shadow 0.3s ease, border-color 0.3s ease';
-            // Overwrite existing shadow (hiding the ring) and ensure no border shows
-            circle.style.boxShadow = '0 0 8px 1px rgba(239, 68, 68, 0.6)';
-            circle.style.borderColor = 'transparent';
-
-            setTimeout(() => {
-              circle.style.boxShadow = originalBoxShadow;
-              circle.style.borderColor = originalBorderColor;
-            }, 1000);
-          }
-        }
-        return;
-      }
-    }
+  const activePendingDay = pendingFilter?.month === month && pendingFilter.year === year ? pendingFilter.day : null;
+  const togglePendingFilter = (dayNum: number) => {
+    setPendingFilter(activePendingDay === dayNum ? null : { day: dayNum, month, year });
   };
 
   // Fixed widths for sticky columns
@@ -6537,6 +6452,14 @@ function App() {
         className="px-12 pb-6 pt-10 min-h-[calc(100vh-100px)] relative"
       >
 
+        {activePendingDay !== null && (
+          <div className="mb-4 flex flex-wrap items-center justify-center gap-3 font-arabic text-lg text-amber-900" role="status">
+            <span>عرض الحصص المتبقية ليوم {toHindiDigits(activePendingDay)} {MONTHS[month]} {toHindiDigits(year)}</span>
+            <button type="button" onClick={() => setPendingFilter(null)} className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-1 hover:bg-amber-100">
+              عرض كل الطلاب
+            </button>
+          </div>
+        )}
         <div
           ref={tableScrollRef}
           className={`bg-white rounded-3xl relative z-10 shadow-[0_8px_30px_-12px_rgba(0,0,0,0.1),0_-8px_30px_-12px_rgba(0,0,0,0.1)] group/table-container w-full overflow-x-auto ${isTableScrolled ? 'is-table-scrolled' : ''}`}
@@ -6618,9 +6541,9 @@ function App() {
                       >
                         {remainingInfo.count > 0 && (
                           <div
-                            onClick={(e) => { e.stopPropagation(); scrollToFirstPending(dayNum); }}
+                            onClick={(e) => { e.stopPropagation(); togglePendingFilter(dayNum); }}
                             className={`absolute -top-14 left-1/2 -translate-x-1/2 flex flex-col items-center justify-center gap-1 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-full shadow-md border border-amber-200/80 z-20 transition-all duration-300 cursor-pointer hover:scale-110 active:scale-95 ${isToday ? 'opacity-100' : 'opacity-0 group-hover/header:opacity-100 translate-y-2 group-hover/header:translate-y-0'}`}
-                            title={`انقر للذهاب لأول حصة متبقية (${toHindiDigits(remainingInfo.count)} حصص | ${toHindiDigits(remainingInfo.hours)} ساعة)`}
+                            title={`انقر لعرض الحصص المتبقية (${toHindiDigits(remainingInfo.count)} حصص | ${toHindiDigits(remainingInfo.hours)} ساعة)`}
                           >
                             <span className="text-amber-700 text-[0.95rem] font-bold font-arabic leading-none">{toHindiDigits(remainingInfo.hours)}<span className="text-[0.6rem] text-amber-600/90 font-medium mr-0.5">س</span></span>
                             <span className="text-[#ff7a00] text-[1.05rem] font-bold font-arabic drop-shadow-sm leading-none">{toHindiDigits(remainingInfo.count)}</span>
@@ -6663,9 +6586,13 @@ function App() {
                   </tr>
                 )}
 
+                {activePendingDay !== null && getRemainingClasses(activePendingDay) === 0 && (
+                  <tr><td colSpan={daysInMonth + 1} className="py-12 text-center font-arabic text-xl text-gray-500">لا توجد حصص متبقية لهذا اليوم.</td></tr>
+                )}
+
                 {sortedAcademies.map(academy => {
                   const academyStudents = groupedStudents[academy] || [];
-                  const allHiddenBySearch = searchQuery.trim() !== '' && academyStudents.every(s => !searchMatches(s.name));
+                  const allHiddenBySearch = academyStudents.every(s => (searchQuery.trim() !== '' && !searchMatches(s.name)) || (activePendingDay !== null && !isPendingClass(s, activePendingDay))) && (searchQuery.trim() !== '' || activePendingDay !== null);
                   return (
                     <React.Fragment key={academy}>
                       {/* Section Header */}
@@ -6780,7 +6707,7 @@ function App() {
                           }
                         }
 
-                        const isSearchHidden = searchQuery.trim() !== '' && !searchMatches(student.name);
+                        const isSearchHidden = (searchQuery.trim() !== '' && !searchMatches(student.name)) || (activePendingDay !== null && !isPendingClass(student, activePendingDay));
                         return (
                           <tr
                             key={student.id}
@@ -8362,7 +8289,7 @@ function App() {
         getDayOfWeek={getDayOfWeek}
         getRemainingClasses={getRemainingClasses}
         getRemainingClassesInfo={getRemainingClassesInfo}
-        scrollToFirstPending={scrollToFirstPending}
+        togglePendingFilter={togglePendingFilter}
       />
 
       {/* Smart Report Modal */}
@@ -17410,8 +17337,8 @@ const StickyHeader = React.forwardRef<HTMLDivElement, {
   getDayOfWeek: (d: number) => number;
   getRemainingClasses: (dayNum: number) => number;
   getRemainingClassesInfo?: (dayNum: number) => { count: number; totalMinutes: number; hours: number };
-  scrollToFirstPending: (dayNum: number) => void;
-}>(({ show, isTableLoading, studentWidth, tableWidth, month, year, daysInMonth, dayOff, today, toHindiDigits, getDayOfWeek, getRemainingClasses, getRemainingClassesInfo, scrollToFirstPending }, ref) => {
+  togglePendingFilter: (dayNum: number) => void;
+}>(({ show, isTableLoading, studentWidth, tableWidth, month, year, daysInMonth, dayOff, today, toHindiDigits, getDayOfWeek, getRemainingClasses, getRemainingClassesInfo, togglePendingFilter }, ref) => {
   const isWeekend = (day: number) => getDayOfWeek(day) === dayOff;
   const isTodayColumn = (dayNum: number) => {
     return month === today.month && year === today.year && dayNum === today.day;
@@ -17462,9 +17389,9 @@ const StickyHeader = React.forwardRef<HTMLDivElement, {
                     >
                       {info.count > 0 && (
                         <div
-                          onClick={(e) => { e.stopPropagation(); scrollToFirstPending(dayNum); }}
+                          onClick={(e) => { e.stopPropagation(); togglePendingFilter(dayNum); }}
                           className={`absolute -top-14 left-1/2 -translate-x-1/2 flex flex-col items-center justify-center gap-1 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-full shadow-md border border-amber-200/80 z-20 transition-all duration-300 cursor-pointer hover:scale-110 active:scale-95 pointer-events-auto ${isToday ? 'opacity-100' : 'opacity-0 group-hover/header:opacity-100 translate-y-2 group-hover/header:translate-y-0'}`}
-                          title={`انقر للذهاب لأول حصة متبقية (${toHindiDigits(info.count)} حصص | ${toHindiDigits(info.hours)} ساعة)`}
+                          title={`انقر لعرض الحصص المتبقية (${toHindiDigits(info.count)} حصص | ${toHindiDigits(info.hours)} ساعة)`}
                         >
                           <span className="text-amber-700 text-[0.95rem] font-bold font-arabic leading-none">{toHindiDigits(info.hours)}<span className="text-[0.6rem] text-amber-600/90 font-medium mr-0.5">س</span></span>
                           <span className="text-[#ff7a00] text-[1.05rem] font-bold font-arabic drop-shadow-sm leading-none">{toHindiDigits(info.count)}</span>
