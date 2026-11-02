@@ -26,6 +26,7 @@ export interface MakeupLink {
 export interface AcademyRate {
   rate: number;
   currency: string;
+  isArchived?: boolean;
   deductedMinutes?: number;
   monthlyDeductions?: Record<string, number>;
   billingStartDay?: number;

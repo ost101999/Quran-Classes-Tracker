@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { Settings, Plus, Download, Upload, Trash2, Calendar, ArrowLeft, ArrowRight, ChevronDown, ChevronUp, Link, History, Clock, Users2, Banknote, BarChart3, Minus, Pin, Phone, MessageCircle, Copy, UserX, UserCheck, Shield, Wand2, Check, ArrowDown, Repeat, Eye, EyeOff, Bell, X } from 'lucide-react';
+import { Settings, Plus, Download, Upload, Trash2, Archive, ArchiveRestore, Calendar, ArrowLeft, ArrowRight, ChevronDown, ChevronUp, Link, History, Clock, Users2, Banknote, BarChart3, Minus, Pin, Phone, MessageCircle, Copy, UserX, UserCheck, Shield, Wand2, Check, ArrowDown, Repeat, Eye, EyeOff, Bell, X } from 'lucide-react';
 
 // Custom animation styles
 const customStyles = `
@@ -29,8 +29,14 @@ const customStyles = `
   @keyframes filtered-row-out { from { opacity: 1; } to { opacity: 0; } }
   .filtered-row-entering { animation: filtered-row-in 280ms ease-out both; }
   .filtered-row-exiting { animation: filtered-row-out 280ms ease-in both; pointer-events: none; }
+  @keyframes academy-menu-in {
+    from { opacity: 0; transform: translateY(-7px) scale(.97); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .academy-menu-opening { animation: academy-menu-in 220ms ease-out; }
   @media (prefers-reduced-motion: reduce) {
     .filtered-row-entering, .filtered-row-exiting { animation-duration: 1ms; }
+    .academy-menu-opening { animation: none; }
   }
   /* Ensure sticky student name column is transparent normally, but becomes solid when scrolled */
   tr.row-hover-tr td.student-name-sticky {
@@ -502,7 +508,7 @@ function App() {
   const [year, setYear] = useState<number>(new Date().getFullYear());
   const [dayOff, setDayOff] = useState<number>(5);
   const [academyOrder, setAcademyOrder] = useState<string[]>([]);
-  const [academyRates, setAcademyRates] = useState<Record<string, { rate: number; currency: string }>>({});
+  const [academyRates, setAcademyRates] = useState<Record<string, { rate: number; currency: string; isArchived?: boolean }>>({});
   const [monthlyObligations, setMonthlyObligations] = useState<Record<string, number>>({});
   const [paymentStatus, setPaymentStatus] = useState<Record<string, boolean>>({});
   const [autoBackupConfig, setAutoBackupConfig] = useState({ enabled: false, interval: 60, lastBackupAt: null as number | null, backupPath: '' });
@@ -2183,6 +2189,7 @@ function App() {
   const [selectedAcademyForDetails, setSelectedAcademyForDetails] = useState<string | null>(null);
   const [selectedAcademyForEditing, setSelectedAcademyForEditing] = useState<string | null>(null);
   const [isAddingAcademy, setIsAddingAcademy] = useState(false);
+  const [isAcademyArchiveOpen, setIsAcademyArchiveOpen] = useState(false);
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [showControls, setShowControls] = useState(false);
   const [showMonthSelector, setShowMonthSelector] = useState(false);
@@ -2379,6 +2386,22 @@ function App() {
     y: number;
     academy: string;
   }>({ isOpen: false, isClosing: false, x: 0, y: 0, academy: '' });
+  const academyPressRef = useRef<{ timer: number | null; x: number; y: number; pointerId: number | null; pointerType: string; triggered: boolean }>({
+    timer: null, x: 0, y: 0, pointerId: null, pointerType: '', triggered: false
+  });
+  const cancelAcademyPress = useCallback(() => {
+    if (academyPressRef.current.timer !== null) window.clearTimeout(academyPressRef.current.timer);
+    academyPressRef.current.timer = null;
+  }, []);
+  useEffect(() => () => cancelAcademyPress(), [cancelAcademyPress]);
+
+  const openAcademyMenu = useCallback((academy: string, element: HTMLElement) => {
+    const rect = element.getBoundingClientRect();
+    setMissedClassesMenu(null);
+    setAcademyContextMenu({ isOpen: true, isClosing: false,
+      x: Math.max(8, Math.min(rect.right - 220, window.innerWidth - 228)),
+      y: Math.max(8, Math.min(rect.bottom + 5, window.innerHeight - 180)), academy });
+  }, []);
 
   const [studentOptionsMenu, setStudentOptionsMenu] = useState<{
     isOpen: boolean;
@@ -4237,7 +4260,7 @@ function App() {
     setAcademyRates(prev => {
       const next = { ...prev };
       delete next[oldName];
-      next[newName] = { rate, currency, monthlyDeductions, billingStartDay, externalLink, holidays, receiveInEGP, disableReports, whatsappNumber, openLinksExternally, includeReportHeader, showAnimationBeforeLink, monthlyAdditions, monthlyDeductionTypes, monthlyAdditionTypes };
+      next[newName] = { ...prev[oldName], rate, currency, monthlyDeductions, billingStartDay, externalLink, holidays, receiveInEGP, disableReports, whatsappNumber, openLinksExternally, includeReportHeader, showAnimationBeforeLink, monthlyAdditions, monthlyDeductionTypes, monthlyAdditionTypes };
       return next;
     });
 
@@ -4259,6 +4282,18 @@ function App() {
     if (selectedAcademyForDetails === oldName) setSelectedAcademyForDetails(newName);
     if (selectedAcademyForEditing === oldName) setSelectedAcademyForEditing(null);
   }, [selectedAcademy, selectedAcademyForDetails]);
+
+  const setAcademyArchived = useCallback((academyName: string, isArchived: boolean) => {
+    setAcademyRates(prev => ({
+      ...prev,
+      [academyName]: { rate: 0, currency: 'جنيه', ...prev[academyName], isArchived }
+    }));
+    if (isArchived) {
+      setSelectedAcademy(current => current === academyName ? null : current);
+      setSelectedAcademyForEditing(null);
+      setSelectedAcademyForDetails(current => current === academyName ? null : current);
+    }
+  }, []);
 
   const handleDragStart = (e: React.DragEvent, index: number) => {
     setDraggedAcademyIndex(index);
@@ -4684,17 +4719,15 @@ function App() {
     });
   }, [groupedStudents]);
 
-  const sortedAcademies = useMemo(() => {
-    // Return academies in the saved order
-    return academyOrder;
-  }, [academyOrder]);
+  const sortedAcademies = useMemo(() => academyOrder.filter(academy => !academyRates[academy]?.isArchived), [academyOrder, academyRates]);
+  const archivedAcademies = useMemo(() => academyOrder.filter(academy => academyRates[academy]?.isArchived), [academyOrder, academyRates]);
 
   // --- Keyboard Reordering ---
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!selectedAcademy) return;
 
-      const currentIndex = academyOrder.indexOf(selectedAcademy);
+      const currentIndex = sortedAcademies.indexOf(selectedAcademy);
       if (currentIndex === -1) return;
 
       let newIndex = -1;
@@ -4710,18 +4743,20 @@ function App() {
         return;
       }
 
-      if (newIndex >= 0 && newIndex < academyOrder.length && newIndex !== -1) {
+      if (newIndex >= 0 && newIndex < sortedAcademies.length && newIndex !== -1) {
         e.preventDefault(); // Prevent scrolling
         const newOrder = [...academyOrder];
         // Swap
-        [newOrder[currentIndex], newOrder[newIndex]] = [newOrder[newIndex], newOrder[currentIndex]];
+        const currentOrderIndex = newOrder.indexOf(sortedAcademies[currentIndex]);
+        const newOrderIndex = newOrder.indexOf(sortedAcademies[newIndex]);
+        [newOrder[currentOrderIndex], newOrder[newOrderIndex]] = [newOrder[newOrderIndex], newOrder[currentOrderIndex]];
         setAcademyOrder(newOrder);
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedAcademy, academyOrder]);
+  }, [selectedAcademy, academyOrder, sortedAcademies]);
 
   // --- Multi-Select Keyboard Handlers ---
   useEffect(() => {
@@ -4830,6 +4865,7 @@ function App() {
     setSelectedAcademyForDetails(null);
     setSelectedAcademyForEditing(null);
     setIsAddingAcademy(false);
+    setIsAcademyArchiveOpen(false);
 
     // 4. Complex Modals
     setWebModal(prev => ({ ...prev, isOpen: false }));
@@ -5864,6 +5900,7 @@ function App() {
 
   // Use the same eligibility rules for the counter and the filtered table.
   const isPendingClass = useCallback((student: Student, dayNum: number) => {
+    if (academyRates[student.academy]?.isArchived) return false;
     if (student.deletedAt && (year > student.deletedAt.year ||
       (year === student.deletedAt.year && month >= student.deletedAt.month))) return false;
 
@@ -6051,18 +6088,53 @@ function App() {
           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar whitespace-nowrap flex-1 pr-4 px-2 py-2">
             <span className="ml-2 font-arabic text-lg text-gray-300 hidden md:inline">التنقل السريع:</span>
 
-            {sortedAcademies.map((academy, index) => (
+            {sortedAcademies.map(academy => {
+              const index = academyOrder.indexOf(academy);
+              return (
               <div
                 key={academy}
                 role="button"
                 tabIndex={0}
                 draggable
-                onDragStart={(e) => handleDragStart(e, index)}
+                onPointerDown={(e) => {
+                  cancelAcademyPress();
+                  const press = academyPressRef.current;
+                  press.triggered = false;
+                  press.pointerType = e.pointerType;
+                  if (!e.isPrimary || e.button !== 0 || (e.target as Element).closest('button')) return;
+                  press.x = e.clientX;
+                  press.y = e.clientY;
+                  press.pointerId = e.pointerId;
+                  const element = e.currentTarget;
+                  press.timer = window.setTimeout(() => {
+                    press.timer = null;
+                    press.triggered = true;
+                    openAcademyMenu(academy, element);
+                  }, 500);
+                }}
+                onPointerMove={(e) => {
+                  const press = academyPressRef.current;
+                  if (press.pointerId === e.pointerId && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 8) cancelAcademyPress();
+                }}
+                onPointerUp={cancelAcademyPress}
+                onPointerCancel={cancelAcademyPress}
+                onPointerLeave={cancelAcademyPress}
+                onDragStart={(e) => {
+                  cancelAcademyPress();
+                  if (academyPressRef.current.triggered) { e.preventDefault(); return; }
+                  handleDragStart(e, index);
+                }}
                 onDragOver={handleDragOver}
                 onDragEnter={() => setDragOverIndex(index)}
                 onDragEnd={() => { setDraggedAcademyIndex(null); setDragOverIndex(null); }}
                 onDrop={(e) => handleDrop(e, index)}
                 onClick={(e) => {
+                  if (academyPressRef.current.triggered) {
+                    academyPressRef.current.triggered = false;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    return;
+                  }
                   if (selectedAcademy === academy) {
                     e.stopPropagation();
                   }
@@ -6076,9 +6148,13 @@ function App() {
                 }}
                 onContextMenu={(e) => {
                   e.preventDefault();
+                  if (academyPressRef.current.triggered || academyPressRef.current.pointerType === 'touch') {
+                    e.stopPropagation();
+                    return;
+                  }
                   setSelectedAcademyForDetails(academy);
                 }}
-                className={`px-4 py-1.5 rounded-full transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] text-base ${isMac ? 'font-normal font-academy-nav' : 'font-arabic'} border border-transparent whitespace-nowrap select-none cursor-pointer active:cursor-grabbing flex items-center gap-2 ${selectedAcademy === academy
+                className={`px-4 py-1.5 rounded-full transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] text-base ${isMac ? 'font-normal font-academy-nav' : 'font-arabic'} border border-transparent whitespace-nowrap select-none cursor-pointer active:cursor-grabbing active:scale-[0.98] flex items-center gap-2 ${selectedAcademy === academy
                   ? `bg-[#ffe05d] text-gray-900 scale-105 shadow-[0_0_20px_rgba(255,224,93,0.3)] z-10 ${isMac ? '' : 'font-bold'}`
                   : 'bg-gray-700/50 text-gray-200 hover:bg-gray-600/80 hover:text-white hover:border-gray-500'
                   } ${draggedAcademyIndex === index ? 'opacity-40 scale-90 grayscale ring-2 ring-[#ffe05d] ring-offset-2 ring-offset-gray-900 border-dashed border-[#ffe05d]/50' : ''} ${dragOverIndex === index && draggedAcademyIndex !== index ? 'scale-110 -translate-y-1 !bg-gray-600 shadow-xl' : ''}`}
@@ -6095,7 +6171,7 @@ function App() {
                   </button>
                 )}
               </div>
-            ))}
+            ); })}
           </div>
 
           {/* Left: Actions (Calendar & Add) */}
@@ -6114,6 +6190,18 @@ function App() {
                 transition: background-color 150ms ease-out, opacity 200ms, filter 200ms, transform 200ms;
               }
             `}</style>
+
+            <button
+              type="button"
+              onClick={() => setIsAcademyArchiveOpen(true)}
+              className="flex items-center gap-2 rounded-xl px-3 py-2 text-gray-300 hover:bg-white/10 hover:text-white transition-colors font-arabic"
+              title="الأكاديميات المؤرشفة"
+              aria-label="الأكاديميات المؤرشفة"
+            >
+              <Archive size={20} />
+              <span className="hidden xl:inline">الأرشيف</span>
+              {archivedAcademies.length > 0 && <span className="text-xs bg-amber-400 text-gray-900 rounded-full px-1.5">{toHindiDigits(archivedAcademies.length)}</span>}
+            </button>
 
             {/* Calendar Controls Toggle */}
             <div className="relative flex items-center gap-3">
@@ -6646,7 +6734,7 @@ function App() {
                         <div className="w-20 h-20 rounded-full bg-gray-50 flex items-center justify-center">
                           <Users2 size={40} className="text-gray-300" />
                         </div>
-                        <p className="font-arabic text-3xl">لا يوجد طلاب حالياً. قم بإضافة طلاب جدد للبدء.</p>
+                        <p className="font-arabic text-3xl">{archivedAcademies.length ? 'لا توجد أكاديميات ظاهرة. يمكنك استرجاعها من الأرشيف.' : 'لا يوجد طلاب حالياً. قم بإضافة طلاب جدد للبدء.'}</p>
                       </div>
                     </td>
                   </tr>
@@ -6680,13 +6768,11 @@ function App() {
                             title={showMissedCount ? 'عرض نسب الأكاديمية' : undefined}
                             onClick={(e) => {
                               e.stopPropagation();
-                              const rect = e.currentTarget.getBoundingClientRect();
                               if (!showMissedCount) {
-                                setAcademyContextMenu({ isOpen: true, isClosing: false,
-                                  x: Math.max(8, Math.min(rect.right - 220, window.innerWidth - 228)),
-                                  y: Math.max(8, Math.min(rect.bottom + 5, window.innerHeight - 180)), academy });
+                                openAcademyMenu(academy, e.currentTarget);
                                 return;
                               }
+                              const rect = e.currentTarget.getBoundingClientRect();
                               setMissedClassesMenu({ isOpen: true, academyName: academy, reportMonth: month, reportYear: year,
                                 x: Math.max(24, Math.min(rect.left, window.innerWidth - 264)),
                                 y: Math.max(8, Math.min(rect.bottom + 4, window.innerHeight - 370)) });
@@ -7636,6 +7722,7 @@ function App() {
             onClose={() => setSelectedAcademyForEditing(null)}
             onSave={(old, name, rate, curr, dm, bsd, el, hols, regp, disRep, whatsapp, openExt, incHdr, anim, adds, dedType, addsType) => handleUpdateAcademy(old, name, rate, curr, dm, bsd, el, hols, regp, disRep, whatsapp, openExt, incHdr, anim, adds, dedType, addsType)}
             onDelete={() => handleDeleteAcademy(selectedAcademyForEditing)}
+            onArchive={() => setAcademyArchived(selectedAcademyForEditing, true)}
           />
         )
       }
@@ -7649,6 +7736,33 @@ function App() {
           />
         )
       }
+
+      {isAcademyArchiveOpen && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 font-arabic" onClick={() => setIsAcademyArchiveOpen(false)}>
+          <div role="dialog" aria-modal="true" aria-labelledby="academy-archive-title" dir="rtl"
+            className="w-full max-w-lg max-h-[80vh] overflow-hidden rounded-3xl bg-white shadow-2xl flex flex-col"
+            onClick={event => event.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-gray-100 px-6 py-5">
+              <h2 id="academy-archive-title" className="text-2xl font-bold text-gray-800">الأكاديميات المؤرشفة</h2>
+              <button type="button" onClick={() => setIsAcademyArchiveOpen(false)} aria-label="إغلاق الأرشيف" className="rounded-full p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700"><X size={22} /></button>
+            </div>
+            <div className="overflow-y-auto p-5 space-y-3">
+              {archivedAcademies.length === 0 ? (
+                <p className="py-8 text-center text-lg text-gray-500">لا توجد أكاديميات مؤرشفة.</p>
+              ) : archivedAcademies.map(academy => (
+                <div key={academy} className="flex items-center justify-between gap-3 rounded-2xl border border-gray-100 bg-gray-50 p-4">
+                  <span className="min-w-0 break-words text-lg font-bold text-gray-700">{academy}</span>
+                  <button type="button" onClick={() => setAcademyArchived(academy, false)}
+                    className="flex shrink-0 items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-emerald-700 hover:bg-emerald-100 transition-colors"
+                    aria-label={`استرجاع ${academy}`}>
+                    <ArchiveRestore size={18} /> <span>استرجاع</span>
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       <ConfirmModal
         isOpen={confirmConfig.isOpen}
@@ -8046,7 +8160,7 @@ function App() {
           <div
             className={`fixed z-[100] bg-white rounded-2xl shadow-2xl border border-gray-100 py-2 w-56 overflow-hidden transition-all duration-200 ease-out origin-top-right context-menu
             ${academyContextMenu.isOpen && !academyContextMenu.isClosing
-                ? 'opacity-100 scale-100 translate-y-0 blur-none'
+                ? 'academy-menu-opening opacity-100 scale-100 translate-y-0 blur-none'
                 : 'opacity-0 scale-95 -translate-y-2 blur-sm pointer-events-none'
               }`}
             style={{

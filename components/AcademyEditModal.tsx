@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Link, Trash2, Check, Phone, ChevronLeft, FileText } from 'lucide-react';
+import { X, Link, Trash2, Archive, Check, Phone, ChevronLeft, FileText } from 'lucide-react';
 import { DAYS_OF_WEEK as DAYS } from '../constants';
 
 interface Props {
@@ -24,6 +24,7 @@ interface Props {
     onClose: () => void;
     onSave: (oldName: string, newName: string, rate: number, currency: string, monthlyDeductions: Record<string, number>, billingStartDay?: number, externalLink?: string, holidays?: number[], receiveInEGP?: boolean, disableReports?: boolean, whatsappNumber?: string, openLinksExternally?: boolean, includeReportHeader?: boolean, showAnimationBeforeLink?: boolean, monthlyAdditions?: Record<string, number>, monthlyDeductionTypes?: Record<string, 'minutes' | 'currency'>, monthlyAdditionTypes?: Record<string, 'minutes' | 'currency'>) => void;
     onDelete?: () => void;
+    onArchive?: () => void;
     isAdd?: boolean;
 }
 
@@ -51,7 +52,7 @@ const isValidUrl = (url: string): boolean => {
     }
 };
 
-const AcademyEditModal: React.FC<Props> = ({ academyName, academyRate, onClose, onSave, onDelete, isAdd }) => {
+const AcademyEditModal: React.FC<Props> = ({ academyName, academyRate, onClose, onSave, onDelete, onArchive, isAdd }) => {
     const [name, setName] = useState(isAdd ? '' : academyName);
     const [rate, setRate] = useState(academyRate?.rate ? toHindiDigits(academyRate.rate.toString()) : '');
     const [currency, setCurrency] = useState(academyRate?.currency || 'جنيه');
@@ -334,6 +335,17 @@ const AcademyEditModal: React.FC<Props> = ({ academyName, academyRate, onClose, 
                                 title="حذف الأكاديمية"
                             >
                                 <Trash2 size={24} strokeWidth={2} />
+                            </button>
+                        )}
+                        {!isAdd && onArchive && (
+                            <button
+                                type="button"
+                                onClick={onArchive}
+                                className="w-14 bg-amber-50 text-amber-700 rounded-xl hover:bg-amber-100 transition-all flex items-center justify-center pb-1 border border-amber-200"
+                                title="أرشفة الأكاديمية"
+                                aria-label="أرشفة الأكاديمية"
+                            >
+                                <Archive size={24} strokeWidth={2} />
                             </button>
                         )}
                     </div>
