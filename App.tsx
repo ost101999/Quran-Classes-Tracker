@@ -6200,7 +6200,7 @@ function App() {
             >
               <Archive size={20} />
               <span className="hidden xl:inline">الأرشيف</span>
-              {archivedAcademies.length > 0 && <span className="text-xs bg-amber-400 text-gray-900 rounded-full px-1.5">{toHindiDigits(archivedAcademies.length)}</span>}
+              {archivedAcademies.length > 0 && <span className="rounded-md bg-white/5 px-1.5 text-xs text-gray-400">{toHindiDigits(archivedAcademies.length)}</span>}
             </button>
 
             {/* Calendar Controls Toggle */}
