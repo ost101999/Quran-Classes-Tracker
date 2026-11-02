@@ -7922,6 +7922,8 @@ function App() {
         isMonthlyStatsOpen && (
           <MonthlyStatsModal
             onNavigateMonth={navigateStatsMonth}
+            currentMonth={month}
+            currentYear={year}
             students={students}
             attendance={attendance}
             month={statsPeriod.month}
@@ -7970,6 +7972,8 @@ function App() {
             <MonthlyStatsModal
               initiallyExpanded
               onNavigateMonth={navigateStatsMonth}
+              currentMonth={month}
+              currentYear={year}
               students={students}
               attendance={attendance}
               month={prevMonth}

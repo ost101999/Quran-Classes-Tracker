@@ -7,6 +7,8 @@ interface Props {
     attendance: AttendanceRecord;
     month: number;
     year: number;
+    currentMonth: number;
+    currentYear: number;
     usdRate: number;
     onClose: () => void;
     onNavigateMonth: (offset: number) => void;
@@ -56,21 +58,34 @@ const MONTHS = [
     'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
 ];
 
-const MonthlyStatsModal: React.FC<Props> = ({ students, attendance, month, year, usdRate, onClose, onNavigateMonth, academyRates, initialObligations, onSaveObligations, paymentStatus, onTogglePayment, showPaymentToggles, initiallyExpanded = false }) => {
+const MonthlyStatsModal: React.FC<Props> = ({ students, attendance, month, year, currentMonth, currentYear, usdRate, onClose, onNavigateMonth, academyRates, initialObligations, onSaveObligations, paymentStatus, onTogglePayment, showPaymentToggles, initiallyExpanded = false }) => {
     const [showEgpDetails, setShowEgpDetails] = useState(initiallyExpanded);
     const [showUsdDetails, setShowUsdDetails] = useState(initiallyExpanded);
     const previousPeriod = useRef(year * 12 + month);
+    const currentMonthDetails = useRef({ egp: false, usd: false });
     const [obligations, setObligations] = useState<string>(initialObligations ? initialObligations.toLocaleString('en-US') : '');
 
     useEffect(() => {
         const currentPeriod = year * 12 + month;
-        if (currentPeriod < previousPeriod.current) {
+        if (currentPeriod !== previousPeriod.current && currentPeriod === currentYear * 12 + currentMonth) {
+            setShowEgpDetails(currentMonthDetails.current.egp);
+            setShowUsdDetails(currentMonthDetails.current.usd);
+        } else if (currentPeriod < previousPeriod.current) {
             setShowEgpDetails(true);
             setShowUsdDetails(true);
         }
         previousPeriod.current = currentPeriod;
         setObligations(initialObligations ? initialObligations.toLocaleString('en-US') : '');
-    }, [month, year, initialObligations]);
+    }, [month, year, currentMonth, currentYear, initialObligations]);
+
+    const toggleDetails = (currency: 'egp' | 'usd') => {
+        const next = currency === 'egp' ? !showEgpDetails : !showUsdDetails;
+        if (year === currentYear && month === currentMonth) {
+            currentMonthDetails.current[currency] = next;
+        }
+        if (currency === 'egp') setShowEgpDetails(next);
+        else setShowUsdDetails(next);
+    };
 
     useEffect(() => {
         const preventNavigation = (event: MouseEvent) => {
@@ -386,7 +401,7 @@ const MonthlyStatsModal: React.FC<Props> = ({ students, attendance, month, year,
                         {/* EGP Stats */}
                         <div
                             className="bg-emerald-50/50 rounded-2xl border border-emerald-100 overflow-hidden transition-all duration-300 cursor-pointer hover:bg-emerald-50"
-                            onClick={() => setShowEgpDetails(!showEgpDetails)}
+                            onClick={() => toggleDetails('egp')}
                         >
                             <div className="p-4 flex items-center justify-between">
                                 <div className="flex items-center gap-4">
@@ -404,7 +419,7 @@ const MonthlyStatsModal: React.FC<Props> = ({ students, attendance, month, year,
                                 <button
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        setShowEgpDetails(!showEgpDetails);
+                                        toggleDetails('egp');
                                     }}
                                     aria-expanded={showEgpDetails}
                                     aria-label="تفاصيل الدخل بالمصري"
@@ -463,7 +478,7 @@ const MonthlyStatsModal: React.FC<Props> = ({ students, attendance, month, year,
                         {/* USD Stats */}
                         <div
                             className="bg-blue-50/50 rounded-2xl border border-blue-100 overflow-hidden transition-all duration-300 cursor-pointer hover:bg-blue-50"
-                            onClick={() => setShowUsdDetails(!showUsdDetails)}
+                            onClick={() => toggleDetails('usd')}
                         >
                             <div className="p-4 flex items-center justify-between">
                                 <div className="flex items-center gap-4">
@@ -481,7 +496,7 @@ const MonthlyStatsModal: React.FC<Props> = ({ students, attendance, month, year,
                                 <button
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        setShowUsdDetails(!showUsdDetails);
+                                        toggleDetails('usd');
                                     }}
                                     aria-expanded={showUsdDetails}
                                     aria-label="تفاصيل الدخل الدولاري"
