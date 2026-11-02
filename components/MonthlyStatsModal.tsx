@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { X, TrendingUp, Calendar, DollarSign, Wallet, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Save } from 'lucide-react';
 import { Student, AttendanceRecord, AttendanceStatus } from '../types';
 
@@ -58,6 +58,32 @@ const MONTHS = [
     'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
 ];
 
+const IncomeDetails: React.FC<{ expanded: boolean; children: React.ReactNode }> = ({ expanded, children }) => {
+    const contentRef = useRef<HTMLDivElement>(null);
+    const [contentHeight, setContentHeight] = useState(0);
+
+    useLayoutEffect(() => {
+        const content = contentRef.current;
+        if (!content) return;
+        const measure = () => setContentHeight(content.offsetHeight);
+        measure();
+        const observer = new ResizeObserver(measure);
+        observer.observe(content);
+        return () => observer.disconnect();
+    }, []);
+
+    return (
+        <div
+            className={`monthly-stats-details ${expanded ? 'is-open' : ''}`}
+            style={{ height: expanded ? contentHeight : 0 }}
+            aria-hidden={!expanded}
+            inert={!expanded}
+        >
+            <div ref={contentRef}>{children}</div>
+        </div>
+    );
+};
+
 const MonthlyStatsModal: React.FC<Props> = ({ students, attendance, month, year, currentMonth, currentYear, usdRate, onClose, onNavigateMonth, academyRates, initialObligations, onSaveObligations, paymentStatus, onTogglePayment, showPaymentToggles, initiallyExpanded = false }) => {
     const [showEgpDetails, setShowEgpDetails] = useState(initiallyExpanded);
     const [showUsdDetails, setShowUsdDetails] = useState(initiallyExpanded);
@@ -65,7 +91,7 @@ const MonthlyStatsModal: React.FC<Props> = ({ students, attendance, month, year,
     const currentMonthDetails = useRef({ egp: false, usd: false });
     const [obligations, setObligations] = useState<string>(initialObligations ? initialObligations.toLocaleString('en-US') : '');
 
-    useEffect(() => {
+    useLayoutEffect(() => {
         const currentPeriod = year * 12 + month;
         if (currentPeriod !== previousPeriod.current && currentPeriod === currentYear * 12 + currentMonth) {
             setShowEgpDetails(currentMonthDetails.current.egp);
@@ -429,8 +455,7 @@ const MonthlyStatsModal: React.FC<Props> = ({ students, attendance, month, year,
                                 </button>
                             </div>
 
-                            <div className={`monthly-stats-details ${showEgpDetails && stats.egpStudents.length > 0 ? 'is-open' : ''}`} aria-hidden={!showEgpDetails} inert={!showEgpDetails}>
-                                <div className="monthly-stats-details-inner">
+                            <IncomeDetails expanded={showEgpDetails && stats.egpStudents.length > 0}>
                                 <div className="border-t border-emerald-100 bg-white/50 p-4 space-y-2">
                                     {stats.egpStudents.map((s, i) => {
                                         const isPaid = paymentStatus?.[`${s.id}_${month}_${year}`];
@@ -471,8 +496,7 @@ const MonthlyStatsModal: React.FC<Props> = ({ students, attendance, month, year,
                                         );
                                     })}
                                 </div>
-                                </div>
-                            </div>
+                            </IncomeDetails>
                         </div>
 
                         {/* USD Stats */}
@@ -506,8 +530,7 @@ const MonthlyStatsModal: React.FC<Props> = ({ students, attendance, month, year,
                                 </button>
                             </div>
 
-                            <div className={`monthly-stats-details ${showUsdDetails && stats.usdStudents.length > 0 ? 'is-open' : ''}`} aria-hidden={!showUsdDetails} inert={!showUsdDetails}>
-                                <div className="monthly-stats-details-inner">
+                            <IncomeDetails expanded={showUsdDetails && stats.usdStudents.length > 0}>
                                 <div className="border-t border-blue-100 bg-white/50 p-4 space-y-2">
                                     {stats.usdStudents.map((s, i) => {
                                         const isPaid = paymentStatus?.[`${s.id}_${month}_${year}`];
@@ -549,8 +572,7 @@ const MonthlyStatsModal: React.FC<Props> = ({ students, attendance, month, year,
                                     })
                                     }
                                 </div>
-                                </div>
-                            </div>
+                            </IncomeDetails>
                         </div>
 
                         {/* Total Stats */}
