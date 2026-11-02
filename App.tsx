@@ -7921,7 +7921,6 @@ function App() {
       {
         isMonthlyStatsOpen && (
           <MonthlyStatsModal
-            key={`${statsPeriod.month}_${statsPeriod.year}`}
             onNavigateMonth={navigateStatsMonth}
             students={students}
             attendance={attendance}
@@ -7969,7 +7968,7 @@ function App() {
           const prevYear = statsPeriod.year;
           return (
             <MonthlyStatsModal
-              key={`${statsPeriod.month}_${statsPeriod.year}`}
+              initiallyExpanded
               onNavigateMonth={navigateStatsMonth}
               students={students}
               attendance={attendance}

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { X, TrendingUp, Calendar, DollarSign, Wallet, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Save } from 'lucide-react';
 import { Student, AttendanceRecord, AttendanceStatus } from '../types';
 
@@ -16,6 +16,7 @@ interface Props {
     onTogglePayment?: (studentId: string, month: number, year: number) => void;
     academyRates?: Record<string, any>;
     showPaymentToggles?: boolean;
+    initiallyExpanded?: boolean;
 }
 
 // Helper to convert Western digits to Hindi
@@ -55,10 +56,21 @@ const MONTHS = [
     'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
 ];
 
-const MonthlyStatsModal: React.FC<Props> = ({ students, attendance, month, year, usdRate, onClose, onNavigateMonth, academyRates, initialObligations, onSaveObligations, paymentStatus, onTogglePayment, showPaymentToggles }) => {
-    const [showEgpDetails, setShowEgpDetails] = useState(false);
-    const [showUsdDetails, setShowUsdDetails] = useState(false);
+const MonthlyStatsModal: React.FC<Props> = ({ students, attendance, month, year, usdRate, onClose, onNavigateMonth, academyRates, initialObligations, onSaveObligations, paymentStatus, onTogglePayment, showPaymentToggles, initiallyExpanded = false }) => {
+    const [showEgpDetails, setShowEgpDetails] = useState(initiallyExpanded);
+    const [showUsdDetails, setShowUsdDetails] = useState(initiallyExpanded);
+    const previousPeriod = useRef(year * 12 + month);
     const [obligations, setObligations] = useState<string>(initialObligations ? initialObligations.toLocaleString('en-US') : '');
+
+    useEffect(() => {
+        const currentPeriod = year * 12 + month;
+        if (currentPeriod < previousPeriod.current) {
+            setShowEgpDetails(true);
+            setShowUsdDetails(true);
+        }
+        previousPeriod.current = currentPeriod;
+        setObligations(initialObligations ? initialObligations.toLocaleString('en-US') : '');
+    }, [month, year, initialObligations]);
 
     useEffect(() => {
         const preventNavigation = (event: MouseEvent) => {
@@ -343,11 +355,11 @@ const MonthlyStatsModal: React.FC<Props> = ({ students, attendance, month, year,
 
     return (
         <div
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 font-arabic"
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 font-arabic monthly-stats-overlay"
             onClick={onClose}
         >
             <div
-                className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in duration-200 flex flex-col max-h-[90vh]"
+                className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden monthly-stats-dialog flex flex-col max-h-[90vh]"
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Header */}
@@ -394,14 +406,17 @@ const MonthlyStatsModal: React.FC<Props> = ({ students, attendance, month, year,
                                         e.stopPropagation();
                                         setShowEgpDetails(!showEgpDetails);
                                     }}
+                                    aria-expanded={showEgpDetails}
+                                    aria-label="تفاصيل الدخل بالمصري"
                                     className="p-2 hover:bg-emerald-100 rounded-full text-emerald-600 transition-colors"
                                 >
                                     {showEgpDetails ? <ChevronUp size={24} /> : <ChevronDown size={24} />}
                                 </button>
                             </div>
 
-                            {showEgpDetails && stats.egpStudents.length > 0 && (
-                                <div className="border-t border-emerald-100 bg-white/50 animate-in slide-in-from-top-2 duration-200 p-4 space-y-2">
+                            <div className={`monthly-stats-details ${showEgpDetails && stats.egpStudents.length > 0 ? 'is-open' : ''}`} aria-hidden={!showEgpDetails} inert={!showEgpDetails}>
+                                <div className="monthly-stats-details-inner">
+                                <div className="border-t border-emerald-100 bg-white/50 p-4 space-y-2">
                                     {stats.egpStudents.map((s, i) => {
                                         const isPaid = paymentStatus?.[`${s.id}_${month}_${year}`];
                                         const isSpecial = s.academy === 'خاص' || s.academy.includes('خاص');
@@ -441,7 +456,8 @@ const MonthlyStatsModal: React.FC<Props> = ({ students, attendance, month, year,
                                         );
                                     })}
                                 </div>
-                            )}
+                                </div>
+                            </div>
                         </div>
 
                         {/* USD Stats */}
@@ -467,14 +483,17 @@ const MonthlyStatsModal: React.FC<Props> = ({ students, attendance, month, year,
                                         e.stopPropagation();
                                         setShowUsdDetails(!showUsdDetails);
                                     }}
+                                    aria-expanded={showUsdDetails}
+                                    aria-label="تفاصيل الدخل الدولاري"
                                     className="p-2 hover:bg-blue-100 rounded-full text-blue-600 transition-colors"
                                 >
                                     {showUsdDetails ? <ChevronUp size={24} /> : <ChevronDown size={24} />}
                                 </button>
                             </div>
 
-                            {showUsdDetails && stats.usdStudents.length > 0 && (
-                                <div className="border-t border-blue-100 bg-white/50 animate-in slide-in-from-top-2 duration-200 p-4 space-y-2">
+                            <div className={`monthly-stats-details ${showUsdDetails && stats.usdStudents.length > 0 ? 'is-open' : ''}`} aria-hidden={!showUsdDetails} inert={!showUsdDetails}>
+                                <div className="monthly-stats-details-inner">
+                                <div className="border-t border-blue-100 bg-white/50 p-4 space-y-2">
                                     {stats.usdStudents.map((s, i) => {
                                         const isPaid = paymentStatus?.[`${s.id}_${month}_${year}`];
                                         const isSpecial = s.academy === 'خاص' || s.academy.includes('خاص');
@@ -515,7 +534,8 @@ const MonthlyStatsModal: React.FC<Props> = ({ students, attendance, month, year,
                                     })
                                     }
                                 </div>
-                            )}
+                                </div>
+                            </div>
                         </div>
 
                         {/* Total Stats */}
