@@ -68,7 +68,7 @@ const getSessionsPlural = (num: number): string => {
 };
 
 export default function StudentDetailsModal({ student, attendance, onClose, month: initialMonth, year: initialYear, usdRate, onOpenLink, billingStartDay = 1 }: Props) {
-    const { month, year, changeMonth } = useReportMonth(initialMonth, initialYear);
+    const { month, year, changeMonth } = useReportMonth(initialMonth, initialYear, true);
     const reportRef = useRef<HTMLDivElement>(null);
     const [isCopying, setIsCopying] = useState(false);
     const [isCopyingLink, setIsCopyingLink] = useState(false);

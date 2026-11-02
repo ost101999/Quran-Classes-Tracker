@@ -1,14 +1,41 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
-export function useReportMonth(initialMonth: number, initialYear: number) {
+export function useReportMonth(initialMonth: number, initialYear: number, mouseNavigation = false) {
     const [period, setPeriod] = useState({ month: initialMonth, year: initialYear });
-    const changeMonth = (offset: number) => {
+    const changeMonth = useCallback((offset: number) => {
         setPeriod(current => {
             const date = new Date(current.year, current.month + offset, 1);
             return { month: date.getMonth(), year: date.getFullYear() };
         });
-    };
+    }, []);
+
+    useEffect(() => {
+        if (!mouseNavigation) return;
+        const preventNavigation = (event: MouseEvent) => {
+            if (event.button === 3 || event.button === 4) event.preventDefault();
+        };
+        const handleMouseUp = (event: MouseEvent) => {
+            if (event.button !== 3 && event.button !== 4) return;
+            event.preventDefault();
+            event.stopPropagation();
+            const offset = event.button === 3 ? -1 : 1;
+            setPeriod(current => {
+                const today = new Date();
+                if (offset > 0 && current.year * 12 + current.month >= today.getFullYear() * 12 + today.getMonth()) return current;
+                const date = new Date(current.year, current.month + offset, 1);
+                return { month: date.getMonth(), year: date.getFullYear() };
+            });
+        };
+        document.addEventListener('mousedown', preventNavigation, true);
+        document.addEventListener('auxclick', preventNavigation, true);
+        document.addEventListener('mouseup', handleMouseUp, true);
+        return () => {
+            document.removeEventListener('mousedown', preventNavigation, true);
+            document.removeEventListener('auxclick', preventNavigation, true);
+            document.removeEventListener('mouseup', handleMouseUp, true);
+        };
+    }, [mouseNavigation]);
     return { ...period, changeMonth };
 }
 

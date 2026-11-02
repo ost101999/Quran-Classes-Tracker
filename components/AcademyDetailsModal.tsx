@@ -69,7 +69,7 @@ const getSessionsPlural = (num: number): string => {
 };
 
 const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendance, month: initialMonth, year: initialYear, onClose, onDelete, onUpdate, academyRate, usdRate }) => {
-    const { month, year, changeMonth } = useReportMonth(initialMonth, initialYear);
+    const { month, year, changeMonth } = useReportMonth(initialMonth, initialYear, true);
     const reportRef = useRef<HTMLDivElement>(null);
     const [isCopying, setIsCopying] = useState(false);
     const [includePricing, setIncludePricing] = useState(true);

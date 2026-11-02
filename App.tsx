@@ -2442,6 +2442,35 @@ function App() {
     reportYear: number;
   } | null>(null);
 
+  const navigateMissedClassesMonth = useCallback((offset: number) => {
+    setMissedClassesMenu(prev => {
+      if (!prev || !prev.isOpen) return prev;
+      const date = new Date(prev.reportYear, prev.reportMonth + offset, 1);
+      return { ...prev, reportMonth: date.getMonth(), reportYear: date.getFullYear() };
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!missedClassesMenu?.isOpen || selectedStudentForDetails || selectedAcademyForDetails) return;
+    const preventNavigation = (event: MouseEvent) => {
+      if (event.button === 3 || event.button === 4) event.preventDefault();
+    };
+    const handleMouseUp = (event: MouseEvent) => {
+      if (event.button !== 3 && event.button !== 4) return;
+      event.preventDefault();
+      event.stopPropagation();
+      navigateMissedClassesMonth(event.button === 3 ? -1 : 1);
+    };
+    document.addEventListener('mousedown', preventNavigation, true);
+    document.addEventListener('auxclick', preventNavigation, true);
+    document.addEventListener('mouseup', handleMouseUp, true);
+    return () => {
+      document.removeEventListener('mousedown', preventNavigation, true);
+      document.removeEventListener('auxclick', preventNavigation, true);
+      document.removeEventListener('mouseup', handleMouseUp, true);
+    };
+  }, [missedClassesMenu?.isOpen, selectedStudentForDetails, selectedAcademyForDetails, navigateMissedClassesMonth]);
+
   // Global Keyboard Shortcuts (T for Tajweed, E/Shift for Edit Mode)
   useEffect(() => {
     const isTypingTarget = (target: EventTarget | null) => {
@@ -8042,13 +8071,6 @@ function App() {
           const { reportMonth, reportYear } = missedClassesMenu;
           const breakdown = getAbsenceBreakdown(reportMonth, reportYear, missedClassesMenu.studentId, missedClassesMenu.academyName);
           if (!breakdown) return null;
-          const navigateReportMonth = (offset: number) => {
-            setMissedClassesMenu(prev => {
-              if (!prev) return prev;
-              const date = new Date(prev.reportYear, prev.reportMonth + offset, 1);
-              return { ...prev, reportMonth: date.getMonth(), reportYear: date.getFullYear() };
-            });
-          };
           const copyDays = async (category: typeof breakdown.categories[number]) => {
             if (!category.days.length) {
               showToast('لا توجد أيام لهذه الحالة');
@@ -8120,9 +8142,9 @@ function App() {
               }
             `}</style>
             <div className="flex items-center justify-between px-2 py-1 text-gray-600">
-              <button type="button" onClick={() => navigateReportMonth(1)} aria-label="الشهر التالي" title="الشهر التالي" className="rounded-lg p-1 hover:bg-blue-50"><ArrowRight size={18} /></button>
+              <button type="button" onClick={() => navigateMissedClassesMonth(1)} aria-label="الشهر التالي" title="الشهر التالي" className="rounded-lg p-1 hover:bg-blue-50"><ArrowRight size={18} /></button>
               <span className="font-medium">{MONTHS[reportMonth]} {toHindiDigits(reportYear)}</span>
-              <button type="button" onClick={() => navigateReportMonth(-1)} aria-label="الشهر السابق" title="الشهر السابق" className="rounded-lg p-1 hover:bg-blue-50"><ArrowLeft size={18} /></button>
+              <button type="button" onClick={() => navigateMissedClassesMonth(-1)} aria-label="الشهر السابق" title="الشهر السابق" className="rounded-lg p-1 hover:bg-blue-50"><ArrowLeft size={18} /></button>
             </div>
             <p className="px-3 py-2 text-center text-lg font-normal text-red-500">{toHindiDigits(breakdown.scheduled)} {breakdown.hasRecordedFallback ? (breakdown.hasScheduledDays ? 'حصة مقررة أو مسجلة' : 'حصة مسجلة') : 'حصة مقررة'} في الشهر</p>
               {breakdown.categories.map((category, index) => {
