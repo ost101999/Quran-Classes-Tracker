@@ -4239,6 +4239,20 @@ function App() {
       return next;
     });
 
+    if (oldName !== newName) {
+      setPaymentStatus(prev => {
+        const next = { ...prev };
+        for (const [key, paid] of Object.entries(prev)) {
+          const match = key.match(/^(.*)_(\d+)_(\d+)$/);
+          if (match?.[1] !== oldName) continue;
+          const newKey = `${newName}_${match[2]}_${match[3]}`;
+          next[newKey] = !!next[newKey] || paid;
+          delete next[key];
+        }
+        return next;
+      });
+    }
+
     if (selectedAcademy === oldName) setSelectedAcademy(newName);
     if (selectedAcademyForDetails === oldName) setSelectedAcademyForDetails(newName);
     if (selectedAcademyForEditing === oldName) setSelectedAcademyForEditing(null);
@@ -7607,6 +7621,8 @@ function App() {
             }
             academyRate={academyRates[selectedAcademyForDetails]}
             usdRate={usdRate}
+            paymentStatus={paymentStatus}
+            onTogglePayment={togglePaymentStatus}
           />
         )
       }
@@ -7653,6 +7669,8 @@ function App() {
             usdRate={usdRate}
             onOpenLink={handleOpenLink}
             billingStartDay={academyRates[selectedStudentForDetails.academy]?.billingStartDay || 1}
+            paymentStatus={paymentStatus}
+            onTogglePayment={togglePaymentStatus}
           />
         )
       }

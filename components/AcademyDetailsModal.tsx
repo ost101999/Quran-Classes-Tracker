@@ -16,6 +16,8 @@ interface Props {
     academyRate?: { rate: number; currency: string; deductedMinutes?: number; monthlyDeductions?: Record<string, number>; monthlyAdditions?: Record<string, number>; monthlyDeductionTypes?: Record<string, 'minutes' | 'currency'>; monthlyAdditionTypes?: Record<string, 'minutes' | 'currency'>; billingStartDay?: number; externalLink?: string; holidays?: number[], disableReports?: boolean };
     year: number;
     usdRate: number;
+    paymentStatus: Record<string, boolean>;
+    onTogglePayment: (id: string, month: number, year: number) => void;
 }
 
 // Helper to convert Hindi digits to Western
@@ -68,7 +70,7 @@ const getSessionsPlural = (num: number): string => {
     return 'حصة';
 };
 
-const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendance, month: initialMonth, year: initialYear, onClose, onDelete, onUpdate, academyRate, usdRate }) => {
+const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendance, month: initialMonth, year: initialYear, onClose, onDelete, onUpdate, academyRate, usdRate, paymentStatus, onTogglePayment }) => {
     const { month, year, changeMonth } = useReportMonth(initialMonth, initialYear, true);
     const reportRef = useRef<HTMLDivElement>(null);
     const [isCopying, setIsCopying] = useState(false);
@@ -861,7 +863,9 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
                     </div>
                 </div >
 
-                <ReportMonthNavigation month={month} year={year} changeMonth={changeMonth} />
+                <ReportMonthNavigation month={month} year={year} changeMonth={changeMonth}
+                    isPaid={!!paymentStatus[`${academyName}_${month}_${year}`]}
+                    onTogglePayment={(paymentMonth, paymentYear) => onTogglePayment(academyName, paymentMonth, paymentYear)} />
 
                 {/* Content */}
                 < div className="p-6 space-y-4" >

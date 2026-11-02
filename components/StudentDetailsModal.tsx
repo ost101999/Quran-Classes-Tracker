@@ -14,6 +14,8 @@ interface Props {
     usdRate: number;
     onOpenLink?: (url: string, title?: string) => void;
     billingStartDay?: number;
+    paymentStatus: Record<string, boolean>;
+    onTogglePayment: (id: string, month: number, year: number) => void;
 }
 
 // Helper to convert Hindi digits to Western
@@ -67,7 +69,7 @@ const getSessionsPlural = (num: number): string => {
     return 'حصة';
 };
 
-export default function StudentDetailsModal({ student, attendance, onClose, month: initialMonth, year: initialYear, usdRate, onOpenLink, billingStartDay = 1 }: Props) {
+export default function StudentDetailsModal({ student, attendance, onClose, month: initialMonth, year: initialYear, usdRate, onOpenLink, billingStartDay = 1, paymentStatus, onTogglePayment }: Props) {
     const { month, year, changeMonth } = useReportMonth(initialMonth, initialYear, true);
     const reportRef = useRef<HTMLDivElement>(null);
     const [isCopying, setIsCopying] = useState(false);
@@ -701,7 +703,11 @@ export default function StudentDetailsModal({ student, attendance, onClose, mont
                     <p className={`text-gray-500 text-lg mt-1 ${isNameEnglish ? 'font-english' : 'font-arabic'}`}>{student.academy}</p>
                 </div>
 
-                <ReportMonthNavigation month={month} year={year} changeMonth={changeMonth} />
+                <ReportMonthNavigation month={month} year={year} changeMonth={changeMonth}
+                    isPaid={!!paymentStatus[`${student.id}_${month}_${year}`]}
+                    onTogglePayment={student.academy.includes('خاص')
+                        ? (paymentMonth, paymentYear) => onTogglePayment(student.id, paymentMonth, paymentYear)
+                        : undefined} />
 
                 {/* Content */}
                 <div className="p-8 space-y-6">

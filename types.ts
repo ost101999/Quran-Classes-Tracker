@@ -90,7 +90,7 @@ export interface AppState {
   dayOff: number; // 0 = Sunday, 1 = Monday, ..., 5 = Friday, 6 = Saturday
   academyRates?: Record<string, AcademyRate>;
   monthlyObligations?: Record<string, number>; // key format: `month_year`
-  paymentStatus?: Record<string, boolean>;    // key format: `studentId_month_year`
+  paymentStatus?: Record<string, boolean>;    // key format: `studentId_or_academyName_month_year`
   makeupLinks?: MakeupLink[];  // Track makeup class relationships
   showMakeupLines?: boolean;   // Toggle visibility of connection lines
   
