@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } from 'react';
 import { Settings, Plus, Download, Upload, Trash2, Archive, ArchiveRestore, Calendar, ArrowLeft, ArrowRight, ChevronDown, ChevronUp, Link, History, Clock, Users2, Banknote, BarChart3, Minus, Pin, Phone, MessageCircle, Copy, UserX, UserCheck, Shield, Wand2, Check, ArrowDown, Repeat, Eye, EyeOff, Bell, X } from 'lucide-react';
 
 // Custom animation styles
@@ -92,20 +92,76 @@ import TajweedAssignModal from './components/TajweedAssignModal';
 import TajweedGradingModal from './components/TajweedGradingModal';
 import TajweedGroupedHoverSelect, { TajweedGroupedSelectGroup } from './components/TajweedGroupedHoverSelect';
 
+// Animate the rows that move when filtered rows enter or leave the table.
+const pendingRowLayouts = new WeakMap<HTMLTableSectionElement, { positions: Map<HTMLTableRowElement, number>; scheduled: boolean }>();
+const rowLayoutAnimations = new WeakMap<HTMLTableRowElement, Animation>();
+
+function prepareFilteredRowLayout(row: HTMLTableRowElement | null) {
+  const body = row?.parentElement;
+  if (!(body instanceof HTMLTableSectionElement) || pendingRowLayouts.has(body) ||
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+  const positions = new Map<HTMLTableRowElement, number>();
+  for (const current of Array.from(body.rows)) {
+    if (current.getClientRects().length) positions.set(current, current.getBoundingClientRect().top);
+  }
+  pendingRowLayouts.set(body, { positions, scheduled: false });
+}
+
+function animateFilteredRowLayout(row: HTMLTableRowElement | null) {
+  const body = row?.parentElement;
+  if (!(body instanceof HTMLTableSectionElement)) return;
+  const pending = pendingRowLayouts.get(body);
+  if (!pending || pending.scheduled) return;
+  pending.scheduled = true;
+
+  window.requestAnimationFrame(() => {
+    pendingRowLayouts.delete(body);
+    const movements: { row: HTMLTableRowElement; distance: number }[] = [];
+    for (const current of Array.from(body.rows)) {
+      const previousTop = pending.positions.get(current);
+      rowLayoutAnimations.get(current)?.cancel();
+      rowLayoutAnimations.delete(current);
+      if (previousTop === undefined || !current.getClientRects().length) continue;
+      const distance = previousTop - current.getBoundingClientRect().top;
+      if (Math.abs(distance) > 0.5) movements.push({ row: current, distance });
+    }
+    for (const { row: current, distance } of movements) {
+      const animation = current.animate(
+        [{ translate: `0 ${distance}px` }, { translate: '0 0' }],
+        { duration: 350, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' }
+      );
+      rowLayoutAnimations.set(current, animation);
+      animation.onfinish = () => {
+        if (rowLayoutAnimations.get(current) === animation) rowLayoutAnimations.delete(current);
+      };
+    }
+  });
+}
+
 // Keep filtered rows in the table until their exit animation has finished.
 function FilteredRow({ filtered, className = '', ...props }: React.ComponentProps<'tr'> & { filtered: boolean }) {
   const [phase, setPhase] = useState<'visible' | 'entering' | 'exiting' | 'hidden'>(filtered ? 'hidden' : 'visible');
   const previousFiltered = useRef(filtered);
+  const rowRef = useRef<HTMLTableRowElement>(null);
+
+  useLayoutEffect(() => {
+    animateFilteredRowLayout(rowRef.current);
+  }, [phase]);
 
   useEffect(() => {
     if (previousFiltered.current === filtered) return;
     previousFiltered.current = filtered;
+    if (!filtered) prepareFilteredRowLayout(rowRef.current);
     setPhase(filtered ? 'exiting' : 'entering');
-    const timer = window.setTimeout(() => setPhase(filtered ? 'hidden' : 'visible'), 280);
+    const timer = window.setTimeout(() => {
+      if (filtered) prepareFilteredRowLayout(rowRef.current);
+      setPhase(filtered ? 'hidden' : 'visible');
+    }, 280);
     return () => window.clearTimeout(timer);
   }, [filtered]);
 
-  return <tr {...props} aria-hidden={filtered || undefined} inert={filtered || undefined}
+  return <tr {...props} ref={rowRef} aria-hidden={filtered || undefined} inert={filtered || undefined}
     className={`${className} ${phase === 'hidden' ? 'hidden' : phase === 'entering' ? 'filtered-row-entering' : phase === 'exiting' ? 'filtered-row-exiting' : ''}`} />;
 }
 
@@ -6873,7 +6929,7 @@ function App() {
                             className={`
                             hover:bg-blue-100 rounded-2xl group relative cursor-move row-hover-tr
                             ${draggedStudentId === student.id ? 'opacity-20 grayscale scale-[0.98] blur-[1px]' : ''}
-                            ${(student.hasTopSeparator && (student.hasBottomSeparator || student.hasSeparator))
+                            ${activePendingDay !== null ? '' : (student.hasTopSeparator && (student.hasBottomSeparator || student.hasSeparator))
                                 ? 'shadow-[0_10px_15px_-8px_rgba(0,0,0,0.1),0_-10px_15px_-8px_rgba(0,0,0,0.1)]'
                                 : student.hasTopSeparator
                                   ? 'shadow-[0_-10px_15px_-8px_rgba(0,0,0,0.1)]'
