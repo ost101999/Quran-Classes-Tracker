@@ -9414,6 +9414,7 @@ function App() {
                                                 mode: 'ayah',
                                                 surah: nextSurah,
                                                 fromSurah: nextSurah,
+                                                toSurah: nextSurah,
                                                 from: toHindiDigits(nextStartAyah),
                                                 to: ''
                                               };
@@ -9558,6 +9559,7 @@ function App() {
                                                 mode: 'ayah',
                                                 surah: nextSurah,
                                                 fromSurah: nextSurah,
+                                                toSurah: nextSurah,
                                                 from: toHindiDigits(nextStartAyah),
                                                 to: ''
                                               };
@@ -10048,6 +10050,8 @@ function App() {
                                               nextHomework = {
                                                 mode: 'ayah',
                                                 surah: nextSurah,
+                                                fromSurah: nextSurah,
+                                                toSurah: nextSurah,
                                                 from: toHindiDigits(nextStartAyah),
                                                 to: ''
                                               };
@@ -10161,6 +10165,8 @@ function App() {
                                               nextHomework = {
                                                 mode: 'ayah',
                                                 surah: nextSurah,
+                                                fromSurah: nextSurah,
+                                                toSurah: nextSurah,
                                                 from: toHindiDigits(nextStartAyah),
                                                 to: ''
                                               };
@@ -10769,6 +10775,8 @@ function App() {
                                               nextHomework = {
                                                 mode: 'ayah',
                                                 surah: nextSurah,
+                                                fromSurah: nextSurah,
+                                                toSurah: nextSurah,
                                                 from: toHindiDigits(nextStartAyah),
                                                 to: ''
                                               };
@@ -10882,6 +10890,8 @@ function App() {
                                               nextHomework = {
                                                 mode: 'ayah',
                                                 surah: nextSurah,
+                                                fromSurah: nextSurah,
+                                                toSurah: nextSurah,
                                                 from: toHindiDigits(nextStartAyah),
                                                 to: ''
                                               };
@@ -11548,6 +11558,7 @@ function App() {
                                                     ...prev[studentId]?.homeworkTilawa,
                                                     surah: nextSurah,
                                                     fromSurah: nextSurah,
+                                                    toSurah: nextSurah,
                                                     from: toHindiDigits(nextStartAyah),
                                                     to: ''
                                                   }
@@ -11663,6 +11674,7 @@ function App() {
                                                 mode: 'ayah',
                                                 surah: nextSurah,
                                                 fromSurah: nextSurah,
+                                                toSurah: nextSurah,
                                                 from: toHindiDigits(nextStartAyah),
                                                 to: ''
                                               };
