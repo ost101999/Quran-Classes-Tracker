@@ -105,6 +105,8 @@ function FilteredRow({ filtered, className = '', ...props }: React.ComponentProp
 
 // --- Constants ---
 const STORAGE_KEY = 'quran_tracker_data';
+// Set to true to show the previous-month statistics button again.
+const SHOW_LAST_MONTH_STATS_BUTTON = false;
 const CLOUD_APPSTATE_BASE_URL = 'https://quran-classes-tracker-default-rtdb.firebaseio.com/appState';
 const SEEN_UNGRADED_TAJWEED_VERSION = 2;
 
@@ -6489,14 +6491,14 @@ function App() {
               <span>إحصائيات الشهر</span>
             </button>
 
-            <button
+            {SHOW_LAST_MONTH_STATS_BUTTON && <button
               onClick={() => { const date = new Date(year, month - 1, 1); setStatsPeriod({ month: date.getMonth(), year: date.getFullYear() }); setIsLastMonthStatsOpen(true); }}
               className="h-10 px-5 bg-indigo-50 text-indigo-600 border border-indigo-100 rounded-xl flex items-center gap-2 shadow-sm hover:bg-indigo-100 hover:shadow-md transition-all font-arabic font-bold text-lg"
               title="إحصائيات الشهر الماضي"
             >
               <History size={20} />
               <span>إحصائيات الشهر الماضي</span>
-            </button>
+            </button>}
           </div>
         </div>
       </div>
