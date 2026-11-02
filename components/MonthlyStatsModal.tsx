@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { X, TrendingUp, Calendar, DollarSign, Wallet, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Save } from 'lucide-react';
 import { Student, AttendanceRecord, AttendanceStatus } from '../types';
 
@@ -59,6 +59,26 @@ const MonthlyStatsModal: React.FC<Props> = ({ students, attendance, month, year,
     const [showEgpDetails, setShowEgpDetails] = useState(false);
     const [showUsdDetails, setShowUsdDetails] = useState(false);
     const [obligations, setObligations] = useState<string>(initialObligations ? initialObligations.toLocaleString('en-US') : '');
+
+    useEffect(() => {
+        const preventNavigation = (event: MouseEvent) => {
+            if (event.button === 3 || event.button === 4) event.preventDefault();
+        };
+        const handleMouseUp = (event: MouseEvent) => {
+            if (event.button !== 3 && event.button !== 4) return;
+            event.preventDefault();
+            event.stopPropagation();
+            onNavigateMonth(event.button === 3 ? -1 : 1);
+        };
+        document.addEventListener('mousedown', preventNavigation, true);
+        document.addEventListener('auxclick', preventNavigation, true);
+        document.addEventListener('mouseup', handleMouseUp, true);
+        return () => {
+            document.removeEventListener('mousedown', preventNavigation, true);
+            document.removeEventListener('auxclick', preventNavigation, true);
+            document.removeEventListener('mouseup', handleMouseUp, true);
+        };
+    }, [onNavigateMonth]);
 
     // Format input with thousand separators (Standard English)
     const formatNumberInput = (value: string) => {
