@@ -25,6 +25,13 @@ const customStyles = `
     animation: glow-green 1.5s infinite ease-in-out;
     border-width: 2px !important;
   }
+  @keyframes filtered-row-in { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes filtered-row-out { from { opacity: 1; } to { opacity: 0; } }
+  .filtered-row-entering { animation: filtered-row-in 280ms ease-out both; }
+  .filtered-row-exiting { animation: filtered-row-out 280ms ease-in both; pointer-events: none; }
+  @media (prefers-reduced-motion: reduce) {
+    .filtered-row-entering, .filtered-row-exiting { animation-duration: 1ms; }
+  }
   /* Ensure sticky student name column is transparent normally, but becomes solid when scrolled */
   tr.row-hover-tr td.student-name-sticky {
     background-color: transparent !important;
@@ -78,6 +85,23 @@ import TajweedBankModal from './components/TajweedBankModal';
 import TajweedAssignModal from './components/TajweedAssignModal';
 import TajweedGradingModal from './components/TajweedGradingModal';
 import TajweedGroupedHoverSelect, { TajweedGroupedSelectGroup } from './components/TajweedGroupedHoverSelect';
+
+// Keep filtered rows in the table until their exit animation has finished.
+function FilteredRow({ filtered, className = '', ...props }: React.ComponentProps<'tr'> & { filtered: boolean }) {
+  const [phase, setPhase] = useState<'visible' | 'entering' | 'exiting' | 'hidden'>(filtered ? 'hidden' : 'visible');
+  const previousFiltered = useRef(filtered);
+
+  useEffect(() => {
+    if (previousFiltered.current === filtered) return;
+    previousFiltered.current = filtered;
+    setPhase(filtered ? 'exiting' : 'entering');
+    const timer = window.setTimeout(() => setPhase(filtered ? 'hidden' : 'visible'), 280);
+    return () => window.clearTimeout(timer);
+  }, [filtered]);
+
+  return <tr {...props} aria-hidden={filtered || undefined} inert={filtered || undefined}
+    className={`${className} ${phase === 'hidden' ? 'hidden' : phase === 'entering' ? 'filtered-row-entering' : phase === 'exiting' ? 'filtered-row-exiting' : ''}`} />;
+}
 
 // --- Constants ---
 const STORAGE_KEY = 'quran_tracker_data';
@@ -4778,12 +4802,16 @@ function App() {
   useEffect(() => {
     const handleGlobalEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        setPendingFilter(null);
         closeAllModals(false);
       }
     };
 
     if (window.electronAPI?.onEscapeBtn) {
-      window.electronAPI.onEscapeBtn(() => closeAllModals(false));
+      window.electronAPI.onEscapeBtn(() => {
+        setPendingFilter(null);
+        closeAllModals(false);
+      });
     }
 
     window.addEventListener('keydown', handleGlobalEscape);
@@ -6452,14 +6480,6 @@ function App() {
         className="px-12 pb-6 pt-10 min-h-[calc(100vh-100px)] relative"
       >
 
-        {activePendingDay !== null && (
-          <div className="mb-4 flex flex-wrap items-center justify-center gap-3 font-arabic text-lg text-amber-900" role="status">
-            <span>عرض الحصص المتبقية ليوم {toHindiDigits(activePendingDay)} {MONTHS[month]} {toHindiDigits(year)}</span>
-            <button type="button" onClick={() => setPendingFilter(null)} className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-1 hover:bg-amber-100">
-              عرض كل الطلاب
-            </button>
-          </div>
-        )}
         <div
           ref={tableScrollRef}
           className={`bg-white rounded-3xl relative z-10 shadow-[0_8px_30px_-12px_rgba(0,0,0,0.1),0_-8px_30px_-12px_rgba(0,0,0,0.1)] group/table-container w-full overflow-x-auto ${isTableScrolled ? 'is-table-scrolled' : ''}`}
@@ -6597,7 +6617,7 @@ function App() {
                   return (
                     <React.Fragment key={academy}>
                       {/* Section Header */}
-                      <tr id={`academy-${academy}`} className={`scroll-mt-40 group ${allHiddenBySearch ? 'hidden' : ''}`}>
+                      <FilteredRow id={`academy-${academy}`} filtered={allHiddenBySearch} className="scroll-mt-40 group">
                         <td
                           colSpan={daysInMonth + 1}
                           className="bg-gray-50/80 p-4 text-center select-none"
@@ -6640,7 +6660,7 @@ function App() {
                             )}
                           </div>
                         </td>
-                      </tr>
+                      </FilteredRow>
 
                       {groupedStudents[academy].map((student, sIdx) => {
                         const totalDays = calculateTotal(student.id);
@@ -6710,8 +6730,9 @@ function App() {
 
                         const isSearchHidden = (searchQuery.trim() !== '' && !searchMatches(student.name)) || (activePendingDay !== null && !isPendingClass(student, activePendingDay));
                         return (
-                          <tr
+                          <FilteredRow
                             key={student.id}
+                            filtered={isSearchHidden}
                             data-student-id={student.id}
                             draggable={true}
                             onDragStart={(e) => handleStudentDragStart(e, student.id)}
@@ -6720,7 +6741,6 @@ function App() {
                             onDrop={(e) => handleStudentDrop(e, student.id)}
                             className={`
                             hover:bg-blue-100 rounded-2xl group relative cursor-move row-hover-tr
-                            ${isSearchHidden ? 'hidden' : ''}
                             ${draggedStudentId === student.id ? 'opacity-20 grayscale scale-[0.98] blur-[1px]' : ''}
                             ${(student.hasTopSeparator && (student.hasBottomSeparator || student.hasSeparator))
                                 ? 'shadow-[0_10px_15px_-8px_rgba(0,0,0,0.1),0_-10px_15px_-8px_rgba(0,0,0,0.1)]'
@@ -7476,7 +7496,7 @@ function App() {
                               })
                             }
 
-                          </tr>
+                          </FilteredRow>
                         );
                       })}
                     </React.Fragment>
