@@ -27,7 +27,7 @@ const customStyles = `
   }
   @keyframes filtered-row-in { from { opacity: 0; } to { opacity: 1; } }
   @keyframes filtered-row-out { from { opacity: 1; } to { opacity: 0; } }
-  .filtered-row-entering { animation: filtered-row-in 280ms ease-out both; }
+  .filtered-row-entering { animation: filtered-row-in 420ms ease-out both; }
   .filtered-row-exiting { animation: filtered-row-out 280ms ease-in both; pointer-events: none; }
   @keyframes academy-menu-in {
     from { opacity: 0; transform: translateY(-7px) scale(.97); }
@@ -129,7 +129,7 @@ function animateFilteredRowLayout(row: HTMLTableRowElement | null) {
     for (const { row: current, distance } of movements) {
       const animation = current.animate(
         [{ translate: `0 ${distance}px` }, { translate: '0 0' }],
-        { duration: 350, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' }
+        { duration: 420, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' }
       );
       rowLayoutAnimations.set(current, animation);
       animation.onfinish = () => {
@@ -157,7 +157,7 @@ function FilteredRow({ filtered, className = '', ...props }: React.ComponentProp
     const timer = window.setTimeout(() => {
       if (filtered) prepareFilteredRowLayout(rowRef.current);
       setPhase(filtered ? 'hidden' : 'visible');
-    }, 280);
+    }, filtered ? 280 : 420);
     return () => window.clearTimeout(timer);
   }, [filtered]);
 
@@ -6016,7 +6016,7 @@ function App() {
   const activePendingDay = pendingFilter?.month === month && pendingFilter.year === year ? pendingFilter.day : null;
   useEffect(() => {
     if (activePendingDay !== null || pendingStudentColumnWidth === null) return;
-    const timer = window.setTimeout(() => setPendingStudentColumnWidth(null), 400);
+    const timer = window.setTimeout(() => setPendingStudentColumnWidth(null), 480);
     return () => window.clearTimeout(timer);
   }, [activePendingDay, pendingStudentColumnWidth]);
 
@@ -6250,10 +6250,10 @@ function App() {
               /* Asymmetric row hover: slow fade-out, fast fade-in */
               .row-hover-tr {
                 will-change: background-color;
-                transition: background-color 300ms ease-out, opacity 200ms, filter 200ms, transform 200ms;
+                transition: background-color 300ms ease-out, box-shadow 400ms ease-out, opacity 200ms, filter 200ms, transform 200ms;
               }
               .row-hover-tr:hover {
-                transition: background-color 150ms ease-out, opacity 200ms, filter 200ms, transform 200ms;
+                transition: background-color 150ms ease-out, box-shadow 400ms ease-out, opacity 200ms, filter 200ms, transform 200ms;
               }
             `}</style>
 
@@ -6754,7 +6754,7 @@ function App() {
                       <th
                         key={dayNum}
                         id={isToday ? 'today-column' : undefined}
-                        className={`p-3 min-w-[70px] antialiased relative transition-opacity duration-200`}
+                        className={`p-3 min-w-[70px] antialiased relative transition-opacity duration-[400ms] ease-out`}
                         style={{
                           opacity: activePendingDay !== null && activePendingDay !== dayNum ? 0.35 : 1,
                           backgroundColor: isToday ? 'rgba(255, 224, 93, 0.4)' : isWknd ? 'rgba(129, 255, 234, 0.1)' : 'transparent'
@@ -7561,7 +7561,7 @@ function App() {
 
                                       setAttendance(prev => ({ ...prev, [key]: newStatus }));
                                     }}
-                                    className={`select-none ${isDoubleScheduled ? 'relative' : ''} transition-all duration-200
+                                    className={`select-none ${isDoubleScheduled ? 'relative' : ''} transition-all duration-[400ms] ease-out
                                       ${(isWknd || isAcademyHoliday) ? 'bg-[#81ffea]/20' : ''}
                                       ${isToday ? 'bg-[#ffe05d]/10' : ''}
                                       ${dayNum === daysInMonth ? 'relative' : ''}
@@ -17641,7 +17641,7 @@ const StickyHeader = React.forwardRef<HTMLDivElement, {
                   return (
                     <th
                       key={dayNum}
-                      className={`p-3 min-w-[70px] antialiased relative transition-opacity duration-200`}
+                      className={`p-3 min-w-[70px] antialiased relative transition-opacity duration-[400ms] ease-out`}
                       style={{
                         opacity: activePendingDay !== null && activePendingDay !== dayNum ? 0.35 : 1,
                         backgroundColor: isToday ? 'rgba(255, 224, 93, 0.4)' : isWknd ? 'rgba(129, 255, 234, 0.1)' : 'transparent'
