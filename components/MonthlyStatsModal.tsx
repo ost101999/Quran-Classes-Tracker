@@ -58,7 +58,7 @@ const MONTHS = [
     'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
 ];
 
-const IncomeDetails: React.FC<{ expanded: boolean; children: React.ReactNode }> = ({ expanded, children }) => {
+const IncomeDetails: React.FC<{ expanded: boolean; currency: 'egp' | 'usd'; children: React.ReactNode }> = ({ expanded, currency, children }) => {
     const contentRef = useRef<HTMLDivElement>(null);
     const [contentHeight, setContentHeight] = useState(0);
 
@@ -74,7 +74,7 @@ const IncomeDetails: React.FC<{ expanded: boolean; children: React.ReactNode }> 
 
     return (
         <div
-            className={`monthly-stats-details ${expanded ? 'is-open' : ''}`}
+            className={`monthly-stats-details monthly-stats-details-${currency} ${expanded ? 'is-open' : ''}`}
             style={{ height: expanded ? contentHeight : 0 }}
             aria-hidden={!expanded}
             inert={!expanded}
@@ -455,7 +455,7 @@ const MonthlyStatsModal: React.FC<Props> = ({ students, attendance, month, year,
                                 </button>
                             </div>
 
-                            <IncomeDetails expanded={showEgpDetails && stats.egpStudents.length > 0}>
+                            <IncomeDetails currency="egp" expanded={showEgpDetails && stats.egpStudents.length > 0}>
                                 <div className="border-t border-emerald-100 bg-white/50 p-4 space-y-2">
                                     {stats.egpStudents.map((s, i) => {
                                         const isPaid = paymentStatus?.[`${s.id}_${month}_${year}`];
@@ -530,7 +530,7 @@ const MonthlyStatsModal: React.FC<Props> = ({ students, attendance, month, year,
                                 </button>
                             </div>
 
-                            <IncomeDetails expanded={showUsdDetails && stats.usdStudents.length > 0}>
+                            <IncomeDetails currency="usd" expanded={showUsdDetails && stats.usdStudents.length > 0}>
                                 <div className="border-t border-blue-100 bg-white/50 p-4 space-y-2">
                                     {stats.usdStudents.map((s, i) => {
                                         const isPaid = paymentStatus?.[`${s.id}_${month}_${year}`];

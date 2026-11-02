@@ -67,6 +67,11 @@
   opacity: 1;
 }
 
+.monthly-stats-details-usd.is-open,
+.monthly-stats-details-egp:not(.is-open) {
+  transition-delay: 400ms;
+}
+
 @keyframes monthly-stats-fade-in {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -79,5 +84,5 @@
 
 @media (prefers-reduced-motion: reduce) {
   .monthly-stats-overlay, .monthly-stats-dialog { animation-duration: 1ms; }
-  .monthly-stats-details { transition-duration: 1ms; }
+  .monthly-stats-details { transition-duration: 1ms; transition-delay: 0ms !important; }
 }
