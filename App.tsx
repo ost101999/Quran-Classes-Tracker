@@ -3975,6 +3975,7 @@ function App() {
   const mainRef = React.useRef<HTMLElement>(null);
   const originalHeaderRef = React.useRef<HTMLTableSectionElement>(null);
   const studentHeaderRef = React.useRef<HTMLTableCellElement>(null);
+  const [pendingStudentColumnWidth, setPendingStudentColumnWidth] = useState<number | null>(null);
   const originalTableRef = React.useRef<HTMLTableElement>(null);
   const [showStickyHeader, setShowStickyHeader] = useState(false);
   const [studentWidth, setStudentWidth] = useState<number>(150);
@@ -6013,7 +6014,16 @@ function App() {
   }, [month, year]);
 
   const activePendingDay = pendingFilter?.month === month && pendingFilter.year === year ? pendingFilter.day : null;
+  useEffect(() => {
+    if (activePendingDay !== null || pendingStudentColumnWidth === null) return;
+    const timer = window.setTimeout(() => setPendingStudentColumnWidth(null), 400);
+    return () => window.clearTimeout(timer);
+  }, [activePendingDay, pendingStudentColumnWidth]);
+
   const togglePendingFilter = (dayNum: number) => {
+    if (activePendingDay === null && studentHeaderRef.current) {
+      setPendingStudentColumnWidth(studentHeaderRef.current.getBoundingClientRect().width);
+    }
     setPendingFilter(activePendingDay === dayNum ? null : { day: dayNum, month, year });
   };
 
@@ -6723,6 +6733,7 @@ function App() {
                     className="sticky right-0 z-40 p-4 font-arabic text-2xl min-w-[220px] w-[220px] text-center px-2 font-normal bg-[#002060]"
                     style={{
                       color: 'white',
+                      ...(pendingStudentColumnWidth !== null ? { width: pendingStudentColumnWidth, minWidth: pendingStudentColumnWidth } : {}),
                       backgroundImage: `
                       radial-gradient(circle at 50% 50%, transparent 0%, #002060 100%),
                       repeating-linear-gradient(45deg, rgba(255,255,255,0.03) 0px, rgba(255,255,255,0.03) 2px, transparent 2px, transparent 10px),
