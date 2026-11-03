@@ -1,7 +1,7 @@
 const https = require('node:https');
 
-function createFirebaseClient(baseUrl, { idleTimeoutMs = 60000 } = {}) {
-    function request(path, { method = 'GET', value, silent = false, etag } = {}) {
+function createFirebaseClient(baseUrl, { idleTimeoutMs = 60000, requestImpl = https.request } = {}) {
+    function request(path, { method = 'GET', value, silent = false, etag, discardBody = false } = {}) {
         const encoded = path.split('/').map(encodeURIComponent).join('/');
         const url = `${baseUrl}/${encoded}.json${silent ? '?print=silent' : ''}`;
         const body = value === undefined ? null : JSON.stringify(value);
@@ -12,9 +12,13 @@ function createFirebaseClient(baseUrl, { idleTimeoutMs = 60000 } = {}) {
                 headers['Content-Type'] = 'application/json';
                 headers['Content-Length'] = Buffer.byteLength(body);
             }
-            const req = https.request(url, { method, headers }, res => {
+            const req = requestImpl(url, { method, headers }, res => {
                 const chunks = [];
-                res.on('data', chunk => chunks.push(chunk));
+                let bytes = 0;
+                res.on('data', chunk => {
+                    bytes += chunk.length;
+                    if (!discardBody) chunks.push(chunk);
+                });
                 res.on('aborted', () => reject(new Error('Firebase response interrupted')));
                 res.on('error', reject);
                 res.on('end', () => {
@@ -27,7 +31,7 @@ function createFirebaseClient(baseUrl, { idleTimeoutMs = 60000 } = {}) {
                     }
                     try {
                         const text = Buffer.concat(chunks).toString('utf8');
-                        resolve({ value: text ? JSON.parse(text) : null, etag: res.headers.etag, status, bytes: Buffer.byteLength(text) });
+                        resolve({ value: text ? JSON.parse(text) : null, etag: res.headers.etag, status, bytes });
                     } catch (error) { reject(error); }
                 });
             });
@@ -43,7 +47,9 @@ function createFirebaseClient(baseUrl, { idleTimeoutMs = 60000 } = {}) {
     return {
         probe: path => request(path, { silent: true }),
         read: path => request(path),
-        put: (path, value, etag) => request(path, { method: 'PUT', value, etag, silent: true }),
+        // Firebase rejects print=silent together with If-Match. Conditional
+        // writes must use a normal response; drain it without retaining data.
+        put: (path, value, etag) => request(path, { method: 'PUT', value, etag, silent: !etag, discardBody: !!etag }),
     };
 }
 module.exports = { createFirebaseClient };
