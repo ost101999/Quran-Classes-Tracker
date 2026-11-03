@@ -2,7 +2,10 @@ declare global {
     interface Window {
         electronAPI: {
             platform?: string;
-            saveData: (data: any, skipSync?: boolean) => Promise<{ success: boolean; error?: string }>;
+            saveData: (data: any, skipSync?: boolean, token?: number) => Promise<{ success: boolean; busy?: boolean; error?: string }>;
+            getCloudChanges?: () => Promise<{ busy?: boolean; changes?: Record<string, any>; token?: number }>;
+            getSyncConflicts?: () => Promise<any[]>;
+            resolveSyncConflict?: (path: string, choice: 'local' | 'remote', etag: string) => Promise<{ success: boolean; changed?: boolean }>;
             loadData: () => Promise<any>;
             saveZoom?: (zoomFactor: number) => Promise<{ success: boolean; error?: string }>;
             loadZoom?: () => Promise<number | null>;
@@ -26,6 +29,7 @@ declare global {
 }
 
 interface SyncStatus {
+    conflict?: boolean;
     isSyncing: boolean;
     hasPending: boolean;
     error: string | null;

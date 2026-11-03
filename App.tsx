@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } from 'react';
+import { fetchCloudEntries } from './cloud-fetch.mjs';
+import { localizeAudioPaths } from './localize-audio.mjs';
 import { Settings, Plus, Download, Upload, Trash2, Archive, ArchiveRestore, Calendar, ArrowLeft, ArrowRight, ChevronDown, ChevronUp, Link, History, Clock, Users2, Banknote, BarChart3, Minus, Pin, Phone, MessageCircle, Copy, UserX, UserCheck, Shield, Wand2, Check, ArrowDown, Repeat, Eye, EyeOff, Bell, X } from 'lucide-react';
 
 // Custom animation styles
@@ -554,8 +556,18 @@ function App() {
   };
 
   const [isLoaded, setIsLoaded] = useState(false);
+  // On desktop, wait for the first cloud check before allowing edits or saving
+  // the loaded snapshot back to the server.
+  const [initialSyncReady, setInitialSyncReady] = useState(() => !window.electronAPI);
+  const applyingCloudRef = useRef(false);
+  const [initialSyncError, setInitialSyncError] = useState(false);
+  const [initialSyncAttempt, setInitialSyncAttempt] = useState(0);
+  const [initialSyncProgress, setInitialSyncProgress] = useState<{ completed: number; total: number; bytes: number } | null>(null);
   const [lastUpdated, setLastUpdated] = useState<number>(0);
-  const [uploadStatus, setUploadStatus] = useState<{ isSyncing: boolean; hasPending: boolean; error: string | null; lastSuccessAt: number | null } | null>(null);
+  const [syncConflicts, setSyncConflicts] = useState<any[]>([]);
+  const [resolvingConflict, setResolvingConflict] = useState(false);
+  const [conflictMessage, setConflictMessage] = useState('');
+  const [uploadStatus, setUploadStatus] = useState<{ conflict?: boolean; isSyncing: boolean; hasPending: boolean; error: string | null; lastSuccessAt: number | null } | null>(null);
   const [students, setStudents] = useState<Student[]>(initialStudents);
   const [attendance, setAttendance] = useState<AttendanceRecord>({});
   const [past, setPast] = useState<HistorySnapshot[]>([]);
@@ -1855,9 +1867,9 @@ function App() {
     }
   }, [isLoaded, triggerCenterToday]);
 
-  // Pull Tajweed submissions from cloud portal and merge into local app state.
+  // Browser fallback; desktop now includes portal records in its verified incremental sync.
   useEffect(() => {
-    if (!isLoaded) return;
+    if (!isLoaded || !initialSyncReady || window.electronAPI?.getCloudChanges) return;
 
     let isCancelled = false;
 
@@ -2041,7 +2053,7 @@ function App() {
       isCancelled = true;
       window.clearInterval(syncInterval);
     };
-  }, [isLoaded]);
+  }, [isLoaded, initialSyncReady]);
 
   // --- Sync IPC Listener ---
   useEffect(() => {
@@ -2050,11 +2062,49 @@ function App() {
     return () => window.electronAPI?.offSyncStatus?.();
   }, []);
 
+  useEffect(() => {
+    if (window.electronAPI?.getSyncConflicts) {
+      window.electronAPI.getSyncConflicts().then(setSyncConflicts).catch(console.error);
+    }
+  }, [uploadStatus]);
+
+  const resolveSyncConflict = async (choice: 'local' | 'remote') => {
+    const conflict = syncConflicts[0];
+    if (!conflict || !window.electronAPI?.resolveSyncConflict) return;
+    setResolvingConflict(true);
+    setConflictMessage('');
+    try {
+      const result = await window.electronAPI.resolveSyncConflict(conflict.path, choice, conflict.remoteEtag);
+      if (!result?.success) {
+        setConflictMessage('النسخة السحابية اتغيّرت أثناء المراجعة. راجع النسخة الأحدث قبل الاختيار.');
+        setSyncConflicts(await window.electronAPI.getSyncConflicts!());
+      } else {
+        // Reload the durable chosen snapshot before editing or resuming uploads.
+        window.location.reload();
+      }
+    } catch {
+      setConflictMessage('تعذّر إكمال الاختيار. النسختان محفوظتان؛ حاول مرة أخرى عند عودة الاتصال.');
+    } finally { setResolvingConflict(false); }
+  };
+
+  // Receiving can take time, but the final disk commit must be isolated from
+  // new UI edits until React has applied the same snapshot (normally milliseconds).
+  useEffect(() => {
+    const guard = (event: Event) => {
+      if (applyingCloudRef.current) { event.preventDefault(); event.stopImmediatePropagation(); }
+    };
+    const events = ['beforeinput', 'keydown', 'click', 'pointerdown', 'change', 'drop', 'paste'];
+    events.forEach(name => window.addEventListener(name, guard, true));
+    return () => events.forEach(name => window.removeEventListener(name, guard, true));
+  }, []);
+
   // --- Real-time Cloud Sync for Core State ---
   useEffect(() => {
     if (!isLoaded) return;
     let isCancelled = false;
     let retryTimer: number | undefined;
+    const downloadController = new AbortController();
+    let pollInProgress = false;
 
     const retrySoon = () => {
       if (!isCancelled && retryTimer === undefined) {
@@ -2063,12 +2113,21 @@ function App() {
     };
 
     const pollCloudChanges = async () => {
+      if (pollInProgress) return;
+      pollInProgress = true;
+      let appliedCloudState = false;
       try {
-        const res = await fetch(`${CLOUD_APPSTATE_BASE_URL}/lastUpdated.json`, { cache: 'no-store', signal: AbortSignal.timeout(20000) });
-        if (!res.ok) throw new Error(`Failed to check cloud: ${res.status}`);
+        const incremental = window.electronAPI?.getCloudChanges ? await window.electronAPI.getCloudChanges() : null;
         if (isCancelled) return;
+        if (incremental?.busy) { retrySoon(); return; }
+        let remoteLastUpdated = lastUpdated;
+        if (!incremental) {
+          const res = await fetch(`${CLOUD_APPSTATE_BASE_URL}/lastUpdated.json`, { cache: 'no-store', signal: AbortSignal.any([downloadController.signal, AbortSignal.timeout(60000)]) });
+          if (!res.ok) throw new Error(`Failed to check cloud: ${res.status}`);
+          if (isCancelled) return;
 
-        const remoteLastUpdated = await res.json();
+          remoteLastUpdated = await res.json();
+        }
 
         // Ensure we are not currently syncing local changes before attempting an overwrite
         if (window.electronAPI?.getSyncStatus) {
@@ -2082,8 +2141,8 @@ function App() {
 
         // The other device's clock may be behind this one, so compare revisions
         // for equality instead of assuming timestamps always increase.
-        if (remoteLastUpdated && typeof remoteLastUpdated === 'number' && remoteLastUpdated !== lastUpdated) {
-          console.log(`Cloud state is newer (${remoteLastUpdated} > ${lastUpdated}). Fetching incrementally...`);
+        if (incremental ? Object.keys(incremental.changes || {}).length > 0 : remoteLastUpdated && typeof remoteLastUpdated === 'number' && remoteLastUpdated !== lastUpdated) {
+          console.log(incremental ? 'Applying changed cloud sections.' : 'Cloud revision changed; fetching fallback snapshot.');
 
           const coreKeys = [
             'students', 'attendance', 'month', 'year', 'dayOff', 'academyOrder', 'academyRates',
@@ -2094,38 +2153,52 @@ function App() {
             'lastReports', 'tajweedBank', 'savedReports', 'savedReportDrafts', 'tajweedLessonEditorUiState'
           ];
 
-          const fetchPromises = coreKeys.map(async (key) => {
-            const res = await fetch(`${CLOUD_APPSTATE_BASE_URL}/${key}.json`, { cache: 'no-store', signal: AbortSignal.timeout(20000) });
-            if (!res.ok) throw new Error(`Failed to fetch ${key}: ${res.status}`);
-            return { key, data: await res.json() };
+          if (!incremental && !initialSyncReady) setInitialSyncProgress({ completed: 0, total: coreKeys.length, bytes: 0 });
+          const coreResults = incremental
+            ? Object.entries(incremental.changes || {}).map(([key, data]) => ({ key, data }))
+            : await fetchCloudEntries(CLOUD_APPSTATE_BASE_URL, coreKeys, {
+            signal: downloadController.signal,
+            onProgress: (completed: number, total: number) => {
+              if (!isCancelled && !initialSyncReady) setInitialSyncProgress(previous => ({ completed, total, bytes: previous?.bytes || 0 }));
+            },
+            onBytes: (bytes: number) => {
+              if (!isCancelled && !initialSyncReady) setInitialSyncProgress(previous => previous ? { ...previous, bytes } : previous);
+            },
           });
-
-          const coreResults = await Promise.all(fetchPromises);
 
           if (isCancelled) return;
 
           let fullData: any = {};
           coreResults.forEach(r => { if (r.data !== null) fullData[r.key] = r.data; });
 
-          // Firebase returns null for empty arrays and objects. Treat empty core
-          // collections as deletions instead of keeping stale local entries.
-          fullData.students = coreResults.find(r => r.key === 'students')?.data || [];
-          fullData.attendance = coreResults.find(r => r.key === 'attendance')?.data || {};
-          fullData.savedReports = coreResults.find(r => r.key === 'savedReports')?.data || {};
-          fullData.savedReportDrafts = coreResults.find(r => r.key === 'savedReportDrafts')?.data || {};
+          // A missing field means unchanged. Null means a deleted collection.
+          const arrayFields = ['students', 'academyOrder', 'makeupLinks', 'seenUngradedTajweedAssignmentIds'];
+          const mapFields = ['attendance', 'academyRates', 'monthlyObligations', 'paymentStatus', 'studentProgress', 'lastReports', 'studentNotesHistory', 'savedReports', 'savedReportDrafts', 'subscriptionSettings', 'tajweedBank', 'tajweedAssignments', 'tajweedSubmissions', 'tajweedLessonEditorUiState'];
+          coreResults.forEach(({ key, data }: any) => {
+            if (data === null && arrayFields.includes(key)) fullData[key] = [];
+            if (data === null && mapFields.includes(key)) fullData[key] = {};
+          });
           // Backup folders are machine-specific even though the other backup settings sync.
           if (fullData.autoBackupConfig) {
             fullData.autoBackupConfig = { ...fullData.autoBackupConfig, backupPath: autoBackupConfig.backupPath };
           }
 
-          // Preserve local Tajweed data so saveData doesn't wipe them. They are synced separately.
-          fullData.tajweedAssignments = tajweedAssignments;
-          fullData.tajweedSubmissions = tajweedSubmissions;
+          if (incremental && fullData.tajweedSubmissions) {
+            fullData.tajweedSubmissions = localizeAudioPaths(fullData.tajweedSubmissions, tajweedSubmissions);
+          }
+
+          // The legacy browser path still syncs portal records separately.
+          if (!incremental) {
+            fullData.tajweedAssignments = tajweedAssignments;
+            fullData.tajweedSubmissions = tajweedSubmissions;
+          }
 
           if (fullData) {
             fullData = desanitizeStateKeys(fullData, students, academyOrder);
           }
 
+          if (isCancelled) return;
+          applyingCloudRef.current = true;
           // DOUBLE CHECK: Did the user make any local changes WHILE we were fetching?
           // If so, ABORT to prevent overwriting their new rapid changes!
           if (window.electronAPI?.getSyncStatus) {
@@ -2141,40 +2214,7 @@ function App() {
             return;
           }
 
-          if (fullData) {
-            if (fullData.students) setStudents(fullData.students);
-            if (fullData.attendance) setAttendance(fullData.attendance);
-            if (fullData.month !== undefined && fullData.month !== null) setMonth(fullData.month);
-            if (fullData.year !== undefined && fullData.year !== null) setYear(fullData.year);
-            if (fullData.dayOff !== undefined && fullData.dayOff !== null) setDayOff(fullData.dayOff);
-            if (fullData.academyOrder) setAcademyOrder(fullData.academyOrder);
-            if (fullData.academyRates) setAcademyRates(fullData.academyRates);
-            if (fullData.monthlyObligations) setMonthlyObligations(fullData.monthlyObligations);
-            if (fullData.paymentStatus) setPaymentStatus(fullData.paymentStatus);
-            if (fullData.makeupLinks) setMakeupLinks(fullData.makeupLinks);
-            if (fullData.showMakeupLines !== undefined && fullData.showMakeupLines !== null) setShowMakeupLines(fullData.showMakeupLines);
-
-            // New additions for full sync
-            if (fullData.savedReports) setSavedReports(fullData.savedReports);
-            if (fullData.savedReportDrafts) setSavedReportDrafts(fullData.savedReportDrafts);
-            if (fullData.lastReports) setLastReports(fullData.lastReports);
-            if (fullData.studentNotesHistory) setStudentNotesHistory(fullData.studentNotesHistory);
-            if (fullData.autoBackupConfig) setAutoBackupConfig(fullData.autoBackupConfig);
-            if (fullData.externalLinks) setExternalLinks(fullData.externalLinks);
-            if (fullData.dayTransitionTime) setDayTransitionTime(fullData.dayTransitionTime);
-            if (fullData.confirmNonTodayAttendance !== undefined) setConfirmNonTodayAttendance(fullData.confirmNonTodayAttendance);
-            if (fullData.whatsappTarget) setWhatsappTarget(fullData.whatsappTarget);
-            if (fullData.whatsappMode) setWhatsappMode(fullData.whatsappMode);
-            if (fullData.studentProgress) setStudentProgress(fullData.studentProgress);
-            if (fullData.preferredModes) setPreferredModes(fullData.preferredModes);
-            if (fullData.defaultNoorBook) setDefaultNoorBook(fullData.defaultNoorBook);
-            if (fullData.subscriptionSettings) setSubscriptionSettings(fullData.subscriptionSettings);
-            if (fullData.tajweedBank) setTajweedBank(fullData.tajweedBank);
-            if (fullData.tajweedAssignments) setTajweedAssignments(fullData.tajweedAssignments);
-            if (fullData.tajweedSubmissions) setTajweedSubmissions(fullData.tajweedSubmissions);
-            if (fullData.tajweedLessonEditorUiState) setTajweedLessonEditorUiState(fullData.tajweedLessonEditorUiState);
-          }
-
+          if (isCancelled) return;
           // Force an immediate save to local disk, but skip pushing back to Firebase
           if (window.electronAPI && fullData) {
             const result = await window.electronAPI.saveData({
@@ -2208,16 +2248,64 @@ function App() {
               tajweedSubmissions: fullData.tajweedSubmissions || tajweedSubmissions,
               tajweedLessonEditorUiState: fullData.tajweedLessonEditorUiState || tajweedLessonEditorUiState,
               seenUngradedTajweedVersion: SEEN_UNGRADED_TAJWEED_VERSION,
-              seenUngradedTajweedAssignmentIds: Array.from(seenUngradedTajweedAssignmentIds),
+              seenUngradedTajweedAssignmentIds: fullData.seenUngradedTajweedAssignmentIds || Array.from(seenUngradedTajweedAssignmentIds),
 
               lastUpdated: remoteLastUpdated,
-            }, true); // true = skipSync
+            }, true, incremental?.token); // Commit only if no local edits arrived during the download.
+            if (result.busy) { retrySoon(); return; }
             if (!result.success) throw new Error(result.error || 'Could not save cloud data locally');
           }
+          if (fullData) {
+            if (fullData.students) setStudents(fullData.students);
+            if (fullData.attendance) setAttendance(fullData.attendance);
+            if (fullData.month !== undefined && fullData.month !== null) setMonth(fullData.month);
+            if (fullData.year !== undefined && fullData.year !== null) setYear(fullData.year);
+            if (fullData.dayOff !== undefined && fullData.dayOff !== null) setDayOff(fullData.dayOff);
+            if (fullData.academyOrder) setAcademyOrder(fullData.academyOrder);
+            if (fullData.academyRates) setAcademyRates(fullData.academyRates);
+            if (fullData.monthlyObligations) setMonthlyObligations(fullData.monthlyObligations);
+            if (fullData.paymentStatus) setPaymentStatus(fullData.paymentStatus);
+            if (fullData.makeupLinks) setMakeupLinks(fullData.makeupLinks);
+            if (fullData.showMakeupLines !== undefined && fullData.showMakeupLines !== null) setShowMakeupLines(fullData.showMakeupLines);
+
+            // New additions for full sync
+            if (fullData.savedReports) setSavedReports(fullData.savedReports);
+            if (fullData.savedReportDrafts) setSavedReportDrafts(fullData.savedReportDrafts);
+            if (fullData.lastReports) setLastReports(fullData.lastReports);
+            if (fullData.studentNotesHistory) setStudentNotesHistory(fullData.studentNotesHistory);
+            if (fullData.autoBackupConfig) setAutoBackupConfig(fullData.autoBackupConfig);
+            if (fullData.externalLinks) setExternalLinks(fullData.externalLinks);
+            if (fullData.dayTransitionTime) setDayTransitionTime(fullData.dayTransitionTime);
+            if (fullData.confirmNonTodayAttendance !== undefined) setConfirmNonTodayAttendance(fullData.confirmNonTodayAttendance);
+            if (fullData.whatsappTarget) setWhatsappTarget(fullData.whatsappTarget);
+            if (fullData.whatsappMode) setWhatsappMode(fullData.whatsappMode);
+            if (fullData.studentProgress) setStudentProgress(fullData.studentProgress);
+            if (fullData.preferredModes) setPreferredModes(fullData.preferredModes);
+            if (fullData.defaultNoorBook) setDefaultNoorBook(fullData.defaultNoorBook);
+            if (fullData.subscriptionSettings) setSubscriptionSettings(fullData.subscriptionSettings);
+            if (fullData.tajweedBank) setTajweedBank(fullData.tajweedBank);
+            if (fullData.tajweedAssignments) setTajweedAssignments(fullData.tajweedAssignments);
+            if (fullData.tajweedSubmissions) setTajweedSubmissions(fullData.tajweedSubmissions);
+            if (fullData.seenUngradedTajweedAssignmentIds) setSeenUngradedTajweedAssignmentIds(new Set(fullData.seenUngradedTajweedAssignmentIds));
+            if (fullData.tajweedLessonEditorUiState) setTajweedLessonEditorUiState(fullData.tajweedLessonEditorUiState);
+          }
+
           setLastUpdated(remoteLastUpdated);
+          appliedCloudState = true;
+        }
+        if (!isCancelled || appliedCloudState) {
+          setInitialSyncError(false);
+          setInitialSyncReady(true);
         }
       } catch (err) {
         console.warn('Background sync check failed:', err);
+        if (!isCancelled && !initialSyncReady) {
+          setInitialSyncError(true);
+          retrySoon();
+        }
+      } finally {
+        applyingCloudRef.current = false;
+        pollInProgress = false;
       }
     };
 
@@ -2227,6 +2315,7 @@ function App() {
 
     return () => {
       isCancelled = true;
+      downloadController.abort();
       window.clearInterval(pollInterval);
       if (retryTimer !== undefined) window.clearTimeout(retryTimer);
     };
@@ -2235,7 +2324,8 @@ function App() {
     showMakeupLines, confirmNonTodayAttendance, whatsappTarget, whatsappMode, studentProgress,
     preferredModes, lastReports, studentNotesHistory, defaultNoorBook, savedReports, savedReportDrafts,
     subscriptionSettings, tajweedBank, tajweedAssignments, tajweedSubmissions, tajweedLessonEditorUiState,
-    seenUngradedTajweedAssignmentIds, uploadStatus?.hasPending, uploadStatus?.isSyncing]);
+    seenUngradedTajweedAssignmentIds, uploadStatus?.hasPending, uploadStatus?.isSyncing,
+    initialSyncReady, initialSyncAttempt]);
 
 
   // UI State
@@ -4544,7 +4634,7 @@ function App() {
 
   // Save to Electron AppData whenever data changes
   useEffect(() => {
-    if (!isLoaded) return;
+    if (!isLoaded || !initialSyncReady || syncConflicts.length || resolvingConflict || applyingCloudRef.current) return;
 
     // Update local action timestamp so background sync doesn't overwrite us
     lastLocalActionTime.current = Date.now();
@@ -4581,13 +4671,14 @@ function App() {
       tajweedLessonEditorUiState,
       seenUngradedTajweedVersion: SEEN_UNGRADED_TAJWEED_VERSION,
       seenUngradedTajweedAssignmentIds: Array.from(seenUngradedTajweedAssignmentIds),
+      lastUpdated,
     };
     if (window.electronAPI) {
       window.electronAPI.saveData(dataToSave);
     } else {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
     }
-  }, [students, attendance, month, year, dayOff, academyOrder, academyRates, monthlyObligations, paymentStatus, autoBackupConfig, externalLinks, dayTransitionTime, makeupLinks, showMakeupLines, confirmNonTodayAttendance, whatsappTarget, whatsappMode, studentProgress, preferredModes, lastReports, studentNotesHistory, savedReports, savedReportDrafts, subscriptionSettings, tajweedBank, tajweedAssignments, tajweedSubmissions, tajweedLessonEditorUiState, seenUngradedTajweedAssignmentIds, isLoaded]);
+  }, [students, attendance, month, year, dayOff, academyOrder, academyRates, monthlyObligations, paymentStatus, autoBackupConfig, externalLinks, dayTransitionTime, makeupLinks, showMakeupLines, confirmNonTodayAttendance, whatsappTarget, whatsappMode, studentProgress, preferredModes, defaultNoorBook, lastReports, studentNotesHistory, savedReports, savedReportDrafts, subscriptionSettings, tajweedBank, tajweedAssignments, tajweedSubmissions, tajweedLessonEditorUiState, seenUngradedTajweedAssignmentIds, isLoaded, initialSyncReady, lastUpdated]);
 
 
 
@@ -6031,10 +6122,42 @@ function App() {
   const COL_PAY_WIDTH = "100px";
   const COL_COUNT_WIDTH = "100px";
 
-  if (!isLoaded) {
+  if (syncConflicts.length) {
+    const conflict = syncConflicts[0];
+    const [field, recordId] = conflict.path.split('/');
+    const fieldNames: Record<string, string> = { savedReports: 'التقرير', savedReportDrafts: 'مسودة التقرير', lastReports: 'بيانات آخر تقرير', attendance: 'الحضور', students: 'قائمة الطلاب', tajweedBank: 'بنك التجويد' };
+    const student = students.find(item => recordId?.includes(item.id));
+    const preview = (value: any) => value == null ? 'تم الحذف' : typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+    return <div className="min-h-screen bg-gray-900 p-6 text-white font-arabic" dir="rtl">
+      <div className="max-w-5xl mx-auto">
+        <h1 className="text-2xl text-amber-300">فيه تعديلان مختلفان يحتاجان مراجعتك</h1>
+        <p className="my-3">{fieldNames[field] || 'البيانات'}{student ? ` — ${student.name}` : ''} · {syncConflicts.length} اختلاف متبقٍ</p>
+        <p className="text-gray-300 mb-4">النسختان محفوظتان في نسخة احتياطية. اختَر النسخة التي تريد استخدامها ومزامنتها.</p>
+        <div className="grid md:grid-cols-2 gap-4">
+          {(['local', 'remote'] as const).map(choice => <section key={choice} className="rounded-xl bg-gray-800 p-4">
+            <h2 className="text-lg mb-2">{choice === 'local' ? 'نسخة هذا الجهاز' : 'النسخة السحابية'}</h2>
+            <pre className="whitespace-pre-wrap break-words max-h-[55vh] overflow-auto text-sm" dir="auto">{preview(choice === 'local' ? conflict.localValue : conflict.remoteValue)}</pre>
+            <button disabled={resolvingConflict} className="mt-4 bg-amber-400 text-gray-900 rounded-xl px-4 py-2 disabled:opacity-50" onClick={() => void resolveSyncConflict(choice)}>{choice === 'local' ? 'استخدام نسخة هذا الجهاز' : 'استخدام النسخة السحابية'}</button>
+          </section>)}
+        </div>
+        {conflictMessage && <p role="alert" className="mt-4 text-amber-300">{conflictMessage}</p>}
+      </div>
+    </div>;
+  }
+
+  if (!isLoaded || !initialSyncReady) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <div className="text-[#ffe05d] animate-pulse font-arabic text-2xl">جاري تحميل البيانات...</div>
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center px-6" dir="rtl">
+        <div className="text-center font-arabic text-[#ffe05d]">
+          <div className="text-2xl">{!isLoaded ? 'جاري تحميل البيانات...' : uploadStatus?.error ? 'تعذّر رفع التعديلات المحفوظة على هذا الجهاز' : initialSyncError ? 'تعذّر إكمال مزامنة البيانات' : 'جاري مزامنة البيانات قبل بدء العمل...'}</div>
+          {isLoaded && !initialSyncError && !uploadStatus?.error && <p className="mt-3 text-base text-gray-200">{initialSyncProgress ? `تم تحميل ${initialSyncProgress.completed} من ${initialSyncProgress.total} · ${(initialSyncProgress.bytes / 1024 / 1024).toFixed(1)} ميجابايت` : 'جاري التحقق من آخر تحديث...'}</p>}
+          {isLoaded && (initialSyncError || uploadStatus?.error) && (
+            <>
+              <p className="mt-3 text-base text-gray-200">تأكد من الاتصال بالإنترنت؛ ستتم إعادة المحاولة تلقائيًا.</p>
+              <button type="button" className="mt-4 rounded-xl bg-amber-400 px-5 py-2 font-bold text-gray-900" onClick={() => { void window.electronAPI?.retrySync?.(); setInitialSyncError(false); setInitialSyncAttempt(value => value + 1); }}>إعادة المحاولة الآن</button>
+            </>
+          )}
+        </div>
       </div>
     );
   }

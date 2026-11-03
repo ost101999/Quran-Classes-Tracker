@@ -47,3 +47,28 @@ test('a newer edit survives failure of an upload already in progress', async () 
     assert.equal(saved, null);
     assert.equal(queue.status().hasPending, false);
 });
+
+test('conflicts pause automatic retries until explicit resolution and flush', async () => {
+    let attempts = 0, resolved = false;
+    const queue = createSyncQueue({
+        debounceMs: 1, retryMs: 1,
+        savePending() {}, clearPending() {},
+        send: async () => {
+            attempts++;
+            if (!resolved) throw Object.assign(new Error('review required'), { code: 'SYNC_CONFLICT' });
+            return 100;
+        },
+    });
+    queue.enqueue({ report: 'local' });
+    await new Promise(resolve => setTimeout(resolve, 20));
+    assert.equal(attempts, 1);
+    assert.equal(queue.status().conflict, true);
+    assert.equal(queue.status().hasPending, true);
+    queue.enqueue({ report: 'chosen' });
+    await new Promise(resolve => setTimeout(resolve, 10));
+    assert.equal(attempts, 1);
+    resolved = true;
+    await queue.flush();
+    assert.equal(queue.status().hasPending, false);
+    assert.equal(queue.status().conflict, false);
+});

@@ -2,7 +2,10 @@ const { contextBridge, ipcRenderer, webFrame } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
     platform: process.platform,
-    saveData: (data, skipSync) => ipcRenderer.invoke('save-data', data, skipSync),
+    saveData: (data, skipSync, token) => ipcRenderer.invoke('save-data', data, skipSync, token),
+    getCloudChanges: () => ipcRenderer.invoke('get-cloud-changes'),
+    getSyncConflicts: () => ipcRenderer.invoke('get-sync-conflicts'),
+    resolveSyncConflict: (path, choice, etag) => ipcRenderer.invoke('resolve-sync-conflict', path, choice, etag),
     loadData: () => ipcRenderer.invoke('load-data'),
     saveZoom: (zoomFactor) => ipcRenderer.invoke('save-zoom', zoomFactor),
     loadZoom: () => ipcRenderer.invoke('load-zoom'),

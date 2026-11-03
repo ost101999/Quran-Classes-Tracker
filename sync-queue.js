@@ -4,10 +4,11 @@ function createSyncQueue({ send, savePending, clearPending, onChange = () => {},
     let active = null;
     let timer = null;
     let error = null;
+    let conflict = false;
     let lastSuccessAt = null;
     let retryDelay = retryMs;
 
-    const status = () => ({ isSyncing: !!active, hasPending: !!pending || !!active, error, lastSuccessAt });
+    const status = () => ({ isSyncing: !!active, hasPending: !!pending || !!active, error, conflict, lastSuccessAt });
     const notify = () => onChange(status());
     const schedule = (delay) => {
         if (timer) clearTimeout(timer);
@@ -21,7 +22,7 @@ function createSyncQueue({ send, savePending, clearPending, onChange = () => {},
             error = err instanceof Error ? err.message : String(err);
             console.error('Could not save pending sync:', err);
         }
-        schedule(debounceMs);
+        if (!conflict) schedule(debounceMs);
         notify();
     };
     const run = async () => {
@@ -36,11 +37,13 @@ function createSyncQueue({ send, savePending, clearPending, onChange = () => {},
                 savePending(snapshot);
                 const timestamp = await send(snapshot);
                 error = null;
+                conflict = false;
                 retryDelay = retryMs;
                 if (timestamp) lastSuccessAt = timestamp;
                 if (!pending) clearPending();
             } catch (err) {
                 error = err instanceof Error ? err.message : String(err);
+                conflict = err?.code === 'SYNC_CONFLICT';
                 // Newer snapshots include the changes from the failed snapshot.
                 if (!pending) pending = snapshot;
                 console.error('Firebase Sync Error:', err);
@@ -49,7 +52,7 @@ function createSyncQueue({ send, savePending, clearPending, onChange = () => {},
         notify();
         await active;
         active = null;
-        if (pending) {
+        if (pending && !conflict) {
             schedule(error ? retryDelay : 0);
             if (error) retryDelay = Math.min(retryDelay * 2, maxRetryMs);
         }

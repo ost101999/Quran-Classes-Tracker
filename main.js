@@ -6,7 +6,9 @@ const puppeteer = require('puppeteer');
 const { createChromeTabBridge } = require('./chrome-tab-bridge');
 const { focusChromeWindow } = require('./chrome-window-focus');
 const { createSyncQueue } = require('./sync-queue');
-const { buildFirebasePatch } = require('./firebase-patch');
+const { sanitizeKeys } = require('./firebase-patch');
+const { createFirebaseClient } = require('./firebase-client');
+const { createSelectiveSync, cloudProjection, get } = require('./selective-sync');
 const chromeTabBridge = createChromeTabBridge({ onFocus: focusChromeWindow });
 
 // Helper for waiting
@@ -1429,117 +1431,51 @@ const TAJWEED_AUDIO_DIR = process.platform === 'win32'
     : path.join(app.getPath('userData'), 'tajweed-audio');
 const CLOUD_APPSTATE_URL = 'https://quran-classes-tracker-default-rtdb.firebaseio.com/appState.json';
 
-// --- Firebase Sync Optimization Globals ---
-let lastSyncedState = null;
+// Durable baseline, conditional record uploads, and hash-verified incremental reads.
 const LAST_SYNCED_PATH = path.join(app.getPath('userData'), 'last-synced-state.json');
 const PENDING_SYNC_PATH = path.join(app.getPath('userData'), 'pending-sync.json');
-
+const SYNC_METADATA_PATH = path.join(app.getPath('userData'), 'sync-metadata.json');
+function writeJsonAtomic(file, value) {
+    fs.writeFileSync(`${file}.tmp`, JSON.stringify(value));
+    fs.renameSync(`${file}.tmp`, file);
+}
+function readJson(file, fallback = {}) {
+    return fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : fallback;
+}
+let syncEngine;
+let localRevision = 0;
+let stagedPull = null;
+let pullSequence = 0;
+let operation = Promise.resolve();
+function withSyncLock(work) {
+    const result = operation.then(work);
+    operation = result.catch(() => {});
+    return result;
+}
 const initializeLastSyncedState = () => {
-    try {
-        if (fs.existsSync(LAST_SYNCED_PATH)) {
-            const fileContent = fs.readFileSync(LAST_SYNCED_PATH, 'utf8');
-            lastSyncedState = JSON.parse(fileContent);
-            console.log('Initialized lastSyncedState from last-synced-state.json');
-        } else {
-            lastSyncedState = {};
-            console.log('No last-synced-state.json found, initialized lastSyncedState as empty');
-        }
-
-        // At startup, check if we have any pending local changes that weren't synced to Firebase
-        if (fs.existsSync(PENDING_SYNC_PATH)) {
-            // data.json is written first, so it may contain a newer edit if the
-            // app stopped before the pending snapshot could be updated.
-            let pendingData = JSON.parse(fs.readFileSync(PENDING_SYNC_PATH, 'utf8'));
-            if (fs.existsSync(DATA_PATH)) {
-                try { pendingData = JSON.parse(fs.readFileSync(DATA_PATH, 'utf8')); }
-                catch (error) { console.error('Using pending snapshot because data.json could not be read:', error); }
-            }
-            queueFirebaseSync(pendingData);
-        } else if (fs.existsSync(DATA_PATH)) {
-            const localContent = fs.readFileSync(DATA_PATH, 'utf8');
-            const localData = JSON.parse(localContent);
-            
-            // If local data exists and is different from last synced state, queue a sync
-            if (JSON.stringify(localData) !== JSON.stringify(lastSyncedState)) {
-                console.log('Pending local changes detected at startup. Queueing Firebase sync...');
-                queueFirebaseSync(localData);
-            }
-        }
-    } catch (e) {
-        lastSyncedState = {};
-        console.error('Failed to initialize lastSyncedState:', e);
-    }
-};
-
-const performFirebaseSync = async (data) => {
-    const https = require('https');
-
-    const patch = buildFirebasePatch(data, lastSyncedState);
-
-    const patchKeys = Object.keys(patch);
-    if (patchKeys.length === 0) {
-        console.log('Firebase Sync: No changes detected. Skipping sync.');
-        return;
-    }
-
-    // Add timestamp to patch so clients know it was updated
-    const syncTimestamp = Date.now();
-    patch['lastUpdated'] = syncTimestamp;
-
-    const payload = JSON.stringify(patch);
-
-    // Dedicated debug logging
-    const logPath = path.join(app.getPath('userData'), 'firebase_debug.txt');
-    const logMsg = (msg) => {
-        fs.appendFileSync(logPath, `[${new Date().toISOString()}] ${msg}\n`);
-    };
-
-    logMsg(`Starting Optimized Firebase Sync. Patch contains ${patchKeys.length} paths. Payload size: ${payload.length} bytes`);
-    logMsg(`Changed paths: ${patchKeys.join(', ')}`);
-
-    return new Promise((resolve, reject) => {
-        const req = https.request(CLOUD_APPSTATE_URL, {
-            method: 'PATCH',
-            headers: {
-                'Content-Type': 'application/json',
-                'Content-Length': Buffer.byteLength(payload)
-            }
-        }, (res) => {
-            logMsg(`Firebase responded with status code: ${res.statusCode}`);
-            let responseData = '';
-            res.on('data', (chunk) => { responseData += chunk; });
-            res.on('end', () => {
-                logMsg(`Response completely received. Body size: ${responseData.length} bytes`);
-                if (res.statusCode < 200 || res.statusCode >= 300) {
-                    logMsg(`FIREBASE ERROR BODY: ${responseData}`);
-                    reject(new Error(`Firebase responded with status ${res.statusCode}`));
-                } else {
-                    // Update last synced state on success and write to disk
-                    lastSyncedState = JSON.parse(JSON.stringify(data));
-                    try {
-                        fs.writeFileSync(LAST_SYNCED_PATH, JSON.stringify(lastSyncedState, null, 2));
-                    } catch (err) {
-                        console.error('Failed to write last-synced-state.json:', err);
-                    }
-                    if (mainWindow && !mainWindow.isDestroyed()) {
-                        mainWindow.webContents.send('cloud-sync-success', syncTimestamp);
-                    }
-                    resolve(syncTimestamp);
-                }
-            });
-        });
-
-        req.on('error', (e) => {
-            logMsg(`FIREBASE SYNC FATAL ERROR: ${e.message}`);
-            reject(e);
-        });
-
-        req.setTimeout(15000, () => req.destroy(new Error('Firebase request timed out')));
-
-        req.write(payload);
-        req.end();
+    // Fail closed on corrupt metadata; never turn an unreadable baseline into an
+    // empty baseline and overwrite cloud records. Existing backups stay intact.
+    syncEngine = createSelectiveSync({
+        client: createFirebaseClient(CLOUD_APPSTATE_URL.replace(/\.json$/, '')),
+        baseline: readJson(LAST_SYNCED_PATH),
+        metadata: readJson(SYNC_METADATA_PATH),
+        saveBaseline: data => writeJsonAtomic(LAST_SYNCED_PATH, data),
+        saveMetadata: data => writeJsonAtomic(SYNC_METADATA_PATH, data),
+        archiveConflict: data => {
+            const folder = path.join(app.getPath('userData'), 'sync-conflicts');
+            fs.mkdirSync(folder, { recursive: true });
+            writeJsonAtomic(path.join(folder, `${Date.now()}-${require('node:crypto').randomUUID()}.json`), data);
+        },
     });
+    const local = readJson(DATA_PATH, readJson(PENDING_SYNC_PATH, null));
+    if (local && (fs.existsSync(PENDING_SYNC_PATH) || Object.keys(syncEngine.patchFor(local)).length || syncEngine.hasNotification())) queueFirebaseSync(local);
 };
+const performFirebaseSync = data => withSyncLock(async () => {
+    stagedPull = null;
+    const timestamp = await syncEngine.push(data);
+    if (timestamp && mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('cloud-sync-success', timestamp);
+    return timestamp;
+});
 
 const syncQueue = createSyncQueue({
     send: performFirebaseSync,
@@ -1555,8 +1491,56 @@ const syncQueue = createSyncQueue({
 });
 const queueFirebaseSync = (data) => syncQueue.enqueue(data);
 
-ipcMain.handle('get-sync-status', () => syncQueue.status());
+ipcMain.handle('get-sync-status', () => ({ ...syncQueue.status(), conflict: !!syncEngine?.conflicts().length }));
 ipcMain.handle('retry-sync', () => syncQueue.flush());
+
+let cloudPullPromise = null;
+ipcMain.handle('get-cloud-changes', () => {
+    if (cloudPullPromise) return cloudPullPromise;
+    cloudPullPromise = withSyncLock(async () => {
+        if (!syncEngine) return { busy: true };
+        if (syncQueue.status().hasPending) return { busy: true };
+        const revision = localRevision;
+        const result = await syncEngine.pull();
+        if (revision !== localRevision || syncQueue.status().hasPending) return { busy: true };
+        const token = ++pullSequence;
+        stagedPull = { token, revision, baseline: result.baseline };
+        return { changes: result.changes, token };
+    }).finally(() => { cloudPullPromise = null; });
+    return cloudPullPromise;
+});
+ipcMain.handle('get-sync-conflicts', () => {
+    if (!syncEngine) return [];
+    const conflicts = syncEngine.conflicts();
+    if (!conflicts.length) return [];
+    const local = cloudProjection(readJson(DATA_PATH), syncEngine.baseline());
+    return conflicts.map(item => ({ ...item, localValue: get(local, item.path) }));
+});
+ipcMain.handle('resolve-sync-conflict', (_event, conflictPath, choice, etag) => withSyncLock(async () => {
+    const { localizeAudioPaths } = await import('./localize-audio.mjs');
+    const revision = localRevision;
+    const data = readJson(DATA_PATH);
+    const result = await syncEngine.resolve(conflictPath, choice, etag, data);
+    if (result.changed || revision !== localRevision) return { success: false, changed: true };
+    // Locate the original local key (report keys may contain Firebase-forbidden dots).
+    const keys = result.path.split('/');
+    let node = data;
+    for (const key of keys.slice(0, -1)) {
+        const localKey = Object.keys(node).find(candidate => Object.keys(sanitizeKeys({ [candidate]: true }))[0] === key) || key;
+        if (!Object.hasOwn(node, localKey)) Object.defineProperty(node, localKey, { value: {}, writable: true, enumerable: true, configurable: true });
+        node = node[localKey];
+    }
+    const key = Object.keys(node).find(candidate => Object.keys(sanitizeKeys({ [candidate]: true }))[0] === keys.at(-1)) || keys.at(-1);
+    if (result.value === null) delete node[key];
+    else Object.defineProperty(node, key, { value: localizeAudioPaths(result.value, node[key]), writable: true, enumerable: true, configurable: true });
+    writeLocalData(data);
+    localRevision++;
+    stagedPull = null;
+    syncQueue.enqueue(data);
+    syncEngine.finishResolution(conflictPath);
+    if (!syncEngine.conflicts().length) setImmediate(() => { void syncQueue.flush(); });
+    return { success: true };
+}));
 
 ipcMain.handle('save-zoom', async (event, zoomFactor) => {
     try {
@@ -1592,34 +1576,28 @@ ipcMain.handle('load-zoom', async () => {
     return null;
 });
 
-ipcMain.handle('save-data', async (event, data, skipSync) => {
+function writeLocalData(data) {
+    writeJsonAtomic(DATA_PATH, data);
+    if (Object.hasOwn(data, 'tajweedBank')) writeJsonAtomic(TAJWEED_BANK_PATH, data.tajweedBank || {});
+    if (Object.hasOwn(data, 'tajweedSubmissions')) writeJsonAtomic(TAJWEED_SUBMISSIONS_PATH, data.tajweedSubmissions || {});
+}
+ipcMain.handle('save-data', async (_event, data, skipSync, token) => {
     try {
-        fs.writeFileSync(DATA_PATH, JSON.stringify(data, null, 2));
-
-        // Keep Tajweed bank in a dedicated file so it survives any main-state corruption.
-        if (data && typeof data === 'object' && Object.prototype.hasOwnProperty.call(data, 'tajweedBank')) {
-            fs.writeFileSync(TAJWEED_BANK_PATH, JSON.stringify(data.tajweedBank || {}, null, 2));
-        }
-
-        // Keep Tajweed submissions in a dedicated file to protect audio answers.
-        if (data && typeof data === 'object' && Object.prototype.hasOwnProperty.call(data, 'tajweedSubmissions')) {
-            fs.writeFileSync(TAJWEED_SUBMISSIONS_PATH, JSON.stringify(data.tajweedSubmissions || {}, null, 2));
-        }
-
-        // Queue background Firebase Sync unless skipSync is explicitly true
-        if (!skipSync) {
-            queueFirebaseSync(data);
-        } else {
-            // Since we skipped sync because this data came from the cloud,
-            // we must update our lastSyncedState to match this data on disk.
-            lastSyncedState = JSON.parse(JSON.stringify(data));
-            try {
-                fs.writeFileSync(LAST_SYNCED_PATH, JSON.stringify(lastSyncedState, null, 2));
-            } catch (err) {
-                console.error('Failed to write last-synced-state.json on skipSync:', err);
+        if (skipSync) {
+            if (!stagedPull || stagedPull.token !== token || stagedPull.revision !== localRevision || syncQueue.status().hasPending) {
+                return { success: false, busy: true, error: 'Local data changed while receiving cloud data' };
             }
+            // Commit local data before the baseline; a crash can at worst cause a
+            // redundant conditional upload, never acknowledge data not saved locally.
+            writeLocalData(data);
+            syncEngine.commit(stagedPull.baseline);
+            stagedPull = null;
+        } else {
+            writeLocalData(data);
+            localRevision++;
+            stagedPull = null;
+            if (syncQueue.status().hasPending || Object.keys(syncEngine.patchFor(data)).length || syncEngine.hasNotification()) queueFirebaseSync(data);
         }
-
         return { success: true };
     } catch (error) {
         console.error('Failed to save data:', error);
