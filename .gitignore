@@ -27,3 +27,6 @@ dist/
 dist_electron/
 *.exe
 *.asar
+
+# Local application backups
+quran_tracker_backup_*.json
