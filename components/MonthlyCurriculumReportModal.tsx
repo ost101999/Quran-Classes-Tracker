@@ -740,7 +740,7 @@ export function collectMonthlyReportData(
     savedReports: Record<string, string>,
     savedReportDrafts: Record<string, any>,
     attendance: AttendanceRecord,
-    tajweedBank: TajweedLesson[]
+    tajweedBank: Record<string, TajweedLesson>
 ): MonthlyReportData {
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const data: MonthlyReportData = {
@@ -759,7 +759,7 @@ export function collectMonthlyReportData(
         if (QURAN_TAJWEED_LESSONS_MAP[lessonId]) {
             return QURAN_TAJWEED_LESSONS_MAP[lessonId];
         }
-        const fromBank = tajweedBank.find(l => l.id === lessonId);
+        const fromBank = tajweedBank[lessonId];
         if (fromBank) {
             return { ar: fromBank.title, en: fromBank.title };
         }
@@ -1461,7 +1461,7 @@ interface ModalProps {
     savedReports: Record<string, string>;
     savedReportDrafts: Record<string, any>;
     attendance: AttendanceRecord;
-    tajweedBank: TajweedLesson[];
+    tajweedBank: Record<string, TajweedLesson>;
     onSendWhatsApp?: (reportText: string) => void;
 }
 

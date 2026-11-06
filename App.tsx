@@ -4027,7 +4027,7 @@ function App() {
   // Prevent wheel scrolling on inputs inside the smart report modal — redirect to modal scroll
   // Also redirect scroll from outside the modal (backdrop) into the modal
   useEffect(() => {
-    if (!smartReportModal?.isOpen) return;
+    if (!smartReportModal?.isOpen || monthlyCurriculumModal) return;
 
     const handleWheel = (e: WheelEvent) => {
       const target = e.target as HTMLElement;
@@ -4059,7 +4059,7 @@ function App() {
 
     document.addEventListener('wheel', handleWheel, { passive: false });
     return () => document.removeEventListener('wheel', handleWheel);
-  }, [smartReportModal?.isOpen]);
+  }, [smartReportModal?.isOpen, monthlyCurriculumModal]);
 
   // Cancel makeup linking mode on global click (that isn't handled by the cell itself)
   useEffect(() => {
