@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     sendWhatsAppAuto: (targetName, message) => ipcRenderer.invoke('send-whatsapp-auto', { targetName, message }),
     selectBackupFolder: () => ipcRenderer.invoke('select-backup-folder'),
     saveBackupToPath: (folderPath, data, maxFiles) => ipcRenderer.invoke('save-backup-to-path', { folderPath, data, maxFiles }),
+    exportMonthlyPdf: (htmlContent, defaultFileName) => ipcRenderer.invoke('export-monthly-pdf', { htmlContent, defaultFileName }),
     onEscapeBtn: (callback) => ipcRenderer.on('escape-pressed', callback),
     offEscapeBtn: () => ipcRenderer.removeAllListeners('escape-pressed'),
     onNavigateInternal: (callback) => ipcRenderer.on('navigate-internal', (_event, url) => callback(url)),

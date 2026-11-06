@@ -93,6 +93,7 @@ import TajweedBankModal from './components/TajweedBankModal';
 import TajweedAssignModal from './components/TajweedAssignModal';
 import TajweedGradingModal from './components/TajweedGradingModal';
 import TajweedGroupedHoverSelect, { TajweedGroupedSelectGroup } from './components/TajweedGroupedHoverSelect';
+import MonthlyCurriculumReportModal from './components/MonthlyCurriculumReportModal';
 
 // Animate the rows that move when filtered rows enter or leave the table.
 const pendingRowLayouts = new WeakMap<HTMLTableSectionElement, { positions: Map<HTMLTableRowElement, number>; scheduled: boolean }>();
@@ -101,7 +102,7 @@ const rowLayoutAnimations = new WeakMap<HTMLTableRowElement, Animation>();
 function prepareFilteredRowLayout(row: HTMLTableRowElement | null) {
   const body = row?.parentElement;
   if (!(body instanceof HTMLTableSectionElement) || pendingRowLayouts.has(body) ||
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
   const positions = new Map<HTMLTableRowElement, number>();
   for (const current of Array.from(body.rows)) {
@@ -685,6 +686,11 @@ function App() {
   });
 
   const [sendViaWhatsapp, setSendViaWhatsapp] = useState(false);
+  const [monthlyCurriculumModal, setMonthlyCurriculumModal] = useState<{
+    student: Student;
+    month: number;
+    year: number;
+  } | null>(null);
 
   // Per-Student Last Report State
   const [lastReports, setLastReports] = useState<Record<string, {
@@ -2157,14 +2163,14 @@ function App() {
           const coreResults = incremental
             ? Object.entries(incremental.changes || {}).map(([key, data]) => ({ key, data }))
             : await fetchCloudEntries(CLOUD_APPSTATE_BASE_URL, coreKeys, {
-            signal: downloadController.signal,
-            onProgress: (completed: number, total: number) => {
-              if (!isCancelled && !initialSyncReady) setInitialSyncProgress(previous => ({ completed, total, bytes: previous?.bytes || 0 }));
-            },
-            onBytes: (bytes: number) => {
-              if (!isCancelled && !initialSyncReady) setInitialSyncProgress(previous => previous ? { ...previous, bytes } : previous);
-            },
-          });
+              signal: downloadController.signal,
+              onProgress: (completed: number, total: number) => {
+                if (!isCancelled && !initialSyncReady) setInitialSyncProgress(previous => ({ completed, total, bytes: previous?.bytes || 0 }));
+              },
+              onBytes: (bytes: number) => {
+                if (!isCancelled && !initialSyncReady) setInitialSyncProgress(previous => previous ? { ...previous, bytes } : previous);
+              },
+            });
 
           if (isCancelled) return;
 
@@ -2544,9 +2550,11 @@ function App() {
   const openAcademyMenu = useCallback((academy: string, element: HTMLElement) => {
     const rect = element.getBoundingClientRect();
     setMissedClassesMenu(null);
-    setAcademyContextMenu({ isOpen: true, isClosing: false,
+    setAcademyContextMenu({
+      isOpen: true, isClosing: false,
       x: Math.max(8, Math.min(rect.right - 220, window.innerWidth - 228)),
-      y: Math.max(8, Math.min(rect.bottom + 5, window.innerHeight - 180)), academy });
+      y: Math.max(8, Math.min(rect.bottom + 5, window.innerHeight - 180)), academy
+    });
   }, []);
 
   const [studentOptionsMenu, setStudentOptionsMenu] = useState<{
@@ -2577,6 +2585,9 @@ function App() {
   const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
   const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
   const [isTajweedShortcutPressed, setIsTajweedShortcutPressed] = useState(false);
+  const isTajweedShortcutPressedRef = useRef(false);
+  const [isMonthlyReportShortcutPressed, setIsMonthlyReportShortcutPressed] = useState(false);
+  const isMonthlyReportShortcutPressedRef = useRef(false);
   const [isEditReportShortcutPressed, setIsEditReportShortcutPressed] = useState(false);
   const [hoveredCellKey, setHoveredCellKey] = useState<string | null>(null);
   const longPressTimerRef = React.useRef<NodeJS.Timeout | null>(null);
@@ -2642,7 +2653,7 @@ function App() {
     };
   }, [missedClassesMenu?.isOpen, selectedStudentForDetails, selectedAcademyForDetails, navigateMissedClassesMonth]);
 
-  // Global Keyboard Shortcuts (T for Tajweed, E/Shift for Edit Mode)
+  // Global Keyboard Shortcuts (T for Tajweed, M for Monthly Report, E/Shift for Edit Mode)
   useEffect(() => {
     const isTypingTarget = (target: EventTarget | null) => {
       if (!(target instanceof HTMLElement)) return false;
@@ -2665,7 +2676,14 @@ function App() {
 
       // Tajweed Grading Shortcut (T)
       if (code === 'KeyT' || key === 't' || key === 'ف' || key === 'ت') {
+        isTajweedShortcutPressedRef.current = true;
         setIsTajweedShortcutPressed(true);
+      }
+
+      // Monthly Report Shortcut (M)
+      if (!event.ctrlKey && !event.metaKey && !event.altKey && (code === 'KeyM' || key === 'm' || key === 'ة' || key === 'م')) {
+        isMonthlyReportShortcutPressedRef.current = true;
+        setIsMonthlyReportShortcutPressed(true);
       }
 
       // Edit Report Shortcut (E or Shift)
@@ -2680,7 +2698,14 @@ function App() {
 
       // Tajweed Grading Shortcut (T)
       if (code === 'KeyT' || key === 't' || key === 'ف' || key === 'ت') {
+        isTajweedShortcutPressedRef.current = false;
         setIsTajweedShortcutPressed(false);
+      }
+
+      // Monthly Report Shortcut (M)
+      if (code === 'KeyM' || key === 'm' || key === 'ة' || key === 'م') {
+        isMonthlyReportShortcutPressedRef.current = false;
+        setIsMonthlyReportShortcutPressed(false);
       }
 
       // Edit Report Shortcut (E or Shift)
@@ -2695,17 +2720,20 @@ function App() {
     };
 
     const handleWindowBlur = () => {
+      isTajweedShortcutPressedRef.current = false;
       setIsTajweedShortcutPressed(false);
+      isMonthlyReportShortcutPressedRef.current = false;
+      setIsMonthlyReportShortcutPressed(false);
       setIsEditReportShortcutPressed(false);
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('keydown', handleKeyDown, true);
+    window.addEventListener('keyup', handleKeyUp, true);
     window.addEventListener('blur', handleWindowBlur);
 
     return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('keydown', handleKeyDown, true);
+      window.removeEventListener('keyup', handleKeyUp, true);
       window.removeEventListener('blur', handleWindowBlur);
     };
   }, []);
@@ -4474,6 +4502,10 @@ function App() {
 
   // --- Student Drag & Drop Handlers ---
   const handleStudentDragStart = (e: React.DragEvent, studentId: string) => {
+    if (isMonthlyReportShortcutPressed || isMonthlyReportShortcutPressedRef.current || isTajweedShortcutPressed || isTajweedShortcutPressedRef.current) {
+      e.preventDefault();
+      return;
+    }
     // Cancel long-press detection when dragging starts
     if (longPressTimerRef.current) {
       clearTimeout(longPressTimerRef.current);
@@ -5019,6 +5051,7 @@ function App() {
     setWebModal(prev => ({ ...prev, isOpen: false }));
     setShowSubscriptionModal(false);
     setSavedReportViewModal(null);
+    setMonthlyCurriculumModal(null);
     setActionConfigModal(prev => ({ ...prev, isOpen: false }));
     setActionChoiceModal(prev => ({ ...prev, isOpen: false }));
     setSimpleInputModal(prev => ({ ...prev, isOpen: false }));
@@ -6280,87 +6313,88 @@ function App() {
             {sortedAcademies.map(academy => {
               const index = academyOrder.indexOf(academy);
               return (
-              <div
-                key={academy}
-                role="button"
-                tabIndex={0}
-                draggable
-                onPointerDown={(e) => {
-                  cancelAcademyPress();
-                  const press = academyPressRef.current;
-                  press.triggered = false;
-                  press.pointerType = e.pointerType;
-                  if (!e.isPrimary || e.button !== 0 || (e.target as Element).closest('button')) return;
-                  press.x = e.clientX;
-                  press.y = e.clientY;
-                  press.pointerId = e.pointerId;
-                  const element = e.currentTarget;
-                  press.timer = window.setTimeout(() => {
-                    press.timer = null;
-                    press.triggered = true;
-                    openAcademyMenu(academy, element);
-                  }, 500);
-                }}
-                onPointerMove={(e) => {
-                  const press = academyPressRef.current;
-                  if (press.pointerId === e.pointerId && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 8) cancelAcademyPress();
-                }}
-                onPointerUp={cancelAcademyPress}
-                onPointerCancel={cancelAcademyPress}
-                onPointerLeave={cancelAcademyPress}
-                onDragStart={(e) => {
-                  cancelAcademyPress();
-                  if (academyPressRef.current.triggered) { e.preventDefault(); return; }
-                  handleDragStart(e, index);
-                }}
-                onDragOver={handleDragOver}
-                onDragEnter={() => setDragOverIndex(index)}
-                onDragEnd={() => { setDraggedAcademyIndex(null); setDragOverIndex(null); }}
-                onDrop={(e) => handleDrop(e, index)}
-                onClick={(e) => {
-                  if (academyPressRef.current.triggered) {
-                    academyPressRef.current.triggered = false;
-                    e.preventDefault();
-                    e.stopPropagation();
-                    return;
-                  }
-                  if (selectedAcademy === academy) {
-                    e.stopPropagation();
-                  }
-                  scrollToAcademy(academy);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
+                <div
+                  key={academy}
+                  role="button"
+                  tabIndex={0}
+                  draggable
+                  onPointerDown={(e) => {
+                    cancelAcademyPress();
+                    const press = academyPressRef.current;
+                    press.triggered = false;
+                    press.pointerType = e.pointerType;
+                    if (!e.isPrimary || e.button !== 0 || (e.target as Element).closest('button')) return;
+                    press.x = e.clientX;
+                    press.y = e.clientY;
+                    press.pointerId = e.pointerId;
+                    const element = e.currentTarget;
+                    press.timer = window.setTimeout(() => {
+                      press.timer = null;
+                      press.triggered = true;
+                      openAcademyMenu(academy, element);
+                    }, 500);
+                  }}
+                  onPointerMove={(e) => {
+                    const press = academyPressRef.current;
+                    if (press.pointerId === e.pointerId && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 8) cancelAcademyPress();
+                  }}
+                  onPointerUp={cancelAcademyPress}
+                  onPointerCancel={cancelAcademyPress}
+                  onPointerLeave={cancelAcademyPress}
+                  onDragStart={(e) => {
+                    cancelAcademyPress();
+                    if (academyPressRef.current.triggered) { e.preventDefault(); return; }
+                    handleDragStart(e, index);
+                  }}
+                  onDragOver={handleDragOver}
+                  onDragEnter={() => setDragOverIndex(index)}
+                  onDragEnd={() => { setDraggedAcademyIndex(null); setDragOverIndex(null); }}
+                  onDrop={(e) => handleDrop(e, index)}
+                  onClick={(e) => {
+                    if (academyPressRef.current.triggered) {
+                      academyPressRef.current.triggered = false;
+                      e.preventDefault();
+                      e.stopPropagation();
+                      return;
+                    }
+                    if (selectedAcademy === academy) {
+                      e.stopPropagation();
+                    }
                     scrollToAcademy(academy);
-                  }
-                }}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  if (academyPressRef.current.triggered || academyPressRef.current.pointerType === 'touch') {
-                    e.stopPropagation();
-                    return;
-                  }
-                  setSelectedAcademyForDetails(academy);
-                }}
-                className={`px-4 py-1.5 rounded-full transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] text-base ${isMac ? 'font-normal font-academy-nav' : 'font-arabic'} border border-transparent whitespace-nowrap select-none cursor-pointer active:cursor-grabbing active:scale-[0.98] flex items-center gap-2 ${selectedAcademy === academy
-                  ? `bg-[#ffe05d] text-gray-900 scale-105 shadow-[0_0_20px_rgba(255,224,93,0.3)] z-10 ${isMac ? '' : 'font-bold'}`
-                  : 'bg-gray-700/50 text-gray-200 hover:bg-gray-600/80 hover:text-white hover:border-gray-500'
-                  } ${draggedAcademyIndex === index ? 'opacity-40 scale-90 grayscale ring-2 ring-[#ffe05d] ring-offset-2 ring-offset-gray-900 border-dashed border-[#ffe05d]/50' : ''} ${dragOverIndex === index && draggedAcademyIndex !== index ? 'scale-110 -translate-y-1 !bg-gray-600 shadow-xl' : ''}`}
-              >
-                {academy}
-                {academyRates[academy]?.externalLink && (
-                  <button
-                    type="button"
-                    onClick={(e) => openExternalLink(academyRates[academy].externalLink!, e)}
-                    className="text-gray-400 hover:text-[#ffe05d] transition-colors"
-                    title="فتح ملف الأكاديمية"
-                  >
-                    <Link size={14} />
-                  </button>
-                )}
-              </div>
-            ); })}
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      scrollToAcademy(academy);
+                    }
+                  }}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    if (academyPressRef.current.triggered || academyPressRef.current.pointerType === 'touch') {
+                      e.stopPropagation();
+                      return;
+                    }
+                    setSelectedAcademyForDetails(academy);
+                  }}
+                  className={`px-4 py-1.5 rounded-full transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] text-base ${isMac ? 'font-normal font-academy-nav' : 'font-arabic'} border border-transparent whitespace-nowrap select-none cursor-pointer active:cursor-grabbing active:scale-[0.98] flex items-center gap-2 ${selectedAcademy === academy
+                    ? `bg-[#ffe05d] text-gray-900 scale-105 shadow-[0_0_20px_rgba(255,224,93,0.3)] z-10 ${isMac ? '' : 'font-bold'}`
+                    : 'bg-gray-700/50 text-gray-200 hover:bg-gray-600/80 hover:text-white hover:border-gray-500'
+                    } ${draggedAcademyIndex === index ? 'opacity-40 scale-90 grayscale ring-2 ring-[#ffe05d] ring-offset-2 ring-offset-gray-900 border-dashed border-[#ffe05d]/50' : ''} ${dragOverIndex === index && draggedAcademyIndex !== index ? 'scale-110 -translate-y-1 !bg-gray-600 shadow-xl' : ''}`}
+                >
+                  {academy}
+                  {academyRates[academy]?.externalLink && (
+                    <button
+                      type="button"
+                      onClick={(e) => openExternalLink(academyRates[academy].externalLink!, e)}
+                      className="text-gray-400 hover:text-[#ffe05d] transition-colors"
+                      title="فتح ملف الأكاديمية"
+                    >
+                      <Link size={14} />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           {/* Left: Actions (Calendar & Add) */}
@@ -6963,9 +6997,11 @@ function App() {
                                 return;
                               }
                               const rect = e.currentTarget.getBoundingClientRect();
-                              setMissedClassesMenu({ isOpen: true, academyName: academy, reportMonth: month, reportYear: year,
+                              setMissedClassesMenu({
+                                isOpen: true, academyName: academy, reportMonth: month, reportYear: year,
                                 x: Math.max(24, Math.min(rect.left, window.innerWidth - 264)),
-                                y: Math.max(8, Math.min(rect.bottom + 4, window.innerHeight - 370)) });
+                                y: Math.max(8, Math.min(rect.bottom + 4, window.innerHeight - 370))
+                              });
                             }}
                           >
                             <span>{academy}</span>
@@ -7089,22 +7125,26 @@ function App() {
                                 })()
                               }}
                               onClick={(e) => {
+                                const isMonthlyHeld = isMonthlyReportShortcutPressed || isMonthlyReportShortcutPressedRef.current;
+                                const isTajweedHeld = isTajweedShortcutPressed || isTajweedShortcutPressedRef.current;
                                 // Skip if this click was triggered after a long-press
                                 if (longPressTriggeredRef.current) {
                                   longPressTriggeredRef.current = false;
                                   return;
                                 }
                                 // Ctrl/Cmd + click on student name opens student link directly.
-                                if ((e.ctrlKey || e.metaKey) && !isMultiSelectMode && !isTajweedShortcutPressed) {
+                                if ((e.ctrlKey || e.metaKey) && !isMultiSelectMode && !isTajweedHeld && !isMonthlyHeld) {
                                   handleOpenLink(buildStudentPortalUrl(student), student.name);
                                   return;
                                 }
-                                if (showMissedCount && !isMultiSelectMode && !isTajweedShortcutPressed) {
+                                if (showMissedCount && !isMultiSelectMode && !isTajweedHeld && !isMonthlyHeld) {
                                   e.stopPropagation();
                                   const rect = e.currentTarget.getBoundingClientRect();
-                                  setMissedClassesMenu({ isOpen: true, studentId: student.id, reportMonth: month, reportYear: year,
+                                  setMissedClassesMenu({
+                                    isOpen: true, studentId: student.id, reportMonth: month, reportYear: year,
                                     x: Math.max(24, Math.min(rect.left - 256, window.innerWidth - 264)),
-                                    y: Math.max(8, Math.min(rect.bottom + 4, window.innerHeight - 370)) });
+                                    y: Math.max(8, Math.min(rect.bottom + 4, window.innerHeight - 370))
+                                  });
                                   return;
                                 }
                                 // If in multi-select mode, toggle selection instead of opening details
@@ -7122,7 +7162,9 @@ function App() {
                                     }
                                     return newSet;
                                   });
-                                } else if (isTajweedShortcutPressed) {
+                                } else if (isMonthlyHeld) {
+                                  setMonthlyCurriculumModal({ student, month, year });
+                                } else if (isTajweedHeld) {
                                   markUngradedTajweedAssignmentsAsSeen(student.id);
                                   setTajweedGradingFocusStudentId(student.id);
                                   setIsTajweedGradingModalOpen(true);
@@ -7131,11 +7173,20 @@ function App() {
                                 }
                               }}
                               onPointerDown={(e) => {
-                                // Start long-press timer for multi-select
+                                // Start long-press timer for multi-select (skip when holding M or T shortcut)
                                 if (longPressTimerRef.current) {
                                   clearTimeout(longPressTimerRef.current);
                                 }
                                 longPressTriggeredRef.current = false;
+                                if (e.button === 0 && !isMultiSelectMode && (isMonthlyReportShortcutPressed || isMonthlyReportShortcutPressedRef.current)) {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setMonthlyCurriculumModal({ student, month, year });
+                                  return;
+                                }
+                                if (isMonthlyReportShortcutPressed || isMonthlyReportShortcutPressedRef.current || isTajweedShortcutPressed || isTajweedShortcutPressedRef.current) {
+                                  return;
+                                }
                                 const studentId = student.id;
                                 longPressTimerRef.current = setTimeout(() => {
                                   // Long press detected - enter multi-select mode
@@ -7981,6 +8032,39 @@ function App() {
         )
       }
 
+      {monthlyCurriculumModal && (
+        <MonthlyCurriculumReportModal
+          isOpen={true}
+          onClose={() => setMonthlyCurriculumModal(null)}
+          student={monthlyCurriculumModal.student}
+          initialMonth={monthlyCurriculumModal.month}
+          initialYear={monthlyCurriculumModal.year}
+          savedReports={savedReports}
+          savedReportDrafts={savedReportDrafts}
+          attendance={attendance}
+          tajweedBank={tajweedBank}
+          onSendWhatsApp={
+            whatsappMode !== 'manual' && (monthlyCurriculumModal.student.whatsappNumber || academyRates[monthlyCurriculumModal.student.academy]?.whatsappNumber)
+              ? (reportText) => {
+                const target = monthlyCurriculumModal.student.whatsappNumber || academyRates[monthlyCurriculumModal.student.academy]?.whatsappNumber;
+                if (!target) return;
+                navigator.clipboard.writeText(reportText).catch(() => { });
+                showToast('جاري إرسال التقرير الشهري عبر واتساب... ⏳');
+                window.electronAPI?.sendWhatsAppAuto(target, reportText).then((result: any) => {
+                  if (result?.success) {
+                    showToast('تم إرسال التقرير الشهري عبر واتساب ✅');
+                  } else {
+                    showToast('حدث خطأ في الإرسال ❌');
+                  }
+                }).catch(() => {
+                  showToast('حدث خطأ في الإرسال ❌');
+                });
+              }
+              : undefined
+          }
+        />
+      )}
+
       {/* Multi-Student Combined Report Modal */}
       {
         selectedStudentsForCombinedReport && selectedStudentsForCombinedReport.length > 0 && (
@@ -8453,48 +8537,48 @@ function App() {
             }
           };
           return (
-          <div
-            className="fixed z-[100] bg-white rounded-2xl shadow-xl border border-gray-100 p-2 w-64 max-h-[calc(100vh-16px)] overflow-y-auto context-menu" dir="rtl"
-            onClick={(event) => event.stopPropagation()}
-            style={{
-              top: missedClassesMenu.y,
-              left: missedClassesMenu.x,
-              animation: 'menuSlideIn 0.2s ease-out forwards'
-            }}
-          >
-            <style>{`
+            <div
+              className="fixed z-[100] bg-white rounded-2xl shadow-xl border border-gray-100 p-2 w-64 max-h-[calc(100vh-16px)] overflow-y-auto context-menu" dir="rtl"
+              onClick={(event) => event.stopPropagation()}
+              style={{
+                top: missedClassesMenu.y,
+                left: missedClassesMenu.x,
+                animation: 'menuSlideIn 0.2s ease-out forwards'
+              }}
+            >
+              <style>{`
               @keyframes menuSlideIn {
                 from { opacity: 0; transform: translateY(-8px) scale(0.95); }
                 to { opacity: 1; transform: translateY(0) scale(1); }
               }
             `}</style>
-            <div className="flex items-center justify-between px-2 py-1 text-gray-600">
-              <button type="button" onClick={() => navigateMissedClassesMonth(1)} aria-label="الشهر التالي" title="الشهر التالي" className="rounded-lg p-1 hover:bg-blue-50"><ArrowRight size={18} /></button>
-              <span className="font-medium">{MONTHS[reportMonth]} {toHindiDigits(reportYear)}</span>
-              <button type="button" onClick={() => navigateMissedClassesMonth(-1)} aria-label="الشهر السابق" title="الشهر السابق" className="rounded-lg p-1 hover:bg-blue-50"><ArrowLeft size={18} /></button>
-            </div>
-            <p className="px-3 py-2 text-center text-lg font-normal text-red-500">{toHindiDigits(breakdown.scheduled)} {breakdown.hasRecordedFallback ? (breakdown.hasScheduledDays ? 'حصة مقررة أو مسجلة' : 'حصة مسجلة') : 'حصة مقررة'} في الشهر</p>
+              <div className="flex items-center justify-between px-2 py-1 text-gray-600">
+                <button type="button" onClick={() => navigateMissedClassesMonth(1)} aria-label="الشهر التالي" title="الشهر التالي" className="rounded-lg p-1 hover:bg-blue-50"><ArrowRight size={18} /></button>
+                <span className="font-medium">{MONTHS[reportMonth]} {toHindiDigits(reportYear)}</span>
+                <button type="button" onClick={() => navigateMissedClassesMonth(-1)} aria-label="الشهر السابق" title="الشهر السابق" className="rounded-lg p-1 hover:bg-blue-50"><ArrowLeft size={18} /></button>
+              </div>
+              <p className="px-3 py-2 text-center text-lg font-normal text-red-500">{toHindiDigits(breakdown.scheduled)} {breakdown.hasRecordedFallback ? (breakdown.hasScheduledDays ? 'حصة مقررة أو مسجلة' : 'حصة مسجلة') : 'حصة مقررة'} في الشهر</p>
               {breakdown.categories.map((category, index) => {
-              const percent = breakdown.scheduled ? Math.round(category.count / breakdown.scheduled * 1000) / 10 : null;
-              return (
-                <React.Fragment key={category.id}>
-                {index === 1 && (
-                  <div className="flex items-center justify-between gap-3 px-3 py-2.5 text-lg font-normal text-gray-500 opacity-60">
-                    <span>{missedClassesMenu.academyName ? 'التزام الطلبة' : 'التزام الطالب'}</span>
-                    <span dir="ltr">{breakdown.commitment === null ? '—' : `${toHindiDigits(breakdown.commitment)}%`}</span>
-                  </div>
-                )}
-                <button type="button"
-                  onClick={() => copyDays(category)}
-                  className={`w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-lg font-normal transition-colors ${category.id === 'rescheduled' ? 'justify-center text-center bg-blue-50/70 text-blue-700 hover:bg-blue-100' : 'justify-between text-right text-gray-700 hover:bg-blue-50'}`}
-                  title="نسخ الأيام بالعربي والإنجليزي">
-                  <span>{missedClassesMenu.academyName && category.id === 'studentApology' ? 'اعتذارات الطلبة' : missedClassesMenu.academyName && category.id === 'studentAbsence' ? 'غياب الطلبة' : category.label}</span>
-                  {category.id !== 'rescheduled' && <span className="font-normal text-blue-600" dir="ltr">{percent === null ? '—' : `${toHindiDigits(percent)}%`}</span>}
-                </button>
-                </React.Fragment>
-              );
+                const percent = breakdown.scheduled ? Math.round(category.count / breakdown.scheduled * 1000) / 10 : null;
+                return (
+                  <React.Fragment key={category.id}>
+                    {index === 1 && (
+                      <div className="flex items-center justify-between gap-3 px-3 py-2.5 text-lg font-normal text-gray-500 opacity-60">
+                        <span>{missedClassesMenu.academyName ? 'التزام الطلبة' : 'التزام الطالب'}</span>
+                        <span dir="ltr">{breakdown.commitment === null ? '—' : `${toHindiDigits(breakdown.commitment)}%`}</span>
+                      </div>
+                    )}
+                    <button type="button"
+                      onClick={() => copyDays(category)}
+                      className={`w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-lg font-normal transition-colors ${category.id === 'rescheduled' ? 'justify-center text-center bg-blue-50/70 text-blue-700 hover:bg-blue-100' : 'justify-between text-right text-gray-700 hover:bg-blue-50'}`}
+                      title="نسخ الأيام بالعربي والإنجليزي">
+                      <span>{missedClassesMenu.academyName && category.id === 'studentApology' ? 'اعتذارات الطلبة' : missedClassesMenu.academyName && category.id === 'studentAbsence' ? 'غياب الطلبة' : category.label}</span>
+                      {category.id !== 'rescheduled' && <span className="font-normal text-blue-600" dir="ltr">{percent === null ? '—' : `${toHindiDigits(percent)}%`}</span>}
+                    </button>
+                  </React.Fragment>
+                );
               })}
-          </div>
+            </div>
           );
         })()
       }
@@ -8621,7 +8705,7 @@ function App() {
               </div>
 
               {/* Actions */}
-              <div className="p-4 bg-gray-50 border-t border-gray-100 flex gap-3">
+              <div className="p-4 bg-gray-50 border-t border-gray-100 flex flex-wrap gap-2.5">
                 <button
                   onClick={() => {
                     navigator.clipboard.writeText(savedReportViewModal.report).then(() => {
@@ -8634,8 +8718,25 @@ function App() {
                   نسخ التقرير
                 </button>
                 <button
+                  onClick={() => {
+                    const st = students.find(s => s.id === savedReportViewModal.studentId);
+                    if (st) {
+                      setSavedReportViewModal(null);
+                      setMonthlyCurriculumModal({
+                        student: st,
+                        month,
+                        year,
+                      });
+                    }
+                  }}
+                  className="py-3 px-4 rounded-xl bg-teal-50 text-teal-700 border border-teal-200 font-arabic font-bold text-lg hover:bg-teal-100 transition-all flex items-center justify-center gap-1.5"
+                  title="عرض التقرير الشهري المجمع لكل الجوانب"
+                >
+                  <span>📊 التقرير الشهري</span>
+                </button>
+                <button
                   onClick={() => setSavedReportViewModal(null)}
-                  className="py-3 px-6 rounded-xl bg-gray-200 text-gray-700 font-arabic font-medium text-lg hover:bg-gray-300 transition-all"
+                  className="py-3 px-5 rounded-xl bg-gray-200 text-gray-700 font-arabic font-medium text-lg hover:bg-gray-300 transition-all"
                 >
                   إغلاق
                 </button>
@@ -8882,8 +8983,25 @@ function App() {
                 }}
               >
 
-                {/* Floating Name */}
-                <div className="sticky top-0 z-50 flex justify-center pt-4 pointer-events-none">
+                {/* Floating Name & Subtle Corner Monthly Report Button */}
+                <div className="sticky top-0 z-50 relative flex justify-center items-center pt-4 pointer-events-none">
+                  {student && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMonthlyCurriculumModal({
+                          student,
+                          month,
+                          year,
+                        });
+                      }}
+                      className="pointer-events-auto absolute left-6 top-4 p-2 rounded-xl text-gray-400 hover:text-emerald-600 hover:bg-emerald-50/80 border border-transparent hover:border-emerald-100 opacity-60 hover:opacity-100 transition-all duration-200 flex items-center gap-1.5"
+                      title="التقرير الشهري الشامل"
+                    >
+                      <BarChart3 size={16} />
+                      <span className="text-xs font-arabic">التقرير الشهري</span>
+                    </button>
+                  )}
                   <div className="bg-white/80 backdrop-blur-md shadow-sm border border-gray-200/50 px-8 py-2 rounded-full pointer-events-auto">
                     <span className="font-arabic font-bold text-gray-700 text-lg">{studentName}</span>
                   </div>
@@ -14422,8 +14540,8 @@ function App() {
                             });
                           }}
                           className={`w-4 h-4 rounded ${whatsappMode === 'manual'
-                              ? 'text-purple-600 focus:ring-purple-500'
-                              : 'text-blue-600 focus:ring-blue-500'
+                            ? 'text-purple-600 focus:ring-purple-500'
+                            : 'text-blue-600 focus:ring-blue-500'
                             }`}
                         />
                         <span className="text-base font-medium text-gray-700 dark:text-gray-200">

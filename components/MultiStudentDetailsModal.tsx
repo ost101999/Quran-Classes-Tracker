@@ -384,7 +384,7 @@ const MultiStudentDetailsModal: React.FC<Props> = ({ students, attendance, onClo
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Header */}
-                <div className="relative p-6 text-center border-b border-gray-100 bg-gray-50/50">
+                <div className="relative z-30 p-6 text-center border-b border-gray-100 bg-gray-50/50">
                     <button
                         onClick={onClose}
                         className="absolute left-6 top-1/2 -translate-y-1/2 p-2 hover:bg-red-50 hover:text-red-500 rounded-full text-gray-400 transition-colors"
@@ -406,7 +406,7 @@ const MultiStudentDetailsModal: React.FC<Props> = ({ students, attendance, onClo
                         {showCopyMenu && (
                             <>
                                 <div className="fixed inset-0 z-[100]" onClick={() => { setShowCopyMenu(false); setTextSelectMode(false); setImageSelectMode(false); setPaypalSelectMode(false); setAttendanceDetail(null); }} />
-                                <div className="absolute right-0 mt-3 w-64 bg-white/90 backdrop-blur-xl rounded-[24px] shadow-[0_20px_50px_rgba(0,0,0,0.15)] border border-white/40 p-2 z-[110] animate-in fade-in zoom-in-95 slide-in-from-top-2 duration-200 origin-top-right">
+                                <div className="absolute right-0 mt-3 w-64 bg-white backdrop-blur-xl rounded-[24px] shadow-[0_20px_50px_rgba(0,0,0,0.18)] border border-gray-100 p-2 z-[110] animate-in fade-in zoom-in-95 slide-in-from-top-2 duration-200 origin-top-right">
                                     <div className="flex flex-col gap-1">
 
                                         {!textSelectMode && !imageSelectMode ? (

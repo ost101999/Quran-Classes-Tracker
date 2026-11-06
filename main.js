@@ -1676,6 +1676,61 @@ ipcMain.handle('save-tajweed-audio', async (event, base64Data, fileName) => {
     }
 });
 
+// --- Export Monthly Report to PDF ---
+ipcMain.handle('export-monthly-pdf', async (event, { htmlContent, defaultFileName }) => {
+    let pdfWindow = null;
+    try {
+        const safeName = (defaultFileName || 'Monthly_Report.pdf').replace(/[<>:"/\\|?*\x00-\x1F]/g, '_');
+        const saveResult = await dialog.showSaveDialog(mainWindow, {
+            title: 'حفظ التقرير الشهري PDF',
+            defaultPath: path.join(app.getPath('downloads'), safeName.endsWith('.pdf') ? safeName : `${safeName}.pdf`),
+            filters: [{ name: 'PDF Document', extensions: ['pdf'] }]
+        });
+
+        if (saveResult.canceled || !saveResult.filePath) {
+            return { success: false, canceled: true };
+        }
+
+        pdfWindow = new BrowserWindow({
+            width: 850,
+            height: 1150,
+            show: false,
+            webPreferences: {
+                offscreen: true,
+                contextIsolation: true
+            }
+        });
+
+        await pdfWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`);
+        // Give fonts and layout a brief moment to settle
+        await waitForTimeout(450);
+
+        const pdfBuffer = await pdfWindow.webContents.printToPDF({
+            printBackground: true,
+            pageSize: 'A4',
+            margins: {
+                marginType: 'custom',
+                top: 0.35,
+                bottom: 0.35,
+                left: 0.35,
+                right: 0.35
+            }
+        });
+
+        fs.writeFileSync(saveResult.filePath, pdfBuffer);
+        shell.openPath(saveResult.filePath).catch(() => {});
+
+        return { success: true, filePath: saveResult.filePath };
+    } catch (error) {
+        console.error('Failed to export PDF:', error);
+        return { success: false, error: error.message };
+    } finally {
+        if (pdfWindow && !pdfWindow.isDestroyed()) {
+            pdfWindow.close();
+        }
+    }
+});
+
 // --- Select Folder Dialog ---
 ipcMain.handle('select-backup-folder', async () => {
     const { dialog } = require('electron');

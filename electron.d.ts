@@ -14,6 +14,7 @@ declare global {
             sendWhatsAppAuto: (targetName: string, message: string) => Promise<{ success: boolean; error?: string }>;
             selectBackupFolder: () => Promise<string | null>;
             saveBackupToPath: (folderPath: string, data: any, maxFiles?: number) => Promise<{ success: boolean; filePath?: string; totalFiles?: number; error?: string }>;
+            exportMonthlyPdf?: (htmlContent: string, defaultFileName?: string) => Promise<{ success: boolean; filePath?: string; canceled?: boolean; error?: string }>;
             onEscapeBtn: (callback: () => void) => void;
             offEscapeBtn: () => void;
             onNavigateInternal?: (callback: (url: string) => void) => void;
