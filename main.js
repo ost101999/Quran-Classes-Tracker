@@ -9,7 +9,13 @@ const { createSyncQueue } = require('./sync-queue');
 const { sanitizeKeys } = require('./firebase-patch');
 const { createFirebaseClient } = require('./firebase-client');
 const { createSelectiveSync, cloudProjection, get } = require('./selective-sync');
+const { readMatches } = require('./shortcut-links');
 const chromeTabBridge = createChromeTabBridge({ onFocus: focusChromeWindow });
+
+ipcMain.handle('get-shortcut-links', (_event, students) => {
+    const requests = Array.isArray(students) ? students.filter(s => s && typeof s.id === 'string' && typeof s.name === 'string') : [];
+    return readMatches(requests);
+});
 
 // Helper for waiting
 const waitForTimeout = (ms) => new Promise(resolve => setTimeout(resolve, ms));

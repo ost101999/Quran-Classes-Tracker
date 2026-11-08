@@ -71,6 +71,10 @@ export interface Student {
   whatsappNumber?: string; // WhatsApp number for sending reports
   zoomLink?: string; // Link for Zoom or other platform for the student web app
   quranLink?: string; // Google Drive file shared with this student
+  readingLink?: string; // Google Drive reading book shared with this student
+  shortcutSourceId?: string; // Confirmed shortcut file identity, without exposing the local path
+  readingShortcutSourceId?: string;
+  shortcutAutoMatchDisabled?: boolean; // New students without a confirmed shortcut need review
   scheduleMessage?: string; // WhatsApp-style schedule text to display in the student portal
   isPrepaid?: boolean;
   prepaidTotal?: number;

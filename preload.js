@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getSyncConflicts: () => ipcRenderer.invoke('get-sync-conflicts'),
     resolveSyncConflict: (path, choice, etag) => ipcRenderer.invoke('resolve-sync-conflict', path, choice, etag),
     loadData: () => ipcRenderer.invoke('load-data'),
+    getShortcutLinks: (students) => ipcRenderer.invoke('get-shortcut-links', students),
     saveZoom: (zoomFactor) => ipcRenderer.invoke('save-zoom', zoomFactor),
     loadZoom: () => ipcRenderer.invoke('load-zoom'),
     setZoomFactor: (factor) => webFrame.setZoomFactor(factor),

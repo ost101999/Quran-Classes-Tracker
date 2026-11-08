@@ -1345,6 +1345,18 @@
 
       // Tour state
       const [isTourMode, setIsTourMode] = useState(false);
+      const actionBarRef = useRef(null);
+      const [actionBarHeight, setActionBarHeight] = useState(0);
+      useEffect(() => {
+        const bar = actionBarRef.current;
+        if (!bar) { setActionBarHeight(0); return; }
+        const measure = () => setActionBarHeight(bar.getBoundingClientRect().height);
+        measure();
+        const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
+        observer?.observe(bar);
+        window.addEventListener('resize', measure);
+        return () => { observer?.disconnect(); window.removeEventListener('resize', measure); };
+      }, [loading, data, isTourMode]);
 
       // Month navigation: defaults to actual current date (month is 0-indexed like Firebase)
       const _rnow = new Date();
@@ -4698,16 +4710,19 @@ https://is.gd/oL6gEO`;
       };
 
       const quranPreviewLink = getQuranPreviewLink(student.quranLink);
+      const readingPreviewLink = getQuranPreviewLink(student.readingLink);
+      const actionCount = [student.zoomLink, scheduleLink, quranPreviewLink, readingPreviewLink].filter(Boolean).length;
+      const hasActionBar = !!(actionCount || student.scheduleMessage);
 
       return (
-        <div className={`max-w-4xl mx-auto p-4 md:p-8 pb-20 relative ${(student.zoomLink || scheduleLink || student.scheduleMessage || quranPreviewLink) ? 'pt-[160px] md:pt-36' : ''} ${fontClass}`} dir={isArabic ? 'rtl' : 'ltr'}>
+        <div className={`max-w-4xl mx-auto p-4 md:p-8 pb-20 relative ${hasActionBar ? 'pt-[160px] md:pt-36' : ''} ${fontClass}`} style={hasActionBar && actionBarHeight ? { paddingTop: actionBarHeight + 16 } : undefined} dir={isArabic ? 'rtl' : 'ltr'}>
           {/* Sticky Top Bar for Actions & Schedule Title */}
-          {(student.zoomLink || scheduleLink || student.scheduleMessage || quranPreviewLink) && (
-            <div id="tour-actions" className={`fixed top-0 left-0 right-0 z-40 bg-islamic-900/80 backdrop-blur-md border-b border-islamic-gold/20 shadow-lg animate-fade-down ${fontClass}`} dir={isArabic ? 'rtl' : 'ltr'}>
-              <div className="max-w-4xl mx-auto px-4 py-3 flex flex-col sm:flex-row gap-3 sm:gap-4 items-center justify-between">
+          {hasActionBar && (
+            <div ref={actionBarRef} id="tour-actions" className={`fixed top-0 left-0 right-0 z-40 bg-islamic-900/80 backdrop-blur-md border-b border-islamic-gold/20 shadow-lg animate-fade-down ${fontClass}`} dir={isArabic ? 'rtl' : 'ltr'}>
+              <div className="max-w-4xl mx-auto px-4 py-3 flex flex-col sm:flex-row sm:flex-wrap gap-3 sm:gap-4 items-center justify-between">
 
                 {/* Action Buttons Group */}
-                <div className={`flex gap-2 sm:gap-3 min-w-0 order-2 sm:order-1 ${!student.scheduleMessage ? 'w-full' : 'w-full sm:w-auto'}`}>
+                <div className={`${actionCount > 3 ? 'grid grid-cols-2 sm:flex' : 'flex'} gap-2 sm:gap-3 min-w-0 order-2 sm:order-1 ${!student.scheduleMessage ? 'w-full' : 'w-full sm:w-auto'}`}>
                   {student.zoomLink && (
                     <a id="tour-join-class" href={student.zoomLink} target="_blank" rel="noopener noreferrer" 
                        onClick={(e) => {
@@ -4746,6 +4761,12 @@ https://is.gd/oL6gEO`;
                     <a href={quranPreviewLink} target="_blank" rel="noopener noreferrer" className="flex-1 min-w-0 sm:flex-none px-2 sm:px-3 flex items-center justify-center gap-2 bg-sky-500/20 hover:bg-sky-500/30 border border-sky-500/30 text-sky-300 py-2.5 rounded-xl transition-all active:scale-95 shadow-inner">
                       <i data-lucide="book-open" className="w-4 h-4 md:w-5 md:h-5 shrink-0"></i>
                       <span className={`font-bold whitespace-nowrap ${isArabic ? 'text-sm' : 'text-[11px] md:text-sm uppercase'}`}>{isArabic ? 'المصحف' : 'Quran'}</span>
+                    </a>
+                  )}
+                  {readingPreviewLink && (
+                    <a href={readingPreviewLink} target="_blank" rel="noopener noreferrer" className="flex-1 min-w-0 sm:flex-none px-2 sm:px-3 flex items-center justify-center gap-2 bg-violet-500/20 hover:bg-violet-500/30 border border-violet-500/30 text-violet-300 py-2.5 rounded-xl transition-all active:scale-95 shadow-inner">
+                      <i data-lucide="book-text" className="w-4 h-4 md:w-5 md:h-5 shrink-0"></i>
+                      <span className={`font-bold whitespace-nowrap ${isArabic ? 'text-sm' : 'text-[11px] md:text-sm uppercase'}`}>{isArabic ? 'كتاب القراءة' : 'Reading Book'}</span>
                     </a>
                   )}
                 </div>

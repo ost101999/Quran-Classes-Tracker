@@ -7,6 +7,7 @@ declare global {
             getSyncConflicts?: () => Promise<any[]>;
             resolveSyncConflict?: (path: string, choice: 'local' | 'remote', etag: string) => Promise<{ success: boolean; changed?: boolean }>;
             loadData: () => Promise<any>;
+            getShortcutLinks?: (students: { id: string; name: string }[]) => Promise<ShortcutLinksResult>;
             saveZoom?: (zoomFactor: number) => Promise<{ success: boolean; error?: string }>;
             loadZoom?: () => Promise<number | null>;
             saveTajweedAudio: (base64Data: string, fileName: string) => Promise<{ success: boolean; localPath?: string; error?: string }>;
@@ -35,6 +36,31 @@ interface SyncStatus {
     hasPending: boolean;
     error: string | null;
     lastSuccessAt: number | null;
+}
+
+interface ShortcutLinkMatch {
+    id: string;
+    path: string;
+    folderId: string;
+    titles: string[];
+    isQuran: boolean;
+    isReading: boolean;
+    zoomLink: string;
+    quranLink: string;
+    readingLink: string;
+    readingLinkInvalid: boolean;
+    readingConflict: boolean;
+    conflict: boolean;
+    exact?: boolean;
+}
+
+interface ShortcutLinksResult {
+    available: boolean;
+    matches: Record<string, ShortcutLinkMatch[]>;
+    readingMatches: Record<string, ShortcutLinkMatch[]>;
+    missingReadingMatches: Record<string, ShortcutLinkMatch[]>;
+    groups: ShortcutLinkMatch[];
+    error?: string;
 }
 
 export { };
