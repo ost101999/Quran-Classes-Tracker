@@ -384,8 +384,9 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                 onClick={() => setShowStudentWeb(true)}
                 title={shortcutStatus || 'واجهة الطالب'}
                 aria-label={shortcutStatus ? `واجهة الطالب — ${shortcutStatus}` : 'واجهة الطالب'}
-                className={`absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-base font-bold px-4 py-2 rounded-xl transition-all border group shadow-sm ${shortcutLinked ? 'bg-emerald-50 border-emerald-100 text-emerald-700 hover:bg-emerald-100' : shortcutStatus ? 'bg-amber-50 border-amber-100 text-amber-700 hover:bg-amber-100' : 'bg-gray-50 border-transparent text-gray-500 hover:text-amber-600 hover:bg-amber-50 hover:border-amber-200'}`}
+                className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-base font-bold text-gray-500 hover:text-amber-600 hover:bg-amber-50 px-4 py-2 rounded-xl transition-all border border-transparent hover:border-amber-200 group shadow-sm bg-gray-50"
               >
+                {shortcutStatus && <Link aria-hidden="true" size={13} strokeWidth={2.5} className={`pointer-events-none absolute -left-1 -top-1 z-10 rounded-sm bg-white ${shortcutLinked ? 'text-emerald-600' : 'text-amber-500'}`} />}
                 <span className="font-arabic">واجهة الطالب</span>
                 <ChevronLeft size={18} className="group-hover:-translate-x-0.5 transition-transform" />
               </button>
