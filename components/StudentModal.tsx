@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { X, Trash2, Clock, Link, Check, Phone, ChevronDown, ChevronLeft } from 'lucide-react';
 import { Student, StudyPlan } from '../types';
 import { DAYS_OF_WEEK } from '../constants';
@@ -109,6 +109,20 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
     endDate: '',
   });
   const formRef = useRef<HTMLFormElement>(null);
+  const mainPanelRef = useRef<HTMLElement>(null);
+  const studentWebPanelRef = useRef<HTMLElement>(null);
+  const [activePanelHeight, setActivePanelHeight] = useState<number>();
+
+  useLayoutEffect(() => {
+    const panel = showStudentWeb ? studentWebPanelRef.current : mainPanelRef.current;
+    if (!panel) return;
+    const measure = () => setActivePanelHeight(panel.offsetHeight);
+    measure();
+    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
+    observer?.observe(panel);
+    window.addEventListener('resize', measure);
+    return () => { observer?.disconnect(); window.removeEventListener('resize', measure); };
+  }, [showStudentWeb]);
 
   useEffect(() => {
     if (!shortcutApplied) return;
@@ -331,11 +345,13 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
     ac.toLowerCase().includes(academy.toLowerCase()) && ac !== academy
   );
   const primaryShortcutMatches = shortcutMatches.length ? shortcutMatches : readingMatches;
-  const shortcutLinked = primaryShortcutMatches.length === 1 &&
-    (shortcutSourceId === primaryShortcutMatches[0].id || readingShortcutSourceId === primaryShortcutMatches[0].id);
+  const shortcutLinked = primaryShortcutMatches.length === 1
+    ? (shortcutSourceId === primaryShortcutMatches[0].id || readingShortcutSourceId === primaryShortcutMatches[0].id)
+    : shortcutAvailable !== true && !!(shortcutSourceId || readingShortcutSourceId);
   const shortcutStatus = primaryShortcutMatches.length > 1 ? 'توجد عدة ملفات مطابقة تحتاج مراجعة'
     : shortcutLinked ? 'تم ربط ملف الطالب'
-      : primaryShortcutMatches.length === 1 ? 'يوجد ملف مطابق يحتاج مراجعة' : '';
+      : primaryShortcutMatches.length === 1 ? 'يوجد ملف مطابق يحتاج مراجعة'
+        : (shortcutSourceId || readingShortcutSourceId) && shortcutAvailable === true ? 'الملف المرتبط يحتاج مراجعة' : '';
 
   const inputClasses = "w-full px-10 py-2 bg-gray-50 text-gray-900 border-2 border-gray-100 rounded-xl focus:outline-none focus:border-[#ffe05d] focus:bg-white transition-all placeholder-gray-400 text-right text-[25px]";
 
@@ -350,12 +366,12 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
       >
         {/* === Sliding container (2 panels side by side) === */}
         <div
-          className="flex transition-transform duration-300 ease-in-out will-change-transform"
-          style={{ transform: showStudentWeb ? 'translateX(100%)' : 'translateX(0)' }}
+          className="flex items-start transition-[transform,height] duration-300 ease-in-out will-change-transform"
+          style={{ transform: showStudentWeb ? 'translateX(100%)' : 'translateX(0)', height: activePanelHeight }}
         >
 
           {/* ─────── Panel 0: Main form ─────── */}
-          <section className="w-full flex-shrink-0">
+          <section ref={mainPanelRef} className="w-full flex-shrink-0">
 
             {/* Header */}
             <div className="relative p-6 text-center border-b border-gray-100">
@@ -370,7 +386,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                 aria-label={shortcutStatus ? `واجهة الطالب — ${shortcutStatus}` : 'واجهة الطالب'}
                 className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-base font-bold text-gray-500 hover:text-amber-600 hover:bg-amber-50 px-4 py-2 rounded-xl transition-all border border-transparent hover:border-amber-200 group shadow-sm bg-gray-50"
               >
-                {shortcutStatus && <span aria-hidden="true" className={`absolute -top-1 -right-1 h-3 w-3 rounded-full border-2 border-white ${shortcutLinked && primaryShortcutMatches.length === 1 ? 'bg-emerald-500' : 'bg-amber-400'}`} />}
+                {shortcutStatus && <Link aria-hidden="true" size={15} strokeWidth={2.5} className={`absolute -top-1 -right-1 rounded-sm bg-white ${shortcutLinked ? 'text-emerald-600' : 'text-amber-500'}`} />}
                 <span className="font-arabic">واجهة الطالب</span>
                 <ChevronLeft size={18} className="group-hover:-translate-x-0.5 transition-transform" />
               </button>
@@ -731,7 +747,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
           {/* ─── End Panel 0 ─── */}
 
           {/* ─── Panel 1: واجهة الطالب ─── */}
-          <section className="w-full flex-shrink-0">
+          <section ref={studentWebPanelRef} className="w-full flex-shrink-0">
             <div className="relative p-6 text-center border-b border-gray-100">
               <button
                 type="button"
