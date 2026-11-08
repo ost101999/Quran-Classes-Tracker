@@ -60,6 +60,7 @@ interface ShortcutLinksResult {
     matches: Record<string, ShortcutLinkMatch[]>;
     readingMatches: Record<string, ShortcutLinkMatch[]>;
     missingReadingMatches: Record<string, ShortcutLinkMatch[]>;
+    folderHints?: Record<string, string[]>;
     groups: ShortcutLinkMatch[];
     error?: string;
 }

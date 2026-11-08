@@ -65,6 +65,11 @@ const isDriveFileLink = (value: string): boolean => {
   }
 };
 
+const isGoogleMeetLink = (value: string): boolean => {
+  try { return new URL(value.replace(/[\u061c\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/g, '').trim()).hostname === 'meet.google.com'; }
+  catch { return false; }
+};
+
 const shortcutIsComplete = (
   matches: ShortcutMatch[], readings: ShortcutMatch[], missing: ShortcutMatch[],
   saved: { shortcutId: string; readingId: string; zoom: string; quran: string; reading: string; acknowledged: string[] },
@@ -109,6 +114,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
   const [shortcutMatches, setShortcutMatches] = useState<ShortcutMatch[]>([]);
   const [readingMatches, setReadingMatches] = useState<ShortcutMatch[]>([]);
   const [missingReadingMatches, setMissingReadingMatches] = useState<ShortcutMatch[]>([]);
+  const [folderHint, setFolderHint] = useState('');
   const [shortcutAvailable, setShortcutAvailable] = useState<boolean | null>(null);
   const [shortcutCollapsed, setShortcutCollapsed] = useState(false);
   const [shortcutApplied, setShortcutApplied] = useState(false);
@@ -152,6 +158,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
     setShortcutMatches([]);
     setReadingMatches([]);
     setMissingReadingMatches([]);
+    setFolderHint('');
     setShortcutAvailable(null);
     setShortcutCollapsed(shortcutNotRequired);
     if (shortcutNotRequired) return;
@@ -170,6 +177,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
         setShortcutMatches(matches);
         setReadingMatches(readings);
         setMissingReadingMatches(missing);
+        setFolderHint(result.folderHints?.current?.[0] || '');
         if (result.available) setShortcutCollapsed(shortcutIsComplete(matches.length ? matches : readings, readings, missing, {
           shortcutId: shortcutSourceId, readingId: readingShortcutSourceId, zoom: zoomLink,
           quran: quranLink, reading: readingLink, acknowledged: acknowledgedMissingReadingIds,
@@ -806,6 +814,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                   {!window.electronAPI?.getShortcutLinks && <p className="text-sm text-gray-500">الربط التلقائي متاح من تطبيق الكمبيوتر.</p>}
                   {shortcutAvailable === false && <p className="text-sm text-red-600">تعذرت قراءة ملف الاختصارات من iCloud.</p>}
                   {shortcutAvailable === true && primaryShortcutMatches.length === 0 && <p className="text-sm text-amber-700">لم نجد اختصارًا لملف مصحف أو قراءة موجود مباشرة داخل مجلد مطابق لاسم الطالب. راجع الاسم والمسار المحفوظ في الاختصارات.</p>}
+                  {shortcutAvailable === true && primaryShortcutMatches.length === 0 && folderHint && <p className="text-sm text-amber-700">وجدنا ملفًا باسم الطالب داخل مجلد «{folderHint}»، لكن اسم المجلد مختلف. راجع الاسم والمسار؛ لم يتم الربط تلقائيًا.</p>}
                   {primaryShortcutMatches.length > 1 && <p className="text-sm text-amber-700">يوجد أكثر من ملف مطابق داخل المجلد، لذلك لم نختَر ملفًا تلقائيًا. راجع الاختصارات.</p>}
                   {primaryShortcutMatches.length === 1 && primaryShortcutMatches.map(match => {
                     const zoomDifferent = !!(zoomLink && match.zoomLink && !linksEquivalent(zoomLink, match.zoomLink, 'zoom'));
@@ -821,11 +830,11 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                         <p className="text-base font-bold text-gray-800 break-all" dir="auto">{match.path}</p>
                         <p className="text-base text-gray-600 flex flex-wrap gap-x-2 gap-y-1">
                           <span>{match.exact ? 'مجلد مطابق' : 'يحتاج مراجعة'}</span>
-                          <span className={match.zoomLink && !zoomDifferent && !match.zoomConflict ? 'text-emerald-700' : 'text-amber-700'}>زوم: {zoomDifferent ? 'مختلف' : match.zoomLink ? 'متاح' : 'غير متاح'}</span>
+                          <span className={match.zoomLink && !zoomDifferent && !match.zoomConflict ? 'text-emerald-700' : 'text-amber-700'}>{isGoogleMeetLink(match.zoomLink) ? 'Google Meet' : 'زوم'}: {zoomDifferent ? 'مختلف' : match.zoomLink ? 'متاح' : 'غير متاح'}</span>
                           <span className={match.quranLink && !quranDifferent ? 'text-emerald-700' : 'text-amber-700'}>المصحف: {quranDifferent ? 'مختلف' : match.quranLink ? 'متاح' : 'غير متاح'}</span>
                           <span className={readingAvailable && !readingDifferent ? 'text-emerald-700' : 'text-amber-700'}>كتاب القراءة: {readingDifferent ? 'مختلف' : readingAvailable ? 'متاح' : 'غير متاح'}</span>
                         </p>
-                        {(zoomDifferent || quranDifferent) && <p className="text-base text-amber-700">{zoomDifferent && quranDifferent ? 'رابطا زوم والمصحف مختلفان' : zoomDifferent ? 'رابط زوم مختلف' : 'رابط المصحف مختلف'} عن المحفوظ.</p>}
+                        {(zoomDifferent || quranDifferent) && <p className="text-base text-amber-700">{zoomDifferent && quranDifferent ? 'رابطا الحصة والمصحف مختلفان' : zoomDifferent ? 'رابط الحصة مختلف' : 'رابط المصحف مختلف'} عن المحفوظ.</p>}
                         {reading && reading.id !== match.id && <p className="text-sm text-gray-600 break-all" dir="auto">كتاب القراءة: {reading.path}</p>}
                         {readingDifferent && <p className="text-base text-amber-700">رابط كتاب القراءة مختلف عن المحفوظ.</p>}
                         {readingDifferent && <p className="text-xs text-gray-500 break-all" dir="ltr">Drive: {reading?.readingLink}</p>}
@@ -870,7 +879,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
               <div className="space-y-2">
                 <label className="block text-xl font-bold text-gray-600 flex items-center gap-2">
                   <Link size={18} className="text-gray-400" />
-                  رابط زوم
+                  {isGoogleMeetLink(zoomLink) ? 'رابط Google Meet' : 'رابط زوم'}
                 </label>
                 <div className="relative">
                   <input

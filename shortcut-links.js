@@ -19,7 +19,7 @@ function folderName(filePath) {
 
 function zoomLink(value) {
     try {
-        const url = new URL(value.trim());
+        const url = new URL(value.replace(/[\u061c\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/g, '').trim());
         if (url.protocol === 'zoommtg:' && url.hostname === 'zoom.us' && url.pathname === '/join') {
             const meeting = url.searchParams.get('confno');
             if (!meeting || !/^\d+$/.test(meeting)) return '';
@@ -28,9 +28,32 @@ function zoomLink(value) {
             if (password) result.searchParams.set('pwd', password);
             return result.href;
         }
-        if (url.protocol === 'https:' && (url.hostname === 'zoom.us' || url.hostname.endsWith('.zoom.us'))) return url.href;
+        if (url.protocol === 'https:' && !url.username && !url.password && (url.hostname === 'zoom.us' || url.hostname.endsWith('.zoom.us') || url.hostname === 'meet.google.com')) return url.href;
     } catch { /* Ignore non-URL fields. */ }
     return '';
+}
+
+function titleStudentName(title) {
+    const clean = String(title || '').normalize('NFKC')
+        .replace(/[\u061c\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/g, '')
+        .replace(/^[\d٠-٩۰-۹]+[\sـ._-]*/, '').replace(/\.(?:pdf|lnk)(?:\.lnk)?$/i, '').trim();
+    const match = clean.match(/^(.+?)(?:['’]s)?\s+(?:qur['’]?an|moshaf|mushaf|reading|noor[\s_-]*(?:al|el)?[\s_-]*bay(?:an|aan))(?:\s+book)?\s*$/i);
+    return match ? normalizeName(match[1]) : '';
+}
+
+function findFolderHints(groups, name, exists = isExistingFile) {
+    const normalized = normalizeName(name);
+    if (!normalized) return [];
+    const folders = new Map();
+    for (const group of groups) {
+        if ((!group.isQuran && !group.isReading) || folderName(group.path) === normalized) continue;
+        const filename = group.path.split(/[\\/]/).pop() || '';
+        if (![...group.titles, filename].some(title => titleStudentName(title) === normalized)) continue;
+        if (!exists(group.path)) continue;
+        const parts = group.path.split(/[\\/]/).filter(Boolean);
+        folders.set(group.folderId, parts[parts.length - 2]);
+    }
+    return folders.size === 1 ? [...folders.values()] : [];
 }
 
 function driveLink(value) {
@@ -114,14 +137,15 @@ function isExistingFile(filePath) {
 function readMatches(students) {
     try {
         const requestedNames = new Set(students.map(student => normalizeName(student.name)).filter(Boolean));
-        const relevant = parseShortcuts(fs.readFileSync(SHORTCUTS_PATH, 'utf8'))
+        const allGroups = parseShortcuts(fs.readFileSync(SHORTCUTS_PATH, 'utf8'));
+        const relevant = allGroups
             .filter(group => (group.isQuran || group.isReading) && requestedNames.has(folderName(group.path)));
         const groups = [], missing = [];
         for (const group of relevant) (isExistingFile(group.path) ? groups : missing).push(group);
-        return { available: true, matches: Object.fromEntries(students.map(student => [student.id, findMatches(groups, student.name)])), readingMatches: Object.fromEntries(students.map(student => [student.id, findReadingMatches(groups, student.name)])), missingReadingMatches: Object.fromEntries(students.map(student => [student.id, findReadingMatches(missing, student.name)])), groups };
+        return { available: true, matches: Object.fromEntries(students.map(student => [student.id, findMatches(groups, student.name)])), readingMatches: Object.fromEntries(students.map(student => [student.id, findReadingMatches(groups, student.name)])), missingReadingMatches: Object.fromEntries(students.map(student => [student.id, findReadingMatches(missing, student.name)])), folderHints: Object.fromEntries(students.map(student => [student.id, findFolderHints(allGroups, student.name)])), groups };
     } catch (error) {
         return { available: false, matches: {}, readingMatches: {}, missingReadingMatches: {}, groups: [], error: error.code || 'READ_ERROR' };
     }
 }
 
-module.exports = { normalizeName, folderName, zoomLink, driveLink, parseShortcuts, findMatches, findReadingMatches, isExistingFile, readMatches };
+module.exports = { normalizeName, folderName, zoomLink, driveLink, titleStudentName, findFolderHints, parseShortcuts, findMatches, findReadingMatches, isExistingFile, readMatches };

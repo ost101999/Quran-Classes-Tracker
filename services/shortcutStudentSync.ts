@@ -14,14 +14,15 @@ interface Match {
   zoomConflict?: boolean;
 }
 
-type ShortcutResult = { matches: Record<string, Match[]>; readingMatches?: Record<string, Match[]>; missingReadingMatches?: Record<string, Match[]>; groups: Match[] };
+type ShortcutResult = { matches: Record<string, Match[]>; readingMatches?: Record<string, Match[]>; missingReadingMatches?: Record<string, Match[]>; folderHints?: Record<string, string[]>; groups: Match[] };
 type StudentRequest = { id: string; name: string };
 
 export function linksEquivalent(first: string, second: string, type: 'zoom' | 'quran'): boolean {
-  if (first.trim() === second.trim()) return true;
+  const clean = (value: string) => value.replace(/[\u061c\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/g, '').trim();
+  if (clean(first) === clean(second)) return true;
   const identity = (value: string): string | null => {
     try {
-      const url = new URL(value.trim());
+      const url = new URL(clean(value));
       if (type === 'zoom' && ((url.protocol === 'https:' && (url.hostname === 'zoom.us' || url.hostname.endsWith('.zoom.us'))) || (url.protocol === 'zoommtg:' && url.hostname === 'zoom.us'))) {
         const meeting = url.protocol === 'zoommtg:' ? url.searchParams.get('confno') : url.pathname.match(/^\/(?:j|wc\/join)\/(\d+)\/?$/)?.[1];
         return meeting ? JSON.stringify([meeting, url.searchParams.get('pwd') || '']) : null;
@@ -30,6 +31,7 @@ export function linksEquivalent(first: string, second: string, type: 'zoom' | 'q
         const file = url.pathname.match(/^\/file\/d\/([a-zA-Z0-9_-]+)(?:\/|$)/)?.[1] || (/^\/(?:open|uc)$/.test(url.pathname) ? url.searchParams.get('id') : null);
         return file ? JSON.stringify([file, url.searchParams.get('resourcekey') || '']) : null;
       }
+      if (type === 'zoom' && url.protocol === 'https:' && url.hostname === 'meet.google.com') return JSON.stringify(['meet', url.href]);
     } catch { /* Compare unsupported links as plain strings. */ }
     return null;
   };
@@ -80,6 +82,7 @@ export interface ShortcutDifference {
   reading: boolean;
   readingIssue?: 'multiple' | 'conflict' | 'missing' | 'invalid';
   shortcutIssue?: 'missing' | 'ambiguous' | 'conflict' | 'review';
+  folderHint?: string;
   missingZoom?: boolean;
   zoomConflict?: boolean;
   key: string;
@@ -96,8 +99,9 @@ export function findShortcutDifferences(students: Student[], requests: StudentRe
       const quran = (result.matches[student.id] || []).filter(match => match.exact);
       const candidates = quran.length ? quran : (result.readingMatches?.[student.id] || []).filter(match => match.exact);
       const shortcutIssue = !candidates.length ? 'missing' : candidates.length > 1 ? 'ambiguous' : candidates[0].conflict || candidates[0].readingConflict ? 'conflict' : 'review';
-      return [{ studentId: student.id, studentName: student.name, zoom: false, quran: false, reading: false, shortcutIssue,
-        key: JSON.stringify([student.id, 'shortcut', shortcutIssue, candidates.map(match => match.id).sort()]) }];
+      const folderHint = shortcutIssue === 'missing' && result.folderHints?.[student.id]?.length === 1 ? result.folderHints[student.id][0] : undefined;
+      return [{ studentId: student.id, studentName: student.name, zoom: false, quran: false, reading: false, shortcutIssue, folderHint,
+        key: JSON.stringify([student.id, 'shortcut', shortcutIssue, candidates.map(match => match.id).sort(), folderHint || '']) }];
     }
     const zoom = !!(student.zoomLink && source.zoomLink && !linksEquivalent(student.zoomLink, source.zoomLink, 'zoom'));
     const quran = !!(student.quranLink && source.quranLink && !linksEquivalent(student.quranLink, source.quranLink, 'quran'));

@@ -4726,6 +4726,10 @@ https://is.gd/oL6gEO`;
                   {student.zoomLink && (
                     <a id="tour-join-class" href={student.zoomLink} target="_blank" rel="noopener noreferrer" 
                        onClick={(e) => {
+                         try {
+                           const meeting = new URL(student.zoomLink);
+                           if (meeting.hostname !== 'zoom.us' && !meeting.hostname.endsWith('.zoom.us')) return;
+                         } catch { return; }
                          e.preventDefault();
                          setPasscodeToast(true);
                          const zoomUrl = student.zoomLink;

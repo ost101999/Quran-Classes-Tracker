@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { parseShortcuts, findMatches, findReadingMatches, isExistingFile, zoomLink, driveLink, folderName } = require('../shortcut-links');
+const { parseShortcuts, findMatches, findReadingMatches, findFolderHints, isExistingFile, zoomLink, driveLink, folderName } = require('../shortcut-links');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const ts = require('typescript');
@@ -317,4 +317,45 @@ test('students marked as not requiring shortcuts are not linked or alerted', () 
     const enabled = { ...student, shortcutNotRequired: false };
     assert.equal(applyShortcutMatches([enabled], requests, result)[0].zoomLink, source.zoomLink);
     assert.equal(findShortcutDifferences([enabled], requests, noMatch)[0].shortcutIssue, 'missing');
+});
+
+test('accepts Google Meet links including invisible direction markers, but rejects unsafe hosts', () => {
+    assert.equal(zoomLink('\u2066https://meet.google.com/abc-defg-hij\u2069'), 'https://meet.google.com/abc-defg-hij');
+    assert.equal(zoomLink('https://meet.google.com.evil.example/abc-defg-hij'), '');
+    assert.equal(zoomLink('http://meet.google.com/abc-defg-hij'), '');
+    assert.equal(zoomLink('https://user:password@meet.google.com/abc-defg-hij'), '');
+    assert.equal(linksEquivalent('\u2066https://meet.google.com/abc-defg-hij\u2069', 'https://meet.google.com/abc-defg-hij', 'zoom'), true);
+    assert.equal(linksEquivalent('https://meet.google.com/abc-defg-hij', 'https://meet.google.com/xyz-abcd-efg', 'zoom'), false);
+});
+
+test('links Google Meet from the Quran shortcut without replacing existing meetings', () => {
+    const group = parseShortcuts('[Files]\nQuran=C:\\Students\\1 Name\\Quran.pdf|\u2066https://meet.google.com/abc-defg-hij\u2069|1||https://drive.google.com/file/d/q1/view')[0];
+    group.exact = true;
+    assert.equal(group.zoomLink, 'https://meet.google.com/abc-defg-hij');
+    const student = { id: '1', name: 'Name', shortcutSourceId: group.id };
+    const requests = [{ id: '1', name: 'Name' }];
+    const result = { matches: { '1': [group] }, groups: [group] };
+    assert.equal(applyShortcutMatches([student], requests, result)[0].zoomLink, group.zoomLink);
+    const existing = { ...student, zoomLink: 'https://zoom.us/j/123' };
+    assert.equal(applyShortcutMatches([existing], requests, result)[0].zoomLink, existing.zoomLink);
+    assert.equal(findShortcutDifferences([existing], requests, result)[0].zoom, true);
+});
+
+test('suggests one differently named folder only for an exact full student name, without linking it', () => {
+    const groups = parseShortcuts([
+        '[Files]',
+        "Yousuf Hassan's Quran book=C:\\Students\\83 Yousef\\Yousuf Hassan's Quran book.pdf|https://zoom.us/j/1|1||https://drive.google.com/file/d/q1/view",
+        'Ahmed Quran=C:\\Students\\14 Ahmed\\Ahmed Quran.pdf|https://zoom.us/j/2|1||https://drive.google.com/file/d/q2/view',
+    ].join('\n'));
+    assert.equal(findFolderHints(groups, 'Yousuf Hassan', () => true)[0], '83 Yousef');
+    assert.equal(findFolderHints(groups, 'Hassan', () => true).length, 0);
+    assert.equal(findFolderHints(groups, 'Yousuf Hassan', () => false).length, 0);
+    assert.equal(findMatches(groups, 'Yousuf Hassan').length, 0);
+    const student = { id: '1', name: 'Yousuf Hassan' };
+    const request = [{ id: '1', name: 'Yousuf Hassan' }];
+    const result = { matches: { '1': [] }, groups, folderHints: { '1': ['83 Yousef'] } };
+    assert.equal(applyShortcutMatches([student], request, result)[0], student);
+    assert.equal(findShortcutDifferences([student], request, result)[0].folderHint, '83 Yousef');
+    const another = { ...groups[0], id: 'other', folderId: 'other', path: 'C:\\Other\\84 Youssef\\Yousuf Hassan Quran book.pdf' };
+    assert.equal(findFolderHints([...groups, another], 'Yousuf Hassan', () => true).length, 0);
 });
