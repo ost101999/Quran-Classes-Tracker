@@ -3,7 +3,17 @@ const path = require('path');
 const os = require('os');
 const crypto = require('crypto');
 
-const SHORTCUTS_PATH = path.join(os.homedir(), 'iCloudDrive', 'iCloud~dk~simonbs~Scriptable', 'MyShortcuts.ini');
+const SHORTCUTS_PATH = process.platform === 'darwin'
+    ? path.join(os.homedir(), 'Library', 'Mobile Documents', 'iCloud~dk~simonbs~Scriptable', 'Documents', 'MyShortcuts.ini')
+    : path.join(os.homedir(), 'iCloudDrive', 'iCloud~dk~simonbs~Scriptable', 'MyShortcuts.ini');
+const MAC_GOOGLE_DRIVE_ROOT = path.join(os.homedir(), 'Library', 'CloudStorage', 'GoogleDrive-ost101999@gmail.com');
+
+function localFilePath(filePath) {
+    if (process.platform !== 'darwin') return filePath;
+    const windowsDrivePrefix = 'G:\\';
+    if (!String(filePath).toLowerCase().startsWith(windowsDrivePrefix.toLowerCase())) return filePath;
+    return path.join(MAC_GOOGLE_DRIVE_ROOT, String(filePath).slice(windowsDrivePrefix.length).replace(/\\/g, '/'));
+}
 
 function normalizeName(value) {
     return String(value || '').normalize('NFKC').toLowerCase()
@@ -131,7 +141,7 @@ function findMatches(groups, name) {
 }
 
 function isExistingFile(filePath) {
-    try { return fs.statSync(filePath).isFile(); } catch { return false; }
+    try { return fs.statSync(localFilePath(filePath)).isFile(); } catch { return false; }
 }
 
 function readMatches(students) {
