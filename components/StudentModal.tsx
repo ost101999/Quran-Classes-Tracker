@@ -858,13 +858,11 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                 <input
                   id="reading-link" type="url" value={readingLink}
                   onChange={e => { setReadingLink(e.target.value); setReadingLinkError(false); }}
-                  aria-invalid={readingLinkError} aria-describedby="reading-link-hint"
+                  aria-invalid={readingLinkError} aria-describedby={readingLinkError ? 'reading-link-error' : undefined}
                   placeholder="https://drive.google.com/file/d/.../view"
                   className="w-full px-4 py-2.5 bg-gray-50 border-2 border-gray-100 rounded-xl focus:outline-none focus:border-[#ffe05d] focus:bg-white transition-all text-sm font-english text-left" dir="ltr"
                 />
-                <p id="reading-link-hint" className={`text-sm ${readingLinkError ? 'text-red-600' : 'text-gray-500'}`} role={readingLinkError ? 'alert' : undefined}>
-                  {readingLinkError ? 'أدخل رابط ملف صالحًا من Google Drive.' : 'أضف رابط كتاب القراءة وتأكد من إتاحة عرضه للطالب.'}
-                </p>
+                {readingLinkError && <p id="reading-link-error" className="text-sm text-red-600" role="alert">أدخل رابط ملف صالحًا من Google Drive.</p>}
               </div>
 
               {/* Schedule Message */}
