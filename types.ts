@@ -70,6 +70,7 @@ export interface Student {
   disableReport?: boolean;
   whatsappNumber?: string; // WhatsApp number for sending reports
   zoomLink?: string; // Link for Zoom or other platform for the student web app
+  quranLink?: string; // Google Drive file shared with this student
   scheduleMessage?: string; // WhatsApp-style schedule text to display in the student portal
   isPrepaid?: boolean;
   prepaidTotal?: number;

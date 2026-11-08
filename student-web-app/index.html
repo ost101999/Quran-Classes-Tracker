@@ -478,6 +478,24 @@
 
     const API_BASE = 'https://quran-classes-tracker-default-rtdb.firebaseio.com';
 
+    // Open shared Drive files in the viewer while retaining access resource keys.
+    const getQuranPreviewLink = (value) => {
+      try {
+        const url = new URL(String(value || '').trim());
+        if (url.protocol !== 'https:' || url.hostname !== 'drive.google.com') return null;
+        const fileMatch = url.pathname.match(/^\/file\/d\/([a-zA-Z0-9_-]+)(?:\/|$)/);
+        const fileId = fileMatch ? fileMatch[1] :
+          (/^\/(?:open|uc)$/.test(url.pathname) ? url.searchParams.get('id') : null);
+        if (!fileId || !/^[a-zA-Z0-9_-]+$/.test(fileId)) return null;
+        const preview = new URL(`https://drive.google.com/file/d/${fileId}/preview`);
+        const resourceKey = url.searchParams.get('resourcekey');
+        if (resourceKey) preview.searchParams.set('resourcekey', resourceKey);
+        return preview.href;
+      } catch {
+        return null;
+      }
+    };
+
     const parseReport = (text) => {
       if (!text) return [];
       const lines = text.split('\n');
@@ -4679,15 +4697,17 @@ https://is.gd/oL6gEO`;
         );
       };
 
+      const quranPreviewLink = getQuranPreviewLink(student.quranLink);
+
       return (
-        <div className={`max-w-4xl mx-auto p-4 md:p-8 pb-20 relative ${(student.zoomLink || scheduleLink || student.scheduleMessage) ? 'pt-[160px] md:pt-36' : ''} ${fontClass}`} dir={isArabic ? 'rtl' : 'ltr'}>
+        <div className={`max-w-4xl mx-auto p-4 md:p-8 pb-20 relative ${(student.zoomLink || scheduleLink || student.scheduleMessage || quranPreviewLink) ? 'pt-[160px] md:pt-36' : ''} ${fontClass}`} dir={isArabic ? 'rtl' : 'ltr'}>
           {/* Sticky Top Bar for Actions & Schedule Title */}
-          {(student.zoomLink || scheduleLink || student.scheduleMessage) && (
+          {(student.zoomLink || scheduleLink || student.scheduleMessage || quranPreviewLink) && (
             <div id="tour-actions" className={`fixed top-0 left-0 right-0 z-40 bg-islamic-900/80 backdrop-blur-md border-b border-islamic-gold/20 shadow-lg animate-fade-down ${fontClass}`} dir={isArabic ? 'rtl' : 'ltr'}>
               <div className="max-w-4xl mx-auto px-4 py-3 flex flex-col sm:flex-row gap-3 sm:gap-4 items-center justify-between">
 
                 {/* Action Buttons Group */}
-                <div className={`flex gap-3 shrink-0 order-2 sm:order-1 ${!student.scheduleMessage ? 'w-full' : 'w-full sm:w-auto'}`}>
+                <div className={`flex gap-2 sm:gap-3 min-w-0 order-2 sm:order-1 ${!student.scheduleMessage ? 'w-full' : 'w-full sm:w-auto'}`}>
                   {student.zoomLink && (
                     <a id="tour-join-class" href={student.zoomLink} target="_blank" rel="noopener noreferrer" 
                        onClick={(e) => {
@@ -4709,17 +4729,23 @@ https://is.gd/oL6gEO`;
                            setPasscodeToast(false);
                          }, 2500);
                        }}
-                       className={`flex-1 sm:flex-none px-4 flex items-center justify-center gap-2 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-400 py-2.5 rounded-xl transition-all active:scale-95 shadow-inner`}>
+                       className={`flex-1 min-w-0 sm:flex-none px-2 sm:px-4 flex items-center justify-center gap-2 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-400 py-2.5 rounded-xl transition-all active:scale-95 shadow-inner`}>
                       <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 md:w-5 md:h-5 shrink-0">
                         <path d="M16.033 9.07v5.86c0 .825-.675 1.5-1.5 1.5H3.5c-.825 0-1.5-.675-1.5-1.5v-5.86c0-.825.675-1.5 1.5-1.5h11.033c.825 0 1.5.675 1.5 1.5zm6.467-1.396-4.667 3.5v1.652l4.667 3.5c.367.275.833.013.833-.45V8.125c0-.463-.466-.725-.833-.45z" />
                       </svg>
-                      <span className={`font-bold whitespace-nowrap tracking-wider ${isArabic ? 'text-sm' : 'text-[11px] md:text-sm uppercase'}`}>{t.joinClass}</span>
+                      <span className={`font-bold text-center leading-tight sm:whitespace-nowrap tracking-wider ${isArabic ? 'text-sm' : 'text-[11px] md:text-sm uppercase'}`}>{t.joinClass}</span>
                     </a>
                   )}
                   {scheduleLink && (
-                    <a id="tour-book-session" href={scheduleLink} target="_blank" rel="noopener noreferrer" className={`flex-1 sm:flex-none px-4 flex items-center justify-center gap-2 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 text-amber-400 py-2.5 rounded-xl transition-all active:scale-95 shadow-inner`}>
+                    <a id="tour-book-session" href={scheduleLink} target="_blank" rel="noopener noreferrer" className={`flex-1 min-w-0 sm:flex-none px-2 sm:px-4 flex items-center justify-center gap-2 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 text-amber-400 py-2.5 rounded-xl transition-all active:scale-95 shadow-inner`}>
                       <i data-lucide="calendar-plus" className="w-4 h-4 md:w-5 md:h-5 shrink-0"></i>
-                      <span className={`font-bold whitespace-nowrap tracking-wider ${isArabic ? 'text-sm' : 'text-[11px] md:text-sm uppercase'}`}>{t.scheduleClass}</span>
+                      <span className={`font-bold text-center leading-tight sm:whitespace-nowrap tracking-wider ${isArabic ? 'text-sm' : 'text-[11px] md:text-sm uppercase'}`}>{t.scheduleClass}</span>
+                    </a>
+                  )}
+                  {quranPreviewLink && (
+                    <a href={quranPreviewLink} target="_blank" rel="noopener noreferrer" className="flex-1 min-w-0 sm:flex-none px-2 sm:px-3 flex items-center justify-center gap-2 bg-sky-500/20 hover:bg-sky-500/30 border border-sky-500/30 text-sky-300 py-2.5 rounded-xl transition-all active:scale-95 shadow-inner">
+                      <i data-lucide="book-open" className="w-4 h-4 md:w-5 md:h-5 shrink-0"></i>
+                      <span className={`font-bold whitespace-nowrap ${isArabic ? 'text-sm' : 'text-[11px] md:text-sm uppercase'}`}>{isArabic ? 'المصحف' : 'Quran'}</span>
                     </a>
                   )}
                 </div>

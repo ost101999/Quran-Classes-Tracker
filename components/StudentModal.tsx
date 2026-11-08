@@ -45,6 +45,18 @@ const isValidUrl = (url: string): boolean => {
   }
 };
 
+const isDriveFileLink = (value: string): boolean => {
+  try {
+    const url = new URL(value.trim());
+    if (url.protocol !== 'https:' || url.hostname !== 'drive.google.com') return false;
+    const match = url.pathname.match(/^\/file\/d\/([a-zA-Z0-9_-]+)(?:\/|$)/);
+    const id = match ? match[1] : (/^\/(?:open|uc)$/.test(url.pathname) ? url.searchParams.get('id') : null);
+    return !!id && /^[a-zA-Z0-9_-]+$/.test(id);
+  } catch {
+    return false;
+  }
+};
+
 const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollment, academies, student, academyRates, prefillAcademy, currentMonth, currentYear, onAssignTajweed, students, showToast }) => {
   const [name, setName] = useState(student?.name || '');
   const [academy, setAcademy] = useState(student?.academy || prefillAcademy || '');
@@ -61,6 +73,8 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
   const [disableReport, setDisableReport] = useState(student?.disableReport ?? false);
   const [whatsappNumber, setWhatsappNumber] = useState(student?.whatsappNumber || '');
   const [zoomLink, setZoomLink] = useState(student?.zoomLink || '');
+  const [quranLink, setQuranLink] = useState(student?.quranLink || '');
+  const [quranLinkError, setQuranLinkError] = useState(false);
   const [scheduleMessage, setScheduleMessage] = useState(student?.scheduleMessage || '');
   const [showStudentWeb, setShowStudentWeb] = useState(false);
   const [isEndingEnrollment, setIsEndingEnrollment] = useState(!!student?.deletedAt);
@@ -198,6 +212,11 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !academy || !rate) return;
+    if (quranLink.trim() && !isDriveFileLink(quranLink)) {
+      setQuranLinkError(true);
+      setShowStudentWeb(true);
+      return;
+    }
 
     const savedStudent: Student = {
       ...student,
@@ -215,6 +234,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
       disableReport,
       whatsappNumber: whatsappNumber, // Store as is (number or group name)
       zoomLink,
+      quranLink: quranLink.trim(),
       scheduleMessage,
       deletedAt: isEndingEnrollment ? (() => {
         let dMonth = currentMonth + 1;
@@ -681,6 +701,28 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                     </div>
                   )}
                 </div>
+              </div>
+
+              {/* Quran file link */}
+              <div className="space-y-2">
+                <label htmlFor="quran-link" className="block text-xl font-bold text-gray-600 flex items-center gap-2">
+                  <Link size={18} className="text-gray-400" />
+                  رابط المصحف (Google Drive)
+                </label>
+                <input
+                  id="quran-link"
+                  type="url"
+                  value={quranLink}
+                  onChange={e => { setQuranLink(e.target.value); setQuranLinkError(false); }}
+                  aria-invalid={quranLinkError}
+                  aria-describedby="quran-link-hint"
+                  placeholder="https://drive.google.com/file/d/.../view"
+                  className="w-full px-4 py-2.5 bg-gray-50 border-2 border-gray-100 rounded-xl focus:outline-none focus:border-[#ffe05d] focus:bg-white transition-all text-sm font-english text-left"
+                  dir="ltr"
+                />
+                <p id="quran-link-hint" className={`text-sm ${quranLinkError ? 'text-red-600' : 'text-gray-500'}`} role={quranLinkError ? 'alert' : undefined}>
+                  {quranLinkError ? 'أدخل رابط ملف صالحًا من Google Drive.' : 'أضف رابط ملف المصحف من Google Drive، وتأكد من إتاحة عرضه للطالب.'}
+                </p>
               </div>
 
               {/* Schedule Message */}
