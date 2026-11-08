@@ -5,8 +5,8 @@ import { DAYS_OF_WEEK } from '../constants';
 import { linksEquivalent } from '../services/shortcutStudentSync';
 
 type ShortcutMatch = {
-  id: string; folderId: string; path: string; titles: string[]; isQuran: boolean;
-  zoomLink: string; quranLink: string; readingLink: string; readingLinkInvalid: boolean; readingConflict: boolean; conflict: boolean; exact?: boolean;
+  id: string; folderId: string; path: string; titles: string[]; isQuran: boolean; isReading: boolean;
+  zoomLink: string; quranLink: string; readingLink: string; readingLinkInvalid: boolean; readingConflict: boolean; zoomConflict: boolean; conflict: boolean; exact?: boolean;
 };
 
 interface Props {
@@ -294,7 +294,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
       shortcutSourceId: shortcutSourceId || undefined,
       readingShortcutSourceId: readingShortcutSourceId || undefined,
       acknowledgedMissingReadingIds: acknowledgedMissingReadingIds.length ? acknowledgedMissingReadingIds : undefined,
-      shortcutAutoMatchDisabled: shortcutSourceId ? false : (student?.shortcutAutoMatchDisabled ?? !student),
+      shortcutAutoMatchDisabled: shortcutSourceId || readingShortcutSourceId ? false : (student?.shortcutAutoMatchDisabled ?? !student),
       scheduleMessage,
       deletedAt: isEndingEnrollment ? (() => {
         let dMonth = currentMonth + 1;
@@ -330,6 +330,12 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
   const filteredAcademies = academies.filter(ac =>
     ac.toLowerCase().includes(academy.toLowerCase()) && ac !== academy
   );
+  const primaryShortcutMatches = shortcutMatches.length ? shortcutMatches : readingMatches;
+  const shortcutLinked = primaryShortcutMatches.length === 1 &&
+    (shortcutSourceId === primaryShortcutMatches[0].id || readingShortcutSourceId === primaryShortcutMatches[0].id);
+  const shortcutStatus = primaryShortcutMatches.length > 1 ? 'توجد عدة ملفات مطابقة تحتاج مراجعة'
+    : shortcutLinked ? 'تم ربط ملف الطالب'
+      : primaryShortcutMatches.length === 1 ? 'يوجد ملف مطابق يحتاج مراجعة' : '';
 
   const inputClasses = "w-full px-10 py-2 bg-gray-50 text-gray-900 border-2 border-gray-100 rounded-xl focus:outline-none focus:border-[#ffe05d] focus:bg-white transition-all placeholder-gray-400 text-right text-[25px]";
 
@@ -360,8 +366,11 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
               <button
                 type="button"
                 onClick={() => setShowStudentWeb(true)}
+                title={shortcutStatus || 'واجهة الطالب'}
+                aria-label={shortcutStatus ? `واجهة الطالب — ${shortcutStatus}` : 'واجهة الطالب'}
                 className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-base font-bold text-gray-500 hover:text-amber-600 hover:bg-amber-50 px-4 py-2 rounded-xl transition-all border border-transparent hover:border-amber-200 group shadow-sm bg-gray-50"
               >
+                {shortcutStatus && <span aria-hidden="true" className={`absolute -top-1 -right-1 h-3 w-3 rounded-full border-2 border-white ${shortcutLinked && primaryShortcutMatches.length === 1 ? 'bg-emerald-500' : 'bg-amber-400'}`} />}
                 <span className="font-arabic">واجهة الطالب</span>
                 <ChevronLeft size={18} className="group-hover:-translate-x-0.5 transition-transform" />
               </button>
@@ -379,12 +388,6 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                   placeholder=""
                 />
               </div>
-
-              {shortcutMatches.length > 0 && (
-                <button type="button" onClick={() => setShowStudentWeb(true)} className="w-full p-3 text-right rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 font-arabic text-lg">
-                  {shortcutMatches.length > 1 ? 'يوجد أكثر من مصحف داخل مجلد الطالب — اضغط للمراجعة' : shortcutSourceId === shortcutMatches[0]?.id ? 'تم ربط ملف من الاختصارات — اضغط لمراجعة الروابط' : 'وجدنا ملف المصحف داخل مجلد الطالب — اضغط لمراجعته'}
-                </button>
-              )}
 
               <div className="space-y-2 relative">
                 <label className="block text-2xl font-bold text-gray-600 pr-1">الأكاديمية</label>
@@ -749,11 +752,11 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                     {shortcutCollapsed && <button type="button" onClick={() => setShortcutCollapsed(false)} className="inline-flex items-center gap-2 text-base font-bold text-emerald-700" aria-label="عرض تفاصيل الملف المرتبط"><span className="h-3 w-3 rounded-full bg-emerald-500" /> تم اختيار الملف</button>}
                   </div>
                   {!shortcutCollapsed && <>
-                  <p className="text-base text-gray-600">اختر ملف المصحف المطابق لتحديث الروابط.</p>
+                  <p className="text-base text-gray-600">اختر ملف الطالب المطابق لتحديث الروابط، سواء كان مصحفًا أو كتاب قراءة.</p>
                   {shortcutAvailable === false && <p className="text-sm text-red-600">تعذرت قراءة ملف الاختصارات من iCloud.</p>}
-                  {shortcutAvailable === true && shortcutMatches.length === 0 && <p className="text-sm text-gray-500">لم نجد ملف مصحف موجودًا مباشرة داخل مجلد مطابق للاسم. تأكد من المسار المحفوظ في الاختصارات.</p>}
-                  {shortcutMatches.length > 1 && <p className="text-sm text-amber-700">يوجد أكثر من ملف مصحف مباشرة داخل المجلد المطابق، لذلك لم نختَر ملفًا تلقائيًا. راجع ملفات المصحف المحفوظة في الاختصارات.</p>}
-                  {shortcutMatches.length === 1 && shortcutMatches.map(match => {
+                  {shortcutAvailable === true && primaryShortcutMatches.length === 0 && <p className="text-sm text-amber-700">لم نجد اختصارًا لملف مصحف أو قراءة موجود مباشرة داخل مجلد مطابق لاسم الطالب. راجع الاسم والمسار المحفوظ في الاختصارات.</p>}
+                  {primaryShortcutMatches.length > 1 && <p className="text-sm text-amber-700">يوجد أكثر من ملف مطابق داخل المجلد، لذلك لم نختَر ملفًا تلقائيًا. راجع الاختصارات.</p>}
+                  {primaryShortcutMatches.length === 1 && primaryShortcutMatches.map(match => {
                     const zoomDifferent = !!(zoomLink && match.zoomLink && !linksEquivalent(zoomLink, match.zoomLink, 'zoom'));
                     const quranDifferent = !!(quranLink && match.quranLink && !linksEquivalent(quranLink, match.quranLink, 'quran'));
                     const readingCandidates = readingMatches.filter(item => item.folderId === match.folderId);
@@ -762,26 +765,29 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                     const readingDifferent = !!(readingLink && reading?.readingLink && !linksEquivalent(readingLink, reading.readingLink, 'quran'));
                     return (
                       <div key={match.id} className="rounded-xl bg-white border border-gray-200 p-4 space-y-2">
+                        <p className="text-sm text-gray-600">{match.isReading ? 'كتاب القراءة' : 'المصحف'}</p>
                         <p className="text-base font-bold text-gray-800 break-all" dir="auto">{match.path}</p>
                         <p className="text-base text-gray-600">{match.exact ? 'مجلد مطابق' : 'يحتاج مراجعة'} · زوم: {match.zoomLink ? 'متاح' : 'غير متاح'} · المصحف: {match.quranLink ? 'متاح' : 'غير متاح'} · كتاب القراءة: {reading?.readingLink && !reading.readingConflict && !reading.readingLinkInvalid ? 'متاح' : 'غير متاح'}</p>
                         {(zoomDifferent || quranDifferent) && <p className="text-base text-amber-700">{zoomDifferent && quranDifferent ? 'رابطا زوم والمصحف مختلفان' : zoomDifferent ? 'رابط زوم مختلف' : 'رابط المصحف مختلف'} عن المحفوظ.</p>}
-                        {reading && <p className="text-sm text-gray-600 break-all" dir="auto">كتاب القراءة: {reading.path}</p>}
+                        {reading && reading.id !== match.id && <p className="text-sm text-gray-600 break-all" dir="auto">كتاب القراءة: {reading.path}</p>}
                         {readingDifferent && <p className="text-base text-amber-700">رابط كتاب القراءة مختلف عن المحفوظ.</p>}
                         {readingDifferent && <p className="text-xs text-gray-500 break-all" dir="ltr">Drive: {reading?.readingLink}</p>}
                         {readingCandidates.length > 1 && <p className="text-base text-amber-700">يوجد أكثر من كتاب قراءة في المجلد؛ راجع الاختصارات قبل الربط.</p>}
+                        {match.isReading && match.zoomConflict && <p className="text-base text-amber-700">توجد روابط زوم مختلفة لنفس الملف في الاختصارات؛ راجعها أولًا.</p>}
                         {reading?.readingConflict && <p className="text-base text-amber-700">توجد روابط مختلفة لكتاب القراءة في الاختصارات؛ راجعها أولًا.</p>}
                         {reading?.readingLinkInvalid && <p className="text-base text-amber-700">رابط Google Drive المحفوظ لكتاب القراءة غير صالح.</p>}
                         {missingReading.length > 0 && <p className="text-base text-amber-700">يوجد كتاب قراءة محفوظ في الاختصارات لكن الملف غير موجود في المسار المسجل.</p>}
                         {readingShortcutSourceId && reading?.id !== readingShortcutSourceId && !acknowledgedMissingReadingIds.includes(readingShortcutSourceId) && <p className="text-base text-amber-700">تعذر العثور على كتاب القراءة المرتبط سابقًا في مساره؛ راجع الملف قبل تحديث الرابط.</p>}
                         {reading && !reading.readingLink && !reading.readingConflict && !reading.readingLinkInvalid && <p className="text-sm text-gray-500">لا يوجد رابط Google Drive محفوظ لكتاب القراءة بعد.</p>}
-                        {match.conflict ? <p className="text-base text-amber-700">توجد روابط مختلفة لنفس الملف في الاختصارات؛ راجعها أولًا.</p> : (
+                        {(!match.isReading && match.conflict) ? <p className="text-base text-amber-700">توجد روابط مختلفة لنفس الملف في الاختصارات؛ راجعها أولًا.</p> : (
                           <button type="button" onClick={() => {
-                            setShortcutSourceId(match.id);
+                            setShortcutSourceId(match.isReading ? '' : match.id);
+                            if (match.isReading) setReadingShortcutSourceId(match.id);
                             if (match.zoomLink) setZoomLink(match.zoomLink);
                             if (match.quranLink) { setQuranLink(match.quranLink); setQuranLinkError(false); }
-                            if (reading && !reading.readingConflict && !reading.readingLinkInvalid) {
+                            if (reading && !reading.readingConflict) {
                               setReadingShortcutSourceId(reading.id);
-                              if (reading.readingLink) { setReadingLink(reading.readingLink); setReadingLinkError(false); }
+                              if (reading.readingLink && !reading.readingLinkInvalid) { setReadingLink(reading.readingLink); setReadingLinkError(false); }
                             }
                             const reviewedIds = [...missingReading.map(item => item.id), ...(!reading && readingShortcutSourceId ? [readingShortcutSourceId] : [])];
                             if (reviewedIds.length) {
@@ -828,7 +834,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
               <div className="space-y-2">
                 <label htmlFor="quran-link" className="block text-xl font-bold text-gray-600 flex items-center gap-2">
                   <Link size={18} className="text-gray-400" />
-                  رابط المصحف (Google Drive)
+                  رابط المصحف
                 </label>
                 <input
                   id="quran-link"
@@ -836,20 +842,18 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                   value={quranLink}
                   onChange={e => { setQuranLink(e.target.value); setQuranLinkError(false); }}
                   aria-invalid={quranLinkError}
-                  aria-describedby="quran-link-hint"
+                  aria-describedby={quranLinkError ? 'quran-link-error' : undefined}
                   placeholder="https://drive.google.com/file/d/.../view"
                   className="w-full px-4 py-2.5 bg-gray-50 border-2 border-gray-100 rounded-xl focus:outline-none focus:border-[#ffe05d] focus:bg-white transition-all text-sm font-english text-left"
                   dir="ltr"
                 />
-                <p id="quran-link-hint" className={`text-sm ${quranLinkError ? 'text-red-600' : 'text-gray-500'}`} role={quranLinkError ? 'alert' : undefined}>
-                  {quranLinkError ? 'أدخل رابط ملف صالحًا من Google Drive.' : 'أضف رابط ملف المصحف من Google Drive، وتأكد من إتاحة عرضه للطالب.'}
-                </p>
+                {quranLinkError && <p id="quran-link-error" className="text-sm text-red-600" role="alert">أدخل رابط ملف صالحًا من Google Drive.</p>}
               </div>
 
               <div className="space-y-2">
                 <label htmlFor="reading-link" className="block text-xl font-bold text-gray-600 flex items-center gap-2">
                   <Link size={18} className="text-gray-400" />
-                  رابط كتاب القراءة (Google Drive)
+                  رابط كتاب القراءة
                 </label>
                 <input
                   id="reading-link" type="url" value={readingLink}

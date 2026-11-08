@@ -6,10 +6,12 @@ interface Match {
   conflict: boolean;
   zoomLink: string;
   quranLink: string;
+  isReading?: boolean;
   folderId?: string;
   readingLink?: string;
   readingLinkInvalid?: boolean;
   readingConflict?: boolean;
+  zoomConflict?: boolean;
 }
 
 type ShortcutResult = { matches: Record<string, Match[]>; readingMatches?: Record<string, Match[]>; missingReadingMatches?: Record<string, Match[]>; groups: Match[] };
@@ -53,14 +55,19 @@ function readingForStudent(student: Student, quran: Match, result: ShortcutResul
 
 function resolveSources(requests: StudentRequest[], result: ShortcutResult) {
   const claims = new Map<string, number>();
+  const candidatesFor = (id: string) => {
+    const quran = (result.matches[id] || []).filter(match => match.exact);
+    return quran.length ? quran : (result.readingMatches?.[id] || []).filter(match => match.exact);
+  };
   for (const item of requests) {
-    const exact = (result.matches[item.id] || []).filter(match => match.exact);
-    if (exact.length === 1 && !exact[0].conflict) claims.set(exact[0].id, (claims.get(exact[0].id) || 0) + 1);
+    const exact = candidatesFor(item.id);
+    if (exact.length === 1 && (exact[0].isReading || !exact[0].conflict)) claims.set(exact[0].id, (claims.get(exact[0].id) || 0) + 1);
   }
   return (student: Student): Match | undefined => {
-    const exact = (result.matches[student.id] || []).filter(match => match.exact);
-    if (exact.length !== 1 || exact[0].conflict) return undefined;
+    const exact = candidatesFor(student.id);
+    if (exact.length !== 1 || (!exact[0].isReading && exact[0].conflict)) return undefined;
     if (student.shortcutSourceId) return exact[0].id === student.shortcutSourceId ? exact[0] : undefined;
+    if (exact[0].isReading && student.readingShortcutSourceId) return exact[0].id === student.readingShortcutSourceId ? exact[0] : undefined;
     return !student.shortcutAutoMatchDisabled && claims.get(exact[0].id) === 1 ? exact[0] : undefined;
   };
 }
@@ -72,6 +79,9 @@ export interface ShortcutDifference {
   quran: boolean;
   reading: boolean;
   readingIssue?: 'multiple' | 'conflict' | 'missing' | 'invalid';
+  shortcutIssue?: 'missing' | 'ambiguous' | 'conflict' | 'review';
+  missingZoom?: boolean;
+  zoomConflict?: boolean;
   key: string;
 }
 
@@ -81,14 +91,22 @@ export function findShortcutDifferences(students: Student[], requests: StudentRe
   return students.flatMap(student => {
     if (requestedNames.get(student.id) !== student.name) return [];
     const source = resolve(student);
-    if (!source) return [];
+    if (!source) {
+      const quran = (result.matches[student.id] || []).filter(match => match.exact);
+      const candidates = quran.length ? quran : (result.readingMatches?.[student.id] || []).filter(match => match.exact);
+      const shortcutIssue = !candidates.length ? 'missing' : candidates.length > 1 ? 'ambiguous' : candidates[0].conflict || candidates[0].readingConflict ? 'conflict' : 'review';
+      return [{ studentId: student.id, studentName: student.name, zoom: false, quran: false, reading: false, shortcutIssue,
+        key: JSON.stringify([student.id, 'shortcut', shortcutIssue, candidates.map(match => match.id).sort()]) }];
+    }
     const zoom = !!(student.zoomLink && source.zoomLink && !linksEquivalent(student.zoomLink, source.zoomLink, 'zoom'));
     const quran = !!(student.quranLink && source.quranLink && !linksEquivalent(student.quranLink, source.quranLink, 'quran'));
     const readingResult = readingForStudent(student, source, result);
     const reading = !!(student.readingLink && readingResult.source?.readingLink && !linksEquivalent(student.readingLink, readingResult.source.readingLink, 'quran'));
-    if (!zoom && !quran && !reading && !readingResult.issue) return [];
-    return [{ studentId: student.id, studentName: student.name, zoom, quran, reading, readingIssue: readingResult.issue,
-      key: JSON.stringify([student.id, source.id, zoom ? student.zoomLink : '', zoom ? source.zoomLink : '', quran ? student.quranLink : '', quran ? source.quranLink : '', reading ? student.readingLink : '', reading ? readingResult.source?.readingLink : '', readingResult.issue || '']) }];
+    const zoomConflict = !!(source.isReading && source.zoomConflict);
+    const missingZoom = !student.zoomLink && !source.zoomLink && !readingResult.source?.zoomLink && !zoomConflict;
+    if (!zoom && !quran && !reading && !readingResult.issue && !missingZoom && !zoomConflict) return [];
+    return [{ studentId: student.id, studentName: student.name, zoom, quran, reading, readingIssue: readingResult.issue, missingZoom, zoomConflict,
+      key: JSON.stringify([student.id, source.id, zoom ? student.zoomLink : '', zoom ? source.zoomLink : '', quran ? student.quranLink : '', quran ? source.quranLink : '', reading ? student.readingLink : '', reading ? readingResult.source?.readingLink : '', readingResult.issue || '', missingZoom, zoomConflict]) }];
   });
 }
 
@@ -104,17 +122,18 @@ export function applyShortcutMatches(
     if (requestedNames.get(student.id) !== student.name) return student;
     const source = resolve(student);
     if (!source) return student;
-    const zoomLink = student.zoomLink || source.zoomLink || '';
-    const quranLink = student.quranLink || source.quranLink || '';
     const readingSource = readingForStudent(student, source, result).source;
+    const zoomLink = student.zoomLink || source.zoomLink || readingSource?.zoomLink || '';
+    const quranLink = student.quranLink || source.quranLink || '';
     const readingLink = student.readingLink || readingSource?.readingLink || '';
-    const readingShortcutSourceId = readingSource?.id || student.readingShortcutSourceId;
+    const readingShortcutSourceId = readingSource?.id || (source.isReading ? source.id : student.readingShortcutSourceId);
     const presentIds = new Set((result.readingMatches?.[student.id] || []).filter(match => match.folderId === source.folderId).map(match => match.id));
     const acknowledgedMissingReadingIds = (student.acknowledgedMissingReadingIds || []).filter(id => !presentIds.has(id));
     const acknowledgementsChanged = acknowledgedMissingReadingIds.length !== (student.acknowledgedMissingReadingIds || []).length;
-    if (student.shortcutSourceId === source.id && (student.zoomLink || '') === zoomLink && (student.quranLink || '') === quranLink && (student.readingLink || '') === readingLink && student.readingShortcutSourceId === readingShortcutSourceId && !acknowledgementsChanged) return student;
+    const shortcutSourceId = source.isReading ? student.shortcutSourceId : source.id;
+    if (student.shortcutSourceId === shortcutSourceId && (student.zoomLink || '') === zoomLink && (student.quranLink || '') === quranLink && (student.readingLink || '') === readingLink && student.readingShortcutSourceId === readingShortcutSourceId && !acknowledgementsChanged) return student;
     changed = true;
-    return { ...student, shortcutSourceId: source.id, zoomLink, quranLink, readingLink, readingShortcutSourceId, acknowledgedMissingReadingIds: acknowledgedMissingReadingIds.length ? acknowledgedMissingReadingIds : undefined };
+    return { ...student, shortcutSourceId, zoomLink, quranLink, readingLink, readingShortcutSourceId, acknowledgedMissingReadingIds: acknowledgedMissingReadingIds.length ? acknowledgedMissingReadingIds : undefined };
   });
   return changed ? updated : students;
 }

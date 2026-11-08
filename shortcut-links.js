@@ -43,6 +43,18 @@ function driveLink(value) {
     } catch { return ''; }
 }
 
+function zoomIdentity(value) {
+    const url = new URL(value);
+    const meeting = url.pathname.match(/^\/(?:j|wc\/join)\/(\d+)\/?$/)?.[1];
+    return meeting ? JSON.stringify([meeting, url.searchParams.get('pwd') || '']) : url.href;
+}
+
+function driveIdentity(value) {
+    const url = new URL(value);
+    const id = url.pathname.match(/^\/file\/d\/([a-zA-Z0-9_-]+)(?:\/|$)/)?.[1] || url.searchParams.get('id');
+    return JSON.stringify([id, url.searchParams.get('resourcekey') || '']);
+}
+
 function parseShortcuts(content) {
     const groups = new Map();
     let inFiles = false;
@@ -60,22 +72,23 @@ function parseShortcuts(content) {
         const drive = driveLink(fields[4] || '');
         if (!zoom && !drive && !fields[4]) continue;
         const key = filePath.toLowerCase();
-        if (!groups.has(key)) groups.set(key, { id: crypto.createHash('sha256').update(key).digest('hex'), folderId: crypto.createHash('sha256').update(key.replace(/[\\/][^\\/]+$/, '')).digest('hex'), path: filePath, titles: [], zooms: new Set(), drives: new Set(), invalidDrive: false, isQuran: false, isReading: false });
+        if (!groups.has(key)) groups.set(key, { id: crypto.createHash('sha256').update(key).digest('hex'), folderId: crypto.createHash('sha256').update(key.replace(/[\\/][^\\/]+$/, '')).digest('hex'), path: filePath, titles: [], zooms: new Map(), drives: new Map(), invalidDrive: false, isQuran: false, isReading: false });
         const group = groups.get(key);
         if (!group.titles.includes(title)) group.titles.push(title);
-        if (zoom) group.zooms.add(zoom);
-        if (drive) group.drives.add(drive);
+        if (zoom && !group.zooms.has(zoomIdentity(zoom))) group.zooms.set(zoomIdentity(zoom), zoom);
+        if (drive && !group.drives.has(driveIdentity(drive))) group.drives.set(driveIdentity(drive), drive);
         if (fields[4] && !drive) group.invalidDrive = true;
         if (/(?:quran|qur'an|moshaf|mushaf|مصحف|القرآن|القران)/i.test(title + ' ' + filePath.split(/[\\/]/).pop())) group.isQuran = true;
         if (/(?:reading|noor[\s_-]*(?:al|el)?[\s_-]*bay(?:an|aan)|foundation|قراءة|القراءة|قرائي|نور\s*البيان|تأسيس|تاسيس|القاعدة\s*النورانية|القاعدة\s*البغدادية)/i.test(title + ' ' + filePath.split(/[\\/]/).pop())) group.isReading = true;
     }
     return [...groups.values()].map(group => ({
         id: group.id, folderId: group.folderId, path: group.path, titles: group.titles, isQuran: group.isQuran, isReading: group.isReading && !group.isQuran,
-        zoomLink: group.zooms.size === 1 ? [...group.zooms][0] : '',
-        quranLink: group.isQuran && group.drives.size === 1 ? [...group.drives][0] : '',
-        readingLink: group.isReading && !group.isQuran && group.drives.size === 1 ? [...group.drives][0] : '',
+        zoomLink: group.zooms.size === 1 ? [...group.zooms.values()][0] : '',
+        quranLink: group.isQuran && group.drives.size === 1 ? [...group.drives.values()][0] : '',
+        readingLink: group.isReading && !group.isQuran && group.drives.size === 1 ? [...group.drives.values()][0] : '',
         readingLinkInvalid: group.isReading && !group.isQuran && group.invalidDrive,
         readingConflict: group.drives.size > 1,
+        zoomConflict: group.zooms.size > 1,
         conflict: group.zooms.size > 1 || (group.isQuran && group.drives.size > 1),
     }));
 }

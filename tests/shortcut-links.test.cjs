@@ -144,14 +144,14 @@ test('reports changed existing links with the student name and stable notificati
     assert.notEqual(findShortcutDifferences([student], requests, { matches: { '1': [{ ...match, zoomLink: 'https://zoom.us/j/3' }] }, groups: [] })[0].key, alerts[0].key);
 });
 
-test('does not report missing, equivalent, ambiguous or unconfirmed links as changes', () => {
+test('reports ambiguous and unconfirmed matches for review without treating them as link changes', () => {
     const student = { id: '1', name: 'Bilal', zoomLink: 'https://us04web.zoom.us/j/1?pwd=abc', quranLink: '' };
     const match = { id: 'file1', exact: true, conflict: false, zoomLink: 'https://zoom.us/j/1?pwd=abc', quranLink: 'https://drive.google.com/file/d/new/view' };
     const requests = [{ id: '1', name: 'Bilal' }];
     assert.equal(findShortcutDifferences([student], requests, { matches: { '1': [match] }, groups: [match] }).length, 0);
     const changed = { ...match, zoomLink: 'https://zoom.us/j/2' };
-    assert.equal(findShortcutDifferences([{ ...student, shortcutAutoMatchDisabled: true }], requests, { matches: { '1': [changed] }, groups: [changed] }).length, 0);
-    assert.equal(findShortcutDifferences([student], requests, { matches: { '1': [changed, { ...changed, id: 'file2' }] }, groups: [] }).length, 0);
+    assert.equal(findShortcutDifferences([{ ...student, shortcutAutoMatchDisabled: true }], requests, { matches: { '1': [changed] }, groups: [changed] })[0].shortcutIssue, 'review');
+    assert.equal(findShortcutDifferences([student], requests, { matches: { '1': [changed, { ...changed, id: 'file2' }] }, groups: [] })[0].shortcutIssue, 'ambiguous');
 });
 
 test('recognizes Quran and reading records independently from the same folder', () => {
@@ -219,7 +219,7 @@ test('fills a reading link added later to the already linked file', () => {
 });
 
 test('a reviewed missing reading path stops warning without hiding new issues', () => {
-    const quran = { id: 'q1', folderId: 'f1', exact: true, conflict: false, zoomLink: '', quranLink: '' };
+    const quran = { id: 'q1', folderId: 'f1', exact: true, conflict: false, zoomLink: 'https://zoom.us/j/1', quranLink: '' };
     const missing = { id: 'r1', folderId: 'f1', exact: true, readingLink: 'https://drive.google.com/file/d/reading/view' };
     const student = { id: '1', name: 'Bilal', shortcutSourceId: 'q1', acknowledgedMissingReadingIds: ['r1'] };
     const requests = [{ id: '1', name: 'Bilal' }];
@@ -230,6 +230,67 @@ test('a reviewed missing reading path stops warning without hiding new issues', 
     const newMissing = { ...missing, id: 'r2' };
     assert.equal(findShortcutDifferences([student], requests, { ...result, missingReadingMatches: { '1': [missing, newMissing] } })[0].readingIssue, 'missing');
     assert.equal(findShortcutDifferences([student], requests, { ...result, readingMatches: { '1': [{ ...missing, readingConflict: true }] } })[0].readingIssue, 'conflict');
+});
+
+test('automatically links reading-only students and preserves existing links', () => {
+    const student = { id: '1', name: 'Bilal', quranLink: 'https://drive.google.com/file/d/manual/view' };
+    const book = { id: 'r1', folderId: 'f1', exact: true, isReading: true, conflict: false, zoomLink: 'https://zoom.us/j/1', quranLink: '', readingLink: 'https://drive.google.com/file/d/reading/view' };
+    const requests = [{ id: '1', name: 'Bilal' }];
+    const result = { matches: { '1': [] }, readingMatches: { '1': [book] }, groups: [book] };
+    const [updated] = applyShortcutMatches([student], requests, result);
+    assert.equal(updated.zoomLink, book.zoomLink);
+    assert.equal(updated.readingLink, book.readingLink);
+    assert.equal(updated.readingShortcutSourceId, 'r1');
+    assert.equal(updated.quranLink, student.quranLink);
+    assert.ok(!updated.shortcutSourceId);
+    assert.equal(findShortcutDifferences([updated], requests, result).length, 0);
+});
+
+test('requires confirmation for new reading-only students and alerts for missing shortcuts', () => {
+    const student = { id: '1', name: 'Bilal', shortcutAutoMatchDisabled: true };
+    const book = { id: 'r1', folderId: 'f1', exact: true, isReading: true, conflict: false, zoomLink: 'https://zoom.us/j/1', quranLink: '', readingLink: 'https://drive.google.com/file/d/reading/view' };
+    const requests = [{ id: '1', name: 'Bilal' }];
+    const result = { matches: { '1': [] }, readingMatches: { '1': [book] }, groups: [book] };
+    assert.equal(applyShortcutMatches([student], requests, result)[0], student);
+    assert.equal(findShortcutDifferences([student], requests, result)[0].shortcutIssue, 'review');
+    assert.equal(findShortcutDifferences([student], requests, { ...result, readingMatches: { '1': [] } })[0].shortcutIssue, 'missing');
+    const confirmed = { ...student, readingShortcutSourceId: 'r1' };
+    assert.equal(applyShortcutMatches([confirmed], requests, result)[0].readingLink, book.readingLink);
+});
+
+test('alerts for ambiguous reading-only matches and missing Zoom', () => {
+    const student = { id: '1', name: 'Bilal' };
+    const book = { id: 'r1', folderId: 'f1', exact: true, isReading: true, conflict: false, zoomLink: '', quranLink: '', readingLink: 'https://drive.google.com/file/d/reading/view' };
+    const requests = [{ id: '1', name: 'Bilal' }];
+    const result = { matches: { '1': [] }, readingMatches: { '1': [book] }, groups: [book] };
+    assert.equal(findShortcutDifferences([student], requests, result)[0].missingZoom, true);
+    const multi = { ...result, readingMatches: { '1': [book, { ...book, id: 'r2' }] } };
+    assert.equal(findShortcutDifferences([student], requests, multi)[0].shortcutIssue, 'ambiguous');
+    assert.equal(applyShortcutMatches([student], requests, multi)[0], student);
+});
+
+test('treats different Zoom hosts and Drive sharing URLs for the same links as one shortcut', () => {
+    const groups = parseShortcuts([
+        '[Files]',
+        'Reading Book=C:\\Students\\1 Name\\Reading Book.pdf|zoommtg://zoom.us/join?confno=12345&pwd=secret|1||https://drive.google.com/file/d/read123/view?usp=sharing',
+        'Reading Book=C:\\Students\\1 Name\\Reading Book.pdf|https://us04web.zoom.us/j/12345?pwd=secret|1||https://drive.google.com/open?id=read123',
+    ].join('\n'));
+    assert.equal(groups.length, 1);
+    assert.equal(groups[0].zoomConflict, false);
+    assert.equal(groups[0].readingConflict, false);
+    assert.ok(groups[0].zoomLink);
+    assert.ok(groups[0].readingLink);
+});
+
+test('imports a safe reading link while alerting about conflicting Zoom links', () => {
+    const student = { id: '1', name: 'Bilal' };
+    const book = { id: 'r1', folderId: 'f1', exact: true, isReading: true, conflict: true, zoomConflict: true, zoomLink: '', quranLink: '', readingLink: 'https://drive.google.com/file/d/reading/view' };
+    const requests = [{ id: '1', name: 'Bilal' }];
+    const result = { matches: { '1': [] }, readingMatches: { '1': [book] }, groups: [book] };
+    const [updated] = applyShortcutMatches([student], requests, result);
+    assert.equal(updated.readingLink, book.readingLink);
+    assert.equal(findShortcutDifferences([updated], requests, result)[0].zoomConflict, true);
+    assert.ok(!updated.zoomLink);
 });
 
 test('a reviewed path is restored to monitoring when the reading file returns', () => {

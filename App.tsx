@@ -2340,6 +2340,8 @@ function App() {
   const [openShortcutReview, setOpenShortcutReview] = useState(false);
   const [shortcutDifferences, setShortcutDifferences] = useState<ShortcutDifference[]>([]);
   const dismissedShortcutDifferences = useRef(new Set<string>());
+  const [shortcutReadError, setShortcutReadError] = useState(false);
+  const dismissedShortcutReadError = useRef(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [selectedStudentForDetails, setSelectedStudentForDetails] = useState<Student | null>(null);
   const [selectedAcademyForDetails, setSelectedAcademyForDetails] = useState<string | null>(null);
@@ -4723,10 +4725,18 @@ function App() {
     let cancelled = false;
     const refresh = async () => {
       try {
-        const requests = students.map(({ id, name }) => ({ id, name }));
+        const now = new Date();
+        const activeStudents = students.filter(student => !student.deletedAt || student.deletedAt.year > now.getFullYear() || (student.deletedAt.year === now.getFullYear() && student.deletedAt.month > now.getMonth()));
+        const requests = activeStudents.map(({ id, name }) => ({ id, name }));
         const result = await window.electronAPI!.getShortcutLinks!(requests);
-        if (cancelled || !result.available || applyingCloudRef.current) return;
-        const differences = findShortcutDifferences(students, requests, result);
+        if (cancelled || applyingCloudRef.current) return;
+        if (!result.available) {
+          if (!dismissedShortcutReadError.current) setShortcutReadError(true);
+          return;
+        }
+        setShortcutReadError(false);
+        dismissedShortcutReadError.current = false;
+        const differences = findShortcutDifferences(activeStudents, requests, result);
         const activeKeys = new Set(differences.map(difference => difference.key));
         dismissedShortcutDifferences.current.forEach(key => {
           if (!activeKeys.has(key)) dismissedShortcutDifferences.current.delete(key);
@@ -4735,6 +4745,7 @@ function App() {
         setStudents(previous => applyShortcutMatches(previous, requests, result));
       } catch (error) {
         console.error('Failed to read shortcut links:', error);
+        if (!cancelled && !dismissedShortcutReadError.current) setShortcutReadError(true);
       }
     };
     void refresh();
@@ -8620,12 +8631,13 @@ function App() {
         })()
       }
 
-      {!isModalOpen && shortcutDifferences.length > 0 && (
+      {!isModalOpen && (shortcutReadError || shortcutDifferences.length > 0) && (
         <div role="status" aria-live="polite" dir="rtl" className="fixed bottom-5 right-5 z-[90] w-[min(24rem,calc(100vw-2.5rem))] rounded-2xl border border-amber-200 bg-white shadow-2xl overflow-hidden font-arabic">
           <div className="flex items-center gap-2 bg-amber-50 px-4 py-3 text-amber-900 font-bold text-lg">
-            <Bell size={19} /> تنبيه اختلاف الروابط
+            <Bell size={19} /> تنبيهات الاختصارات
           </div>
           <div className="max-h-64 overflow-y-auto divide-y divide-gray-100">
+            {shortcutReadError && <div className="p-4 flex items-start gap-3"><p className="flex-1 text-sm text-amber-700">تعذرت قراءة ملف الاختصارات. تأكد من توفر ملف iCloud ثم حاول مجددًا.</p><button type="button" aria-label="إغلاق تنبيه ملف الاختصارات" className="p-1 text-gray-400 hover:text-gray-700" onClick={() => { dismissedShortcutReadError.current = true; setShortcutReadError(false); }}><X size={18} /></button></div>}
             {shortcutDifferences.map(difference => (
               <div key={difference.key} className="p-4 flex items-start gap-3">
                 <div className="flex-1 min-w-0">
@@ -8633,6 +8645,9 @@ function App() {
                   {(difference.zoom || difference.quran || difference.reading) && <p className="text-sm text-gray-600">رابط {[
                     difference.zoom && 'زوم', difference.quran && 'المصحف', difference.reading && 'كتاب القراءة'
                   ].filter(Boolean).join(' و')} مختلف عن ملف الاختصارات. الروابط المحفوظة لم تتغير.</p>}
+                  {difference.shortcutIssue && <p className="text-sm text-amber-700">{difference.shortcutIssue === 'missing' ? 'لم نجد اختصارًا مطابقًا لملف موجود. راجع اسم الطالب ومسار الملف.' : difference.shortcutIssue === 'ambiguous' ? 'يوجد أكثر من ملف مطابق؛ راجع الاختصارات لتحديد الملف الصحيح.' : difference.shortcutIssue === 'conflict' ? 'توجد روابط متعارضة في الاختصار؛ راجع الملف أولًا.' : 'الاختصار يحتاج مراجعة وتأكيد الربط.'}</p>}
+                  {difference.missingZoom && <p className="text-sm text-amber-700">لا يوجد رابط زوم محفوظ لهذا الطالب أو في اختصاره.</p>}
+                  {difference.zoomConflict && <p className="text-sm text-amber-700">توجد روابط زوم مختلفة لنفس الملف في الاختصارات؛ راجعها قبل الاستخدام.</p>}
                   {difference.readingIssue && <p className="text-sm text-amber-700">{difference.readingIssue === 'multiple' ? 'يوجد أكثر من كتاب قراءة في مجلد الطالب.' : difference.readingIssue === 'conflict' ? 'توجد روابط مختلفة لكتاب القراءة في الاختصارات.' : difference.readingIssue === 'invalid' ? 'رابط كتاب القراءة في الاختصارات غير صالح.' : 'تعذر العثور على كتاب القراءة في مساره المحفوظ.'}</p>}
                   <button type="button" className="mt-2 text-sm font-bold text-amber-800 underline" onClick={() => {
                     const student = students.find(item => item.id === difference.studentId);

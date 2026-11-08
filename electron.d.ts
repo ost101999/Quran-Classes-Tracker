@@ -50,6 +50,7 @@ interface ShortcutLinkMatch {
     readingLink: string;
     readingLinkInvalid: boolean;
     readingConflict: boolean;
+    zoomConflict: boolean;
     conflict: boolean;
     exact?: boolean;
 }
