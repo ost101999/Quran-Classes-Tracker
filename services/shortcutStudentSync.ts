@@ -89,6 +89,7 @@ export function findShortcutDifferences(students: Student[], requests: StudentRe
   const resolve = resolveSources(requests, result);
   const requestedNames = new Map(requests.map(item => [item.id, item.name]));
   return students.flatMap(student => {
+    if (student.shortcutNotRequired) return [];
     if (requestedNames.get(student.id) !== student.name) return [];
     const source = resolve(student);
     if (!source) {
@@ -119,6 +120,7 @@ export function applyShortcutMatches(
   const requestedNames = new Map(requests.map(item => [item.id, item.name]));
   let changed = false;
   const updated = students.map(student => {
+    if (student.shortcutNotRequired) return student;
     if (requestedNames.get(student.id) !== student.name) return student;
     const source = resolve(student);
     if (!source) return student;

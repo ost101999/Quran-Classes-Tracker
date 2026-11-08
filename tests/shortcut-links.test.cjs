@@ -304,3 +304,17 @@ test('a reviewed path is restored to monitoring when the reading file returns', 
     assert.ok(!updated.acknowledgedMissingReadingIds?.length);
     assert.equal(findShortcutDifferences([updated], requests, { ...result, readingMatches: { '1': [] }, missingReadingMatches: { '1': [reading] } })[0].readingIssue, 'missing');
 });
+
+test('students marked as not requiring shortcuts are not linked or alerted', () => {
+    const student = { id: '1', name: 'Bilal', shortcutNotRequired: true };
+    const source = { id: 'q1', folderId: 'f1', exact: true, conflict: false, zoomLink: 'https://zoom.us/j/1', quranLink: 'https://drive.google.com/file/d/q1/view' };
+    const requests = [{ id: '1', name: 'Bilal' }];
+    const result = { matches: { '1': [source] }, groups: [source] };
+    assert.equal(applyShortcutMatches([student], requests, result)[0], student);
+    assert.equal(findShortcutDifferences([student], requests, result).length, 0);
+    const noMatch = { matches: { '1': [] }, groups: [] };
+    assert.equal(findShortcutDifferences([student], requests, noMatch).length, 0);
+    const enabled = { ...student, shortcutNotRequired: false };
+    assert.equal(applyShortcutMatches([enabled], requests, result)[0].zoomLink, source.zoomLink);
+    assert.equal(findShortcutDifferences([enabled], requests, noMatch)[0].shortcutIssue, 'missing');
+});

@@ -76,6 +76,7 @@ export interface Student {
   readingShortcutSourceId?: string;
   acknowledgedMissingReadingIds?: string[]; // Missing shortcut paths already reviewed by the user
   shortcutAutoMatchDisabled?: boolean; // New students without a confirmed shortcut need review
+  shortcutNotRequired?: boolean; // This student intentionally has no shortcut links
   scheduleMessage?: string; // WhatsApp-style schedule text to display in the student portal
   isPrepaid?: boolean;
   prepaidTotal?: number;

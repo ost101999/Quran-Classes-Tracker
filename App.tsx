@@ -4726,7 +4726,7 @@ function App() {
     const refresh = async () => {
       try {
         const now = new Date();
-        const activeStudents = students.filter(student => !student.deletedAt || student.deletedAt.year > now.getFullYear() || (student.deletedAt.year === now.getFullYear() && student.deletedAt.month > now.getMonth()));
+        const activeStudents = students.filter(student => !student.shortcutNotRequired && (!student.deletedAt || student.deletedAt.year > now.getFullYear() || (student.deletedAt.year === now.getFullYear() && student.deletedAt.month > now.getMonth())));
         const requests = activeStudents.map(({ id, name }) => ({ id, name }));
         const result = await window.electronAPI!.getShortcutLinks!(requests);
         if (cancelled || applyingCloudRef.current) return;
