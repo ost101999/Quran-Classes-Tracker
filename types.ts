@@ -74,6 +74,7 @@ export interface Student {
   readingLink?: string; // Google Drive reading book shared with this student
   shortcutSourceId?: string; // Confirmed shortcut file identity, without exposing the local path
   readingShortcutSourceId?: string;
+  acknowledgedMissingReadingIds?: string[]; // Missing shortcut paths already reviewed by the user
   shortcutAutoMatchDisabled?: boolean; // New students without a confirmed shortcut need review
   scheduleMessage?: string; // WhatsApp-style schedule text to display in the student portal
   isPrepaid?: boolean;

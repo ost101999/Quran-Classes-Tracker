@@ -217,3 +217,29 @@ test('fills a reading link added later to the already linked file', () => {
     const [updated] = applyShortcutMatches([linked], requests, { ...result, readingMatches: { '1': [later] } });
     assert.equal(updated.readingLink, later.readingLink);
 });
+
+test('a reviewed missing reading path stops warning without hiding new issues', () => {
+    const quran = { id: 'q1', folderId: 'f1', exact: true, conflict: false, zoomLink: '', quranLink: '' };
+    const missing = { id: 'r1', folderId: 'f1', exact: true, readingLink: 'https://drive.google.com/file/d/reading/view' };
+    const student = { id: '1', name: 'Bilal', shortcutSourceId: 'q1', acknowledgedMissingReadingIds: ['r1'] };
+    const requests = [{ id: '1', name: 'Bilal' }];
+    const result = { matches: { '1': [quran] }, readingMatches: { '1': [] }, missingReadingMatches: { '1': [missing] }, groups: [quran] };
+    assert.equal(findShortcutDifferences([student], requests, result).length, 0);
+    const linked = { ...student, readingShortcutSourceId: 'r1' };
+    assert.equal(findShortcutDifferences([linked], requests, result).length, 0);
+    const newMissing = { ...missing, id: 'r2' };
+    assert.equal(findShortcutDifferences([student], requests, { ...result, missingReadingMatches: { '1': [missing, newMissing] } })[0].readingIssue, 'missing');
+    assert.equal(findShortcutDifferences([student], requests, { ...result, readingMatches: { '1': [{ ...missing, readingConflict: true }] } })[0].readingIssue, 'conflict');
+});
+
+test('a reviewed path is restored to monitoring when the reading file returns', () => {
+    const quran = { id: 'q1', folderId: 'f1', exact: true, conflict: false, zoomLink: '', quranLink: '' };
+    const reading = { id: 'r1', folderId: 'f1', exact: true, readingLink: 'https://drive.google.com/file/d/reading/view' };
+    const student = { id: '1', name: 'Bilal', shortcutSourceId: 'q1', acknowledgedMissingReadingIds: ['r1'] };
+    const requests = [{ id: '1', name: 'Bilal' }];
+    const result = { matches: { '1': [quran] }, readingMatches: { '1': [reading] }, missingReadingMatches: { '1': [] }, groups: [quran, reading] };
+    const [updated] = applyShortcutMatches([student], requests, result);
+    assert.equal(updated.readingLink, reading.readingLink);
+    assert.ok(!updated.acknowledgedMissingReadingIds?.length);
+    assert.equal(findShortcutDifferences([updated], requests, { ...result, readingMatches: { '1': [] }, missingReadingMatches: { '1': [reading] } })[0].readingIssue, 'missing');
+});

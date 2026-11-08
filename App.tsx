@@ -7941,6 +7941,9 @@ function App() {
             }}
             onSave={(student) => { setOpenShortcutReview(false); handleAddStudent(student); }}
             openStudentWebInitially={openShortcutReview}
+            onAcknowledgeMissingReading={(studentId, ids) => setStudents(previous => previous.map(item => item.id === studentId
+              ? { ...item, acknowledgedMissingReadingIds: [...new Set([...(item.acknowledgedMissingReadingIds || []), ...ids])] }
+              : item))}
             onDelete={deleteStudent}
             onEndEnrollment={handleEndEnrollment}
             academies={sortedAcademies}

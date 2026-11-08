@@ -24,6 +24,7 @@ interface Props {
   students?: Student[];
   showToast?: (msg: string) => void;
   openStudentWebInitially?: boolean;
+  onAcknowledgeMissingReading?: (studentId: string, ids: string[]) => void;
 }
 
 // Convert Western numerals to Hindi numerals
@@ -64,7 +65,7 @@ const isDriveFileLink = (value: string): boolean => {
   }
 };
 
-const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollment, academies, student, academyRates, prefillAcademy, currentMonth, currentYear, onAssignTajweed, students, showToast, openStudentWebInitially = false }) => {
+const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollment, academies, student, academyRates, prefillAcademy, currentMonth, currentYear, onAssignTajweed, students, showToast, openStudentWebInitially = false, onAcknowledgeMissingReading }) => {
   const [name, setName] = useState(student?.name || '');
   const [academy, setAcademy] = useState(student?.academy || prefillAcademy || '');
   const [studentTargetAge, setStudentTargetAge] = useState<'kids' | 'adults'>(student?.targetAge || 'adults');
@@ -86,6 +87,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
   const [readingLinkError, setReadingLinkError] = useState(false);
   const [shortcutSourceId, setShortcutSourceId] = useState(student?.shortcutSourceId || '');
   const [readingShortcutSourceId, setReadingShortcutSourceId] = useState(student?.readingShortcutSourceId || '');
+  const [acknowledgedMissingReadingIds, setAcknowledgedMissingReadingIds] = useState<string[]>(student?.acknowledgedMissingReadingIds || []);
   const [shortcutMatches, setShortcutMatches] = useState<ShortcutMatch[]>([]);
   const [readingMatches, setReadingMatches] = useState<ShortcutMatch[]>([]);
   const [missingReadingMatches, setMissingReadingMatches] = useState<ShortcutMatch[]>([]);
@@ -291,6 +293,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
       readingLink: readingLink.trim(),
       shortcutSourceId: shortcutSourceId || undefined,
       readingShortcutSourceId: readingShortcutSourceId || undefined,
+      acknowledgedMissingReadingIds: acknowledgedMissingReadingIds.length ? acknowledgedMissingReadingIds : undefined,
       shortcutAutoMatchDisabled: shortcutSourceId ? false : (student?.shortcutAutoMatchDisabled ?? !student),
       scheduleMessage,
       deletedAt: isEndingEnrollment ? (() => {
@@ -755,7 +758,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                     const quranDifferent = !!(quranLink && match.quranLink && !linksEquivalent(quranLink, match.quranLink, 'quran'));
                     const readingCandidates = readingMatches.filter(item => item.folderId === match.folderId);
                     const reading = readingCandidates.length === 1 ? readingCandidates[0] : undefined;
-                    const missingReading = missingReadingMatches.filter(item => item.folderId === match.folderId);
+                    const missingReading = missingReadingMatches.filter(item => item.folderId === match.folderId && !acknowledgedMissingReadingIds.includes(item.id));
                     const readingDifferent = !!(readingLink && reading?.readingLink && !linksEquivalent(readingLink, reading.readingLink, 'quran'));
                     return (
                       <div key={match.id} className="rounded-xl bg-white border border-gray-200 p-4 space-y-2">
@@ -769,7 +772,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                         {reading?.readingConflict && <p className="text-base text-amber-700">توجد روابط مختلفة لكتاب القراءة في الاختصارات؛ راجعها أولًا.</p>}
                         {reading?.readingLinkInvalid && <p className="text-base text-amber-700">رابط Google Drive المحفوظ لكتاب القراءة غير صالح.</p>}
                         {missingReading.length > 0 && <p className="text-base text-amber-700">يوجد كتاب قراءة محفوظ في الاختصارات لكن الملف غير موجود في المسار المسجل.</p>}
-                        {readingShortcutSourceId && reading?.id !== readingShortcutSourceId && <p className="text-base text-amber-700">تعذر العثور على كتاب القراءة المرتبط سابقًا في مساره؛ راجع الملف قبل تحديث الرابط.</p>}
+                        {readingShortcutSourceId && reading?.id !== readingShortcutSourceId && !acknowledgedMissingReadingIds.includes(readingShortcutSourceId) && <p className="text-base text-amber-700">تعذر العثور على كتاب القراءة المرتبط سابقًا في مساره؛ راجع الملف قبل تحديث الرابط.</p>}
                         {reading && !reading.readingLink && !reading.readingConflict && !reading.readingLinkInvalid && <p className="text-sm text-gray-500">لا يوجد رابط Google Drive محفوظ لكتاب القراءة بعد.</p>}
                         {match.conflict ? <p className="text-base text-amber-700">توجد روابط مختلفة لنفس الملف في الاختصارات؛ راجعها أولًا.</p> : (
                           <button type="button" onClick={() => {
@@ -779,6 +782,11 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                             if (reading && !reading.readingConflict && !reading.readingLinkInvalid) {
                               setReadingShortcutSourceId(reading.id);
                               if (reading.readingLink) { setReadingLink(reading.readingLink); setReadingLinkError(false); }
+                            }
+                            const reviewedIds = [...missingReading.map(item => item.id), ...(!reading && readingShortcutSourceId ? [readingShortcutSourceId] : [])];
+                            if (reviewedIds.length) {
+                              setAcknowledgedMissingReadingIds(previous => [...new Set([...previous, ...reviewedIds])]);
+                              if (student?.id) onAcknowledgeMissingReading?.(student.id, reviewedIds);
                             }
                             setShortcutCollapsed(true);
                             setShortcutApplied(true);
