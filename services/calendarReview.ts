@@ -206,8 +206,15 @@ export function prepareCalendarAction(data: ReviewData, studentId: string, propo
         if (options.doubleTarget && (targetCount > 1 || [AttendanceStatus.EXTRA_DOUBLE, AttendanceStatus.DOUBLE_CLASS, AttendanceStatus.PAID_ABSENCE_DOUBLE].includes(data.attendance[targetParts.key]))) throw new Error('اليوم الجديد يحتوي بالفعل على حصتين. راجع عدد الحصص يدويًا.');
         if (action === 'makeup' && (sourceParts.month !== targetParts.month || sourceParts.year !== targetParts.year)) throw new Error('ربط تعويض بين شهرين يحتاج مراجعة يدوية. يمكنك اختيار نقل الحصة لتعديل اليومين دون ربط تعويض.');
         add(source, action === 'makeup' ? AttendanceStatus.POSTPONED : AttendanceStatus.EXEMPT);
-        add(target, options.doubleTarget ? AttendanceStatus.EXTRA_DOUBLE : AttendanceStatus.EXTRA_DAY);
-        if (action === 'makeup') links = [...links, { studentId, missedDay: sourceParts.day, makeupDay: targetParts.day, month: targetParts.month, year: targetParts.year, originalStatus: data.attendance[sourceParts.key] || AttendanceStatus.ABSENT }];
+        if (action === 'makeup') {
+          add(target, options.doubleTarget ? AttendanceStatus.EXTRA_DOUBLE : AttendanceStatus.ABSENT);
+          if (!options.doubleTarget && !changes.some(change => change.date === target)) {
+            lines.push(`${target}: ربط كحصة تعويض — دائرة زرقاء`);
+          }
+          links = [...links, { studentId, missedDay: sourceParts.day, makeupDay: targetParts.day, month: targetParts.month, year: targetParts.year, originalStatus: data.attendance[sourceParts.key] || AttendanceStatus.ABSENT }];
+        } else {
+          add(target, options.doubleTarget ? AttendanceStatus.EXTRA_DOUBLE : AttendanceStatus.EXTRA_DAY);
+        }
       }
     }
   }

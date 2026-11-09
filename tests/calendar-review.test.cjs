@@ -361,11 +361,14 @@ test('getRecentApologyClasses returns last 3 student/teacher apologies and allow
     ]);
 
     // Confirming makeup against 2026-11-03 (which also has a single observed red event) works without requiresReplace
+    // and leaves the target day status empty so makeupLinks alone renders a single blue circle (not a double class with red dot)
     const greenProposal = students[0].calendarReview.pending.find(p => p.kind === 'scheduled');
     const preview = prepareCalendarAction(data, 's1', greenProposal.id, 'makeup', { sourceDate: '2026-11-03' });
     assert.equal(preview.requiresReplace, false);
     const committed = commitCalendarAction(data, 's1', preview);
     assert.equal(committed.attendance.s1_3_10_2026, 'م');
-    assert.equal(committed.attendance.s1_14_10_2026, 'e');
+    assert.equal(committed.attendance.s1_14_10_2026, undefined);
+    assert.equal(committed.makeupLinks[0].missedDay, 3);
+    assert.equal(committed.makeupLinks[0].makeupDay, 14);
     assert.equal(committed.makeupLinks[0].originalStatus, 'x');
 });
