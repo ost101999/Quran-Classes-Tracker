@@ -1321,6 +1321,7 @@
       const [recordingQuestionKey, setRecordingQuestionKey] = useState(null);
       const [reviewEditConfirmedKeys, setReviewEditConfirmedKeys] = useState({});
       const [showSchedule, setShowSchedule] = useState(false);
+      const [scheduleRefreshError, setScheduleRefreshError] = useState(false);
       const [showStudyPlan, setShowStudyPlan] = useState(false);
       const [glowReportDay, setGlowReportDay] = useState(null);
       const [hideTourButton, setHideTourButton] = useState(false);
@@ -1456,6 +1457,59 @@
       const urlStudent = data?.students ? (nameSlug
         ? data.students.find(s => toSlug(s?.name) === nameSlug)
         : data.students.find(s => String(s.id) === String(studentId))) : null;
+
+      // Poll only this student's record, preserving in-progress homework and reports.
+      const scheduleStudentIndex = data?.students?.findIndex(s => s?.id === urlStudent?.id) ?? -1;
+      useEffect(() => {
+        if (!urlStudent || scheduleStudentIndex < 0 || isTourMode) return;
+        let cancelled = false;
+        let running = false;
+        let recordIndex = scheduleStudentIndex;
+        const controller = new AbortController();
+        const refreshSchedule = async () => {
+          if (running || document.hidden) return;
+          running = true;
+          try {
+            const response = await axios.get(`${API_BASE}/appState/students/${recordIndex}.json`, {
+              params: { refresh: Date.now() }, timeout: 20000, signal: controller.signal,
+            });
+            let latest = response.data;
+            if (cancelled) return;
+            // Student array indexes can move after an edit on the teacher's device.
+            if (!latest || latest.id !== urlStudent.id) {
+              const collection = await axios.get(`${API_BASE}/appState/students.json`, { params: { refresh: Date.now() }, timeout: 20000, signal: controller.signal });
+              if (cancelled) return;
+              const entry = Object.entries(collection.data || {}).find(([, item]) => item?.id === urlStudent.id);
+              if (entry) { recordIndex = entry[0]; latest = entry[1]; }
+            }
+            if (!latest || latest.id !== urlStudent.id || latest.name !== urlStudent.name) {
+              setScheduleRefreshError(true);
+              return;
+            }
+            setScheduleRefreshError(false);
+            setData(previous => {
+              const current = previous?.students?.find(s => s?.id === latest.id);
+              if (!current || current.name !== latest.name || (current.scheduleMessage === latest.scheduleMessage && JSON.stringify(current.calendarSchedule) === JSON.stringify(latest.calendarSchedule))) return previous;
+              return { ...previous, students: previous.students.map(s => s?.id === latest.id
+                ? { ...s, scheduleMessage: latest.scheduleMessage, calendarSchedule: latest.calendarSchedule } : s) };
+            });
+          } catch { if (!cancelled) setScheduleRefreshError(true); }
+          finally { running = false; }
+        };
+        void refreshSchedule();
+        const interval = window.setInterval(refreshSchedule, 60000);
+        window.addEventListener('focus', refreshSchedule);
+        window.addEventListener('online', refreshSchedule);
+        document.addEventListener('visibilitychange', refreshSchedule);
+        return () => {
+          cancelled = true;
+          controller.abort();
+          clearInterval(interval);
+          window.removeEventListener('focus', refreshSchedule);
+          window.removeEventListener('online', refreshSchedule);
+          document.removeEventListener('visibilitychange', refreshSchedule);
+        };
+      }, [urlStudent?.id, urlStudent?.name, scheduleStudentIndex, isTourMode]);
 
       const detectPrimaryNameLanguage = (name) => {
         const fullValue = String(name || '').trim();
@@ -4712,7 +4766,8 @@ https://is.gd/oL6gEO`;
       const quranPreviewLink = getQuranPreviewLink(student.quranLink);
       const readingPreviewLink = getQuranPreviewLink(student.readingLink);
       const actionCount = [student.zoomLink, scheduleLink, quranPreviewLink, readingPreviewLink].filter(Boolean).length;
-      const hasActionBar = !!(actionCount || student.scheduleMessage);
+      const hasSchedule = !!(student.calendarSchedule || student.scheduleMessage);
+      const hasActionBar = !!(actionCount || hasSchedule);
 
       return (
         <div className={`max-w-4xl mx-auto p-4 md:p-8 pb-20 relative ${hasActionBar ? 'pt-[160px] md:pt-36' : ''} ${fontClass}`} style={hasActionBar && actionBarHeight ? { paddingTop: actionBarHeight + 16 } : undefined} dir={isArabic ? 'rtl' : 'ltr'}>
@@ -4722,7 +4777,7 @@ https://is.gd/oL6gEO`;
               <div className="max-w-4xl mx-auto px-4 py-3 flex flex-col sm:flex-row sm:flex-wrap gap-3 sm:gap-4 items-center justify-between">
 
                 {/* Action Buttons Group */}
-                <div className={`${actionCount > 3 ? 'grid grid-cols-2 sm:flex' : 'flex'} gap-2 sm:gap-3 min-w-0 order-2 sm:order-1 ${!student.scheduleMessage ? 'w-full' : 'w-full sm:w-auto'}`}>
+                <div className={`${actionCount > 3 ? 'grid grid-cols-2 sm:flex' : 'flex'} gap-2 sm:gap-3 min-w-0 order-2 sm:order-1 ${!hasSchedule ? 'w-full' : 'w-full sm:w-auto'}`}>
                   {student.zoomLink && (
                     <a id="tour-join-class" href={student.zoomLink} target="_blank" rel="noopener noreferrer" 
                        onClick={(e) => {
@@ -4776,7 +4831,7 @@ https://is.gd/oL6gEO`;
                 </div>
 
                 {/* Schedule Toggle Button */}
-                {student.scheduleMessage && (
+                {hasSchedule && (
                   <button 
                     id="tour-my-schedule"
                     onClick={() => setShowSchedule(true)} 
@@ -4967,7 +5022,7 @@ https://is.gd/oL6gEO`;
           {/* Action Links (Moved to Top Sticky Bar) */}
 
           {/* Schedule Modal */}
-          {showSchedule && student.scheduleMessage && (
+          {showSchedule && hasSchedule && (
             <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade">
               <div className="glass-panel w-full max-w-sm rounded-3xl p-6 relative border border-islamic-gold/30 shadow-[0_0_30px_rgba(217,119,6,0.1)]">
                 <button
@@ -4987,7 +5042,39 @@ https://is.gd/oL6gEO`;
                 </div>
 
                 <div className="space-y-3 max-h-[60vh] overflow-y-auto custom-scrollbar pr-2 text-slate-200 text-sm md:text-base leading-loose" dir="ltr">
+                  {scheduleRefreshError && <p className="text-amber-300 text-xs" dir={isArabic ? 'rtl' : 'ltr'}>{isArabic ? 'تعذّر التحقق من آخر تحديث. أعد فتح الصفحة عند عودة الاتصال.' : 'Could not check for updates. Reopen the page when connected.'}</p>}
                   {(() => {
+                    if (student.calendarSchedule) {
+                      const schedule = student.calendarSchedule;
+                      const nowMs = Date.now(); void tick;
+                      if (schedule.name !== student.name.trim() || !(nowMs >= Date.parse(schedule.timeMin) && nowMs < Date.parse(schedule.timeMax))) {
+                        return <p className="text-center text-amber-200" dir={isArabic ? 'rtl' : 'ltr'}>{isArabic ? 'في انتظار تحديث جدول الأسبوع الحالي من المعلم.' : 'Waiting for the teacher to update this week’s schedule.'}</p>;
+                      }
+                      const slots = [...(schedule.slots || [])].sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
+                      const nextIndex = slots.findIndex(slot => Date.parse(slot.start) + 15 * 60000 >= nowMs);
+                      const locale = isArabic ? 'ar-EG' : 'en-GB';
+                      const zones = [...new Set(slots.map(slot => slot.timeZone))];
+                      return <div className="flex flex-col gap-3" dir={isArabic ? 'rtl' : 'ltr'}>
+                        <p className="text-center text-slate-400 text-xs">{isArabic ? 'الأسبوع الحالي · السبت — الجمعة' : 'Current week · Saturday — Friday'}<br />{schedule.weekStart} — {schedule.weekEnd}</p>
+                        {zones.length === 1 && <p className="text-center text-emerald-300 text-sm" dir="ltr">{zones[0]}</p>}
+                        {!slots.length && <p className="text-center">{isArabic ? 'لا توجد حصص مجدولة هذا الأسبوع.' : 'No classes scheduled this week.'}</p>}
+                        {slots.map((slot, index) => {
+                          const start = new Date(slot.start);
+                          const next = index === nextIndex;
+                          const minutes = Math.ceil((start.getTime() - nowMs) / 60000);
+                          return <div key={`${slot.start}-${slot.timeZone}-${index}`} className={`p-3 rounded-xl border ${next ? 'bg-islamic-gold/15 border-islamic-gold/50 animate-next-glow' : 'bg-white/5 border-white/10'}`}>
+                            <div className="flex items-center justify-between gap-2 font-bold">
+                              <span>{new Intl.DateTimeFormat(locale, { timeZone: slot.timeZone, weekday: 'long', day: 'numeric', month: 'short' }).format(start)}</span>
+                              <span className="text-emerald-400 font-sans" dir="ltr">{new Intl.DateTimeFormat(locale, { timeZone: slot.timeZone, hour: '2-digit', minute: '2-digit', hour12: true }).format(start)}</span>
+                            </div>
+                            {zones.length > 1 && <p className="text-xs text-slate-400" dir="ltr">{slot.timeZone}</p>}
+                            {next && <p className="text-xs text-islamic-gold mt-1">{minutes <= 0
+                              ? (isArabic ? 'بدأت الحصة' : 'Class has started')
+                              : (isArabic ? `الحصة القادمة بعد ${Math.floor(minutes / 1440)} يوم و${Math.floor(minutes % 1440 / 60)} ساعة و${minutes % 60} دقيقة` : `Next class in ${Math.floor(minutes / 1440)}d ${Math.floor(minutes % 1440 / 60)}h ${minutes % 60}m`)}</p>}
+                          </div>;
+                        })}
+                      </div>;
+                    }
                     let lines = student.scheduleMessage.split('\n');
                     
                     let title = "";

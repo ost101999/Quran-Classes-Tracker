@@ -49,6 +49,25 @@ export interface StudyPlan {
   endDate: string;
 }
 
+export interface CalendarSchedule {
+  source: 'google-calendar';
+  name: string;
+  weekStart: string;
+  weekEnd: string;
+  timeMin: string;
+  timeMax: string;
+  updatedAt: string;
+  status: 'ready' | 'empty';
+  message: string;
+  slots: { start: string; timeZone: string }[];
+}
+
+export interface CalendarSchedulesResult {
+  available: boolean;
+  schedules: Record<string, CalendarSchedule>;
+  error?: string;
+}
+
 export interface Student {
   id: string;
   name: string;
@@ -78,6 +97,7 @@ export interface Student {
   shortcutAutoMatchDisabled?: boolean; // New students without a confirmed shortcut need review
   shortcutNotRequired?: boolean; // This student intentionally has no shortcut links
   scheduleMessage?: string; // WhatsApp-style schedule text to display in the student portal
+  calendarSchedule?: CalendarSchedule;
   isPrepaid?: boolean;
   prepaidTotal?: number;
   prepaidCurrent?: number;

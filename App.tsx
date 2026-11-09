@@ -77,6 +77,7 @@ import {
 import { MONTHS, DAYS_OF_WEEK, SURAHS, SURAH_AYAH_COUNTS } from './constants';
 import StudentModal from './components/StudentModal';
 import { applyShortcutMatches, findShortcutDifferences, type ShortcutDifference } from './services/shortcutStudentSync';
+import { applyCalendarSchedules } from './services/calendarStudentSync';
 import StudentDetailsModal from './components/StudentDetailsModal';
 import ConfirmModal from './components/ConfirmModal';
 import AcademyDetailsModal from './components/AcademyDetailsModal';
@@ -4717,6 +4718,35 @@ function App() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
     }
   }, [students, attendance, month, year, dayOff, academyOrder, academyRates, monthlyObligations, paymentStatus, autoBackupConfig, externalLinks, dayTransitionTime, makeupLinks, showMakeupLines, confirmNonTodayAttendance, whatsappTarget, whatsappMode, studentProgress, preferredModes, defaultNoorBook, lastReports, studentNotesHistory, savedReports, savedReportDrafts, subscriptionSettings, tajweedBank, tajweedAssignments, tajweedSubmissions, tajweedLessonEditorUiState, seenUngradedTajweedAssignmentIds, isLoaded, initialSyncReady, lastUpdated]);
+
+  // Keep the published student schedules in the current Cairo week, even when
+  // the teacher is viewing attendance for another month.
+  useEffect(() => {
+    if (!isLoaded || !initialSyncReady || isModalOpen || syncConflicts.length || resolvingConflict || !window.electronAPI?.getCalendarSchedules) return;
+    let cancelled = false;
+    let running = false;
+    const refresh = async () => {
+      if (running || applyingCloudRef.current) return;
+      running = true;
+      try {
+        const now = new Date();
+        const requests = students.filter(student => !student.deletedAt || student.deletedAt.year > now.getFullYear() || (student.deletedAt.year === now.getFullYear() && student.deletedAt.month > now.getMonth())).map(({ id, name }) => ({ id, name }));
+        const result = await window.electronAPI!.getCalendarSchedules!(requests);
+        if (!cancelled && !applyingCloudRef.current) setStudents(previous => applyCalendarSchedules(previous, requests, result));
+      } catch { /* The student editor offers retry and shows connection errors. */ }
+      finally { running = false; }
+    };
+    void refresh();
+    const timer = window.setInterval(refresh, 60000);
+    window.addEventListener('focus', refresh);
+    window.addEventListener('online', refresh);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      window.removeEventListener('focus', refresh);
+      window.removeEventListener('online', refresh);
+    };
+  }, [students, isLoaded, initialSyncReady, isModalOpen, syncConflicts.length, resolvingConflict]);
 
   // Read the shortcut file locally. Only unique, exact folder matches are linked
   // automatically, and existing links are never replaced.

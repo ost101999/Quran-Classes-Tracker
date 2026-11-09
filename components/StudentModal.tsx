@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { X, Trash2, Clock, Link, Check, Phone, ChevronDown, ChevronLeft } from 'lucide-react';
-import { Student, StudyPlan } from '../types';
+import { Student, StudyPlan, CalendarSchedule } from '../types';
 import { DAYS_OF_WEEK } from '../constants';
 import { linksEquivalent } from '../services/shortcutStudentSync';
+import { isCurrentSchedule } from '../services/calendarStudentSync';
 
 type ShortcutMatch = {
   id: string; folderId: string; path: string; titles: string[]; isQuran: boolean; isReading: boolean;
@@ -119,6 +120,10 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
   const [shortcutCollapsed, setShortcutCollapsed] = useState(false);
   const [shortcutApplied, setShortcutApplied] = useState(false);
   const [scheduleMessage, setScheduleMessage] = useState(student?.scheduleMessage || '');
+  const [calendarSchedule, setCalendarSchedule] = useState<CalendarSchedule | undefined>(student?.calendarSchedule);
+  const [scheduleLoading, setScheduleLoading] = useState(false);
+  const [scheduleError, setScheduleError] = useState('');
+  const [scheduleRefresh, setScheduleRefresh] = useState(0);
   const [showStudentWeb, setShowStudentWeb] = useState(openStudentWebInitially);
   const [isEndingEnrollment, setIsEndingEnrollment] = useState(!!student?.deletedAt);
   const [dayStartDates, setDayStartDates] = useState<Record<number, string>>(student?.dayStartDates || {});
@@ -136,6 +141,51 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
   const mainPanelRef = useRef<HTMLElement>(null);
   const studentWebPanelRef = useRef<HTMLElement>(null);
   const [activePanelHeight, setActivePanelHeight] = useState<number>();
+
+  useEffect(() => {
+    if (!showStudentWeb || !name.trim()) return;
+    if (!window.electronAPI?.getCalendarSchedules) {
+      setScheduleError('أعد تشغيل تطبيق الكمبيوتر لتفعيل التحديث التلقائي من Google Calendar.');
+      return;
+    }
+    let cancelled = false;
+    let running = false;
+    const refresh = async (force = false) => {
+      if (running) return;
+      running = true;
+      setScheduleLoading(true);
+      setScheduleError('');
+      try {
+        const id = student?.id || 'draft';
+        const result = await window.electronAPI!.getCalendarSchedules!([{ id, name }], force);
+        if (cancelled) return;
+        const schedule = result.schedules[id];
+        if (!result.available || !isCurrentSchedule(schedule, name)) {
+          setScheduleError(result.error || 'تعذّر تحديث جدول الأسبوع الحالي. أعد المحاولة.');
+          return;
+        }
+        setCalendarSchedule(schedule);
+        setScheduleMessage(schedule.message);
+      } catch {
+        if (!cancelled) setScheduleError('تعذّر الاتصال بالتقويم. أعد المحاولة.');
+      } finally {
+        running = false;
+        if (!cancelled) setScheduleLoading(false);
+      }
+    };
+    const start = window.setTimeout(() => void refresh(true), 300);
+    const timer = window.setInterval(() => void refresh(), 60000);
+    const onFocus = () => void refresh();
+    window.addEventListener('focus', onFocus);
+    window.addEventListener('online', onFocus);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(start);
+      window.clearInterval(timer);
+      window.removeEventListener('focus', onFocus);
+      window.removeEventListener('online', onFocus);
+    };
+  }, [showStudentWeb, name, student?.id, scheduleRefresh]);
 
   useLayoutEffect(() => {
     const panel = showStudentWeb ? studentWebPanelRef.current : mainPanelRef.current;
@@ -344,7 +394,8 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
       acknowledgedMissingReadingIds: acknowledgedMissingReadingIds.length ? acknowledgedMissingReadingIds : undefined,
       shortcutNotRequired,
       shortcutAutoMatchDisabled: shortcutSourceId || readingShortcutSourceId ? false : (student?.shortcutAutoMatchDisabled ?? !student),
-      scheduleMessage,
+      scheduleMessage: calendarSchedule && !isCurrentSchedule(calendarSchedule, name) ? '' : scheduleMessage,
+      calendarSchedule: isCurrentSchedule(calendarSchedule, name) ? calendarSchedule : undefined,
       deletedAt: isEndingEnrollment ? (() => {
         let dMonth = currentMonth + 1;
         let dYear = currentYear;
@@ -936,17 +987,30 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
 
               {/* Schedule Message */}
               <div className="space-y-2">
-                <label className="block text-xl font-bold text-gray-600 flex items-center gap-2">
+                <label htmlFor="student-schedule" className="block text-xl font-bold text-gray-600 flex items-center gap-2">
                   <span>🕒</span>
-                  رسالة الجدول (من الواتساب)
+                  جدول الأسبوع الحالي (من Google Calendar)
                 </label>
                 <textarea
-                  value={scheduleMessage}
-                  onChange={e => setScheduleMessage(e.target.value)}
+                  id="student-schedule"
+                  value={calendarSchedule && !isCurrentSchedule(calendarSchedule, name) ? '' : scheduleMessage}
+                  readOnly
+                  aria-busy={scheduleLoading}
+                  aria-describedby="student-schedule-status"
+                  placeholder="يتم ملء المواعيد تلقائيًا حسب اسم الطالب في التقويم"
                   className="w-full px-4 py-2.5 bg-gray-50 border-2 border-gray-100 rounded-xl focus:outline-none focus:border-[#ffe05d] focus:bg-white transition-all text-sm font-english text-left resize-y min-h-[130px]"
                   dir="ltr"
                   rows={5}
                 />
+                <div className="flex items-start justify-between gap-3 text-sm">
+                  <p id="student-schedule-status" role="status" className={scheduleError ? 'text-amber-700' : 'text-emerald-700'}>
+                    {scheduleLoading ? 'جاري قراءة مواعيد الأسبوع الحالي…' : scheduleError || (isCurrentSchedule(calendarSchedule, name)
+                      ? `${calendarSchedule!.status === 'empty' ? 'لا توجد مواعيد بهذا الاسم هذا الأسبوع' : 'تم التحديث من التقويم'} · ${calendarSchedule!.weekStart} — ${calendarSchedule!.weekEnd}`
+                      : 'من السبت إلى الجمعة بتوقيت القاهرة، وتُعرض الحصص بتوقيت الطالب.')}
+                  </p>
+                  <button type="button" disabled={scheduleLoading || !name.trim()} onClick={() => setScheduleRefresh(value => value + 1)} className="shrink-0 text-emerald-700 font-bold disabled:opacity-40">تحديث الآن</button>
+                </div>
+                <p className="text-xs text-gray-500">يتحدث تلقائيًا كل دقيقة أثناء تشغيل التطبيق، ويصل إلى واجهة الطالب بعد المزامنة.</p>
               </div>
 
               {/* Student Age Group */}

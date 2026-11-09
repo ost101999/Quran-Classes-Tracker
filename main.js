@@ -10,6 +10,9 @@ const { sanitizeKeys } = require('./firebase-patch');
 const { createFirebaseClient } = require('./firebase-client');
 const { createSelectiveSync, cloudProjection, get } = require('./selective-sync');
 const { readMatches } = require('./shortcut-links');
+const { createCalendarSchedules } = require('./calendar-schedules');
+const getCalendarSchedules = createCalendarSchedules();
+ipcMain.handle('get-calendar-schedules', (_event, students, force) => getCalendarSchedules(students, { force: force === true }));
 const chromeTabBridge = createChromeTabBridge({ onFocus: focusChromeWindow });
 
 ipcMain.handle('get-shortcut-links', (_event, students) => {

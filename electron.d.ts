@@ -8,6 +8,7 @@ declare global {
             resolveSyncConflict?: (path: string, choice: 'local' | 'remote', etag: string) => Promise<{ success: boolean; changed?: boolean }>;
             loadData: () => Promise<any>;
             getShortcutLinks?: (students: { id: string; name: string }[]) => Promise<ShortcutLinksResult>;
+            getCalendarSchedules?: (students: { id: string; name: string }[], force?: boolean) => Promise<import('./types').CalendarSchedulesResult>;
             saveZoom?: (zoomFactor: number) => Promise<{ success: boolean; error?: string }>;
             loadZoom?: () => Promise<number | null>;
             saveTajweedAudio: (base64Data: string, fileName: string) => Promise<{ success: boolean; localPath?: string; error?: string }>;
