@@ -12,6 +12,17 @@
   }
 }
 
+.platform-windows .calendar-review-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  font-family: 'AcmeWeb', sans-serif;
+  font-weight: 400;
+  line-height: 1;
+}
+
 .link-anim-overlay {
   background-color: rgba(0, 0, 0, 0.45);
   backdrop-filter: blur(10px);

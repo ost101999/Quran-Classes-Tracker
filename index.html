@@ -19,6 +19,20 @@
       font-style: normal;
     }
 
+    /* Keep the Arabic typeface while using legible Windows digits. */
+    @font-face {
+      font-family: 'WindowsDigits';
+      src: local('Arial');
+      font-weight: 400;
+      unicode-range: U+0030-0039, U+0660-0669, U+06F0-06F9;
+    }
+    @font-face {
+      font-family: 'WindowsDigits';
+      src: local('Arial Bold'), local('Arial');
+      font-weight: 700;
+      unicode-range: U+0030-0039, U+0660-0669, U+06F0-06F9;
+    }
+
     /* Custom Font Classes */
     .font-english {
       font-family: 'AcmeWeb', 'Acme', sans-serif !important;
@@ -30,6 +44,9 @@
 
     .font-arabic {
       font-family: 'DecoType Naskh', cursive !important;
+    }
+    .platform-windows .font-arabic {
+      font-family: 'WindowsDigits', 'DecoType Naskh', cursive !important;
     }
 
     .font-quran {
