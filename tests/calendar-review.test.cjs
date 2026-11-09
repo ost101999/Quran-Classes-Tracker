@@ -76,7 +76,41 @@ test('a moved recurring exception is detected on first read; repeat reads do not
     assert.equal(ingest(first, [moved]), first);
     const twice = ingest(first, [{ ...moved, start: new Date(Date.parse(moved.start) + 86400000).toISOString() }]);
     assert.equal(twice[0].calendarReview.pending.length, 1);
-    assert.equal(twice[0].calendarReview.pending[0].from, moved.start);
+    assert.equal(twice[0].calendarReview.pending[0].from, moved.originalStart);
+});
+
+test('reverting an unreviewed move removes the proposal; subsequent moves keep the original day', () => {
+    const original = occurrence({ start: '2026-11-10T17:30:00Z', end: '2026-11-10T18:00:00Z', originalStart: '2026-11-10T17:30:00Z', colorId: '', recurring: true });
+    const moved = { ...original, start: '2026-11-11T17:30:00Z' };
+    const movedAgain = { ...original, start: '2026-11-12T17:30:00Z' };
+    const first = ingest([student()], [original]);
+    const pending = ingest(first, [moved]);
+    assert.equal(pending[0].calendarReview.pending[0].from, original.start);
+    const later = ingest(pending, [movedAgain]);
+    assert.equal(later[0].calendarReview.pending[0].from, original.start);
+    assert.equal(later[0].calendarReview.pending[0].event.start, movedAgain.start);
+    assert.equal(ingest(later, [original])[0].calendarReview.pending.length, 0);
+});
+
+test('time changes within one effective attendance day do not propose a move', () => {
+    const initial = occurrence({ start: '2026-11-10T17:15:00Z', end: '2026-11-10T18:00:00Z', originalStart: '2026-11-10T17:15:00Z', colorId: '', recurring: true });
+    const later = { ...initial, start: '2026-11-10T17:30:00Z' };
+    const first = ingest([student()], [initial]);
+    const updated = ingest(first, [later]);
+    assert.equal(updated[0].calendarReview.pending.length, 0);
+    const stale = json(updated);
+    stale[0].calendarReview.pending.push({ id: 'stale', kind: 'moved', from: initial.start, event: later, detectedAt: now.toISOString() });
+    assert.equal(ingest(stale, [later])[0].calendarReview.pending.length, 0);
+    assert.equal(ingest([student()], [later])[0].calendarReview.pending.length, 0);
+});
+
+test('time changes across the configured day boundary still propose a move', () => {
+    const before = occurrence({ start: '2026-11-10T04:45:00Z', end: '2026-11-10T05:30:00Z', originalStart: '2026-11-10T04:45:00Z', colorId: '', recurring: true });
+    const after = { ...before, start: '2026-11-10T05:15:00Z' };
+    const requests = [{ id: 's1', name: 'Bilal' }];
+    const first = ingestCalendarReviews([student()], requests, result([before]), '07:00');
+    const next = ingestCalendarReviews(first, requests, result([after]), '07:00');
+    assert.equal(next[0].calendarReview.pending[0].kind, 'moved');
 });
 
 test('matching is exact, ignores incomplete reads and does not link duplicate student names', () => {

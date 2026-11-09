@@ -42,7 +42,7 @@ const sameDays = (a: number[], b: number[]) => JSON.stringify([...a].sort()) ===
 export const attendanceLabels: Record<string, string> = { '': 'بدون تسجيل', e: 'حصة مجدولة — دائرة زرقاء', ed: 'حصتان مجدولتان', exempt: 'إلغاء طلب الحصة لهذا اليوم', r: 'اعتذار الطالب', '!': 'غياب الطالب — تُحسب حصة', '!2': 'غياب الطالب — تُحسب حصتان', x: 'اعتذار المعلم', 'م': 'مؤجلة للتعويض', '1': 'حضور', '2': 'حضور حصتين', t: 'حصة منقولة', ta: 'غياب منقول' };
 
 // Detection only. This function never modifies attendance, reports or fixed days.
-export function ingestCalendarReviews(students: Student[], requests: { id: string; name: string }[], result: CalendarSchedulesResult): Student[] {
+export function ingestCalendarReviews(students: Student[], requests: { id: string; name: string }[], result: CalendarSchedulesResult, dayTransitionTime = '00:00'): Student[] {
   if (!result.available || !result.reviews) return students;
   const requested = new Map(requests.map(student => [student.id, student.name]));
   let changed = false;
@@ -60,7 +60,11 @@ export function ingestCalendarReviews(students: Student[], requests: { id: strin
         }
       : { name: snapshot.name, observed: {}, pending: [], decisions: {} };
     const observed = { ...old.observed };
-    let pending = [...old.pending];
+    // Attendance is tracked by effective day, so a time change within that day
+    // cannot be handled by the action that moves a class between days.
+    let pending = old.pending.filter(item => item.kind !== 'moved' || !item.from || !item.event ||
+      !Number.isFinite(Date.parse(item.from)) || !Number.isFinite(Date.parse(item.event.start)) ||
+      cairoDate(item.from, dayTransitionTime) !== cairoDate(item.event.start, dayTransitionTime));
     const decisions = { ...old.decisions };
     const propose = (proposal: CalendarProposal) => {
       if (!decisions[proposal.id] && !pending.some(item => item.id === proposal.id)) pending.push(proposal);
@@ -68,6 +72,7 @@ export function ingestCalendarReviews(students: Student[], requests: { id: strin
     for (const event of snapshot.events) {
       if (!event.id || !Number.isFinite(Date.parse(event.start))) continue;
       const previous = observed[event.id];
+      const pendingMove = pending.find(item => item.kind === 'moved' && item.event?.id === event.id);
       const unchanged = !!(previous && fingerprint(previous.event) === fingerprint(event));
       const revision = unchanged ? previous.revision : (previous?.revision || 0) + 1;
       if (!unchanged) {
@@ -77,9 +82,9 @@ export function ingestCalendarReviews(students: Student[], requests: { id: strin
       }
       const base = { event, detectedAt: snapshot.fetchedAt };
         if (!unchanged) {
-          const from = previous ? (previous.event.start !== event.start ? previous.event.start : undefined)
+          const from = previous ? (previous.event.start !== event.start ? pendingMove?.from || previous.event.start : undefined)
             : event.originalStart && Date.parse(event.originalStart) !== Date.parse(event.start) ? event.originalStart : undefined;
-          if (from) propose({ ...base, id: `${event.id}:moved:${revision}`, kind: 'moved', from });
+          if (from && Number.isFinite(Date.parse(from)) && cairoDate(from, dayTransitionTime) !== cairoDate(event.start, dayTransitionTime)) propose({ ...base, id: `${event.id}:moved:${revision}`, kind: 'moved', from });
           if (color(event) === 'red') {
             pending = pending.filter(item => item.event?.id !== event.id || item.kind === 'moved');
             propose({ ...base, id: `${event.id}:red:${revision}`, kind: 'red' });

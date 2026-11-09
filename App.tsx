@@ -4789,7 +4789,7 @@ function App() {
         const result = await window.electronAPI!.getCalendarSchedules!(requests, force, true, dayTransitionTime);
         if (!cancelled && !applyingCloudRef.current) {
           setCalendarReadError(!result.available ? result.error || 'تعذّر قراءة التقويم. الاقتراحات السابقة محفوظة.' : requests.length && !result.reviews ? 'أعد تشغيل التطبيق لتفعيل رصد ألوان الكاليندر وتغييرات الحصص.' : '');
-          setStudents(previous => ingestCalendarReviews(applyCalendarSchedules(previous, requests, result), requests, result));
+          setStudents(previous => ingestCalendarReviews(applyCalendarSchedules(previous, requests, result), requests, result, dayTransitionTime));
         }
       } catch { if (!cancelled) setCalendarReadError('تعذّر قراءة الكاليندر. تحقق من الاتصال ثم أعد المحاولة.'); }
       finally { running = false; if (!cancelled) setCalendarReading(false); }
