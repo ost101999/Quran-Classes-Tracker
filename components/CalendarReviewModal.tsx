@@ -10,7 +10,7 @@ const dateLabel = (value: string) => new Intl.DateTimeFormat('ar-EG', { timeZone
 const effectiveDayLabel = (value: string, dayTransitionTime?: string) => new Intl.DateTimeFormat('ar-EG', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(`${cairoDate(value, dayTransitionTime)}T12:00:00Z`));
 
 const ProposalCard: React.FC<{ student: Student; proposal: CalendarProposal; data: ReviewData; disabled: boolean; onConfirm: (studentId: string, preview: CalendarActionPreview, replace: boolean) => void }> = ({ student, proposal, data, disabled, onConfirm }) => {
-  const [action, setAction] = useState<CalendarAction | ''>(proposal.kind === 'red' ? 'apology' : proposal.kind === 'weekly' ? 'weekly' : proposal.kind === 'moved' ? 'move' : 'schedule');
+  const [action, setAction] = useState<CalendarAction | ''>(proposal.kind === 'red' ? 'apology' : proposal.kind === 'reset' ? 'reset' : proposal.kind === 'weekly' ? 'weekly' : proposal.kind === 'moved' ? 'move' : 'schedule');
   const [sourceDate, setSourceDate] = useState(proposal.from ? cairoDate(proposal.from, data.dayTransitionTime) : '');
   const [effectiveFrom, setEffectiveFrom] = useState(cairoDate(new Date(), data.dayTransitionTime));
   const [doubleTarget, setDoubleTarget] = useState(false);
@@ -40,9 +40,9 @@ const ProposalCard: React.FC<{ student: Student; proposal: CalendarProposal; dat
   return <article className="rounded-2xl border border-gray-200 bg-white p-4 space-y-3" data-proposal-kind={proposal.kind}>
     <div className="flex items-start justify-between gap-3">
       <div><h3 className="font-bold text-lg text-gray-900">{student.name}</h3>
-        <p className="text-sm text-gray-600">{proposal.kind === 'red' ? 'رُصد حدث باللون الأحمر. هل هو اعتذار أم غياب؟' : proposal.kind === 'moved' ? 'تم رصد تغيير في موعد الحصة.' : proposal.kind === 'weekly' ? 'الأيام الأسبوعية المتكررة في الكاليندر مختلفة عن التطبيق.' : proposal.reason === 'green' ? 'رُصد حدث باللون الأخضر. هل نضيفه كحصة مجدولة؟' : 'رُصدت حصة غير متكررة. هل هي حصة إضافية أم تعويض؟'}</p>
+        <p className="text-sm text-gray-600">{proposal.kind === 'red' ? 'رُصد حدث باللون الأحمر. هل هو اعتذار أم غياب؟' : proposal.kind === 'reset' ? 'تم إرجاع لون الحدث إلى الافتراضي. هل نرجع الحصة لوضعها الطبيعي؟' : proposal.kind === 'moved' ? 'تم رصد تغيير في موعد الحصة.' : proposal.kind === 'weekly' ? 'الأيام الأسبوعية المتكررة في الكاليندر مختلفة عن التطبيق.' : proposal.reason === 'green' ? 'رُصد حدث باللون الأخضر. هل نضيفه كحصة مجدولة؟' : 'رُصدت حصة غير متكررة. هل هي حصة إضافية أم تعويض؟'}</p>
       </div>
-      {proposal.kind === 'weekly' || proposal.kind === 'moved'
+      {proposal.kind === 'weekly' || proposal.kind === 'moved' || proposal.kind === 'reset'
         ? <ArrowLeftRight aria-hidden="true" size={20} className="shrink-0 mt-2 text-blue-600" />
         : <span aria-hidden="true" className={`shrink-0 w-5 h-5 mt-2 rounded-full ${proposal.kind === 'red' ? 'bg-red-500' : 'border-2 border-blue-400'}`} />}
     </div>
@@ -57,9 +57,10 @@ const ProposalCard: React.FC<{ student: Student; proposal: CalendarProposal; dat
     <label className="block text-sm font-bold text-gray-700">الإجراء المقترح
       <select aria-label={`إجراء ${student.name}`} value={action} onChange={event => { setAction(event.target.value as CalendarAction); resetPreview(); }} className="block w-full mt-1 rounded-xl border border-gray-200 p-2 bg-white" disabled={disabled}>
         {proposal.kind === 'red' ? <><option value="apology">اعتذار الطالب — دائرة حمراء</option><option value="absence">غياب الطالب — يُحسب ضمن الحصص</option><option value="teacher">اعتذار المعلم — دائرة حمراء بشرطة</option></>
-          : proposal.kind === 'weekly' ? <option value="weekly">تحديث الأيام الثابتة من تاريخ محدد</option>
-          : proposal.kind === 'moved' ? <><option value="move">نقل هذه الحصة فقط بين اليومين</option><option value="makeup">اعتبار الموعد الجديد تعويضًا عن الحصة الأصلية</option></>
-          : <><option value="schedule">حصة مجدولة — دائرة زرقاء</option><option value="double">حصة ثانية في نفس اليوم — دائرتان مجدولتان</option><option value="makeup">تعويض عن حصة سابقة</option></>}
+          : proposal.kind === 'reset' ? <option value="reset">إرجاع الحصة لوضعها الطبيعي (مسح الاعتذار أو الغياب)</option>
+            : proposal.kind === 'weekly' ? <option value="weekly">تحديث الأيام الثابتة من تاريخ محدد</option>
+              : proposal.kind === 'moved' ? <><option value="move">نقل هذه الحصة فقط بين اليومين</option><option value="makeup">اعتبار الموعد الجديد تعويضًا عن الحصة الأصلية</option></>
+                : <><option value="schedule">حصة مجدولة — دائرة زرقاء</option><option value="double">حصة ثانية في نفس اليوم — دائرتان مجدولتان</option><option value="makeup">تعويض عن حصة سابقة</option></>}
       </select>
     </label>
     {action === 'makeup' && <label className="block text-sm">تاريخ الحصة الأصلية<input type="date" aria-label="تاريخ الحصة الأصلية" value={sourceDate} onChange={event => { setSourceDate(event.target.value); resetPreview(); }} className="block mt-1 border rounded-lg p-2" /></label>}
@@ -91,19 +92,19 @@ export default function CalendarReviewModal({ data, error, loading, disabled, on
   }, []);
   const entries = data.students.flatMap(student => student.calendarReview?.name === student.name.trim() ? student.calendarReview.pending.map(proposal => ({ student, proposal })) : []);
   const visible = entries.filter(({ student }) => student.name.toLowerCase().includes(search.toLowerCase()));
-  return <div className="fixed inset-0 z-[150] bg-black/45 backdrop-blur-sm flex items-center justify-center p-4" onKeyDown={event => { event.stopPropagation(); if (event.key === 'Escape') onClose(); }}>
-    <section role="dialog" aria-modal="true" aria-labelledby="calendar-review-title" dir="rtl" className="w-full max-w-2xl max-h-[90vh] flex flex-col bg-gray-50 rounded-3xl shadow-2xl font-arabic overflow-hidden">
-      <header className="bg-white border-b p-5 flex items-start justify-between gap-3">
-        <div><h2 id="calendar-review-title" className="text-xl font-bold flex items-center gap-2"><Calendar size={22} />مراجعة تغييرات الكاليندر</h2><p className="text-sm text-gray-500 mt-1">{entries.length} اقتراح · تعديل الحضور والأيام يتم بعد موافقتك فقط.</p></div>
-        <button ref={closeRef} type="button" aria-label="إغلاق مراجعة الكاليندر" onClick={onClose} className="p-1 text-gray-500"><X size={24} /></button>
-      </header>
-      <div className="p-4 border-b flex gap-2 bg-white"><input aria-label="بحث في اقتراحات الكاليندر" placeholder="ابحث باسم الطالب…" value={search} onChange={event => setSearch(event.target.value)} className="flex-1 min-w-0 p-2 border rounded-xl" /><button type="button" disabled={loading || disabled} onClick={onRefresh} className="flex items-center gap-1 px-3 text-blue-700 disabled:opacity-40"><RefreshCw size={17} className={loading ? 'animate-spin' : ''} />تحديث</button></div>
-      <div className="overflow-y-auto p-4 space-y-3">
-        {error && <p role="alert" className="bg-amber-50 text-amber-800 border border-amber-200 rounded-xl p-3 text-sm">{error}</p>}
-        {disabled && <p className="text-amber-800 text-sm">انتظر اكتمال المزامنة أو حل تعارض البيانات قبل الموافقة.</p>}
-        {!visible.length && <p className="text-center py-12 text-gray-500">{loading ? 'جاري قراءة الكاليندر…' : 'لا توجد اقتراحات تحتاج مراجعة.'}</p>}
-        {visible.map(({ student, proposal }) => <ProposalCard key={`${student.id}:${proposal.id}`} student={student} proposal={proposal} data={data} disabled={disabled} onConfirm={onConfirm} />)}
-      </div>
-    </section>
-  </div>;
+      return <div className="fixed inset-0 z-[150] bg-black/45 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose} onKeyDown={event => { event.stopPropagation(); if (event.key === 'Escape') onClose(); }}>
+        <section role="dialog" aria-modal="true" aria-labelledby="calendar-review-title" dir="rtl" className="w-full max-w-2xl max-h-[90vh] flex flex-col bg-gray-50 rounded-3xl shadow-2xl font-arabic overflow-hidden" onClick={event => event.stopPropagation()}>
+          <header className="bg-white border-b p-5 flex items-start justify-between gap-3">
+            <div><h2 id="calendar-review-title" className="text-xl font-bold flex items-center gap-2"><Calendar size={22} />مراجعة تغييرات الكاليندر</h2><p className="text-sm text-gray-500 mt-1">{entries.length} اقتراح · تعديل الحضور والأيام يتم بعد موافقتك فقط.</p></div>
+            <button ref={closeRef} type="button" aria-label="إغلاق مراجعة الكاليندر" onClick={onClose} className="p-1 text-gray-500"><X size={24} /></button>
+          </header>
+          <div className="p-4 border-b flex gap-2 bg-white"><input aria-label="بحث في اقتراحات الكاليندر" placeholder="ابحث باسم الطالب…" value={search} onChange={event => setSearch(event.target.value)} className="flex-1 min-w-0 p-2 border rounded-xl" /><button type="button" disabled={loading || disabled} onClick={onRefresh} className="flex items-center gap-1 px-3 text-blue-700 disabled:opacity-40"><RefreshCw size={17} className={loading ? 'animate-spin' : ''} />تحديث</button></div>
+          <div className="overflow-y-auto p-4 space-y-3">
+            {error && <p role="alert" className="bg-amber-50 text-amber-800 border border-amber-200 rounded-xl p-3 text-sm">{error}</p>}
+            {disabled && <p className="text-amber-800 text-sm">انتظر اكتمال المزامنة أو حل تعارض البيانات قبل الموافقة.</p>}
+            {!visible.length && <p className="text-center py-12 text-gray-500">{loading ? 'جاري قراءة الكاليندر…' : 'لا توجد اقتراحات تحتاج مراجعة.'}</p>}
+            {visible.map(({ student, proposal }) => <ProposalCard key={`${student.id}:${proposal.id}`} student={student} proposal={proposal} data={data} disabled={disabled} onConfirm={onConfirm} />)}
+          </div>
+        </section>
+      </div>;
 }

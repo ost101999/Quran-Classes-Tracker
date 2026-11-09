@@ -318,3 +318,27 @@ test('weekly proposal re-prompts if student days in app or calendar days change 
     students = ingest([{ ...students[0], days: [4] }], [], { weeklyDays: [1], weeklySignature: 'sig-mon' });
     assert.equal(students[0].calendarReview.pending.length, 1);
 });
+
+test('returning event color to default after confirming red or green proposes resetting the recorded status', () => {
+    // 1. Event is colored Red ('11') -> teacher confirms student apology ('r')
+    const redEvent = occurrence({ id: 'luqman-1', colorId: '11', recurring: true });
+    let students = ingest([student()], [redEvent]);
+    let data = state(students);
+    const key = attendanceKey('s1', cairoDate(redEvent.start));
+    let committed = commitCalendarAction(data, 's1', prepareCalendarAction(data, 's1', students[0].calendarReview.pending[0].id, 'apology'));
+    assert.equal(committed.attendance[key], 'r');
+    assert.equal(committed.students[0].calendarReview.pending.length, 0);
+
+    // 2. Teacher changes event color back to default ('') in Google Calendar -> proposes 'reset'
+    students = ingest(committed.students, [{ ...redEvent, colorId: '' }]);
+    assert.equal(students[0].calendarReview.pending.length, 1);
+    assert.equal(students[0].calendarReview.pending[0].kind, 'reset');
+
+    // 3. Teacher clicks Confirm ('reset') -> clears the apology ('r') without requiring extra replace checkbox
+    data = { ...state(students), attendance: committed.attendance };
+    const preview = prepareCalendarAction(data, 's1', students[0].calendarReview.pending[0].id, 'reset');
+    assert.equal(preview.requiresReplace, false);
+    committed = commitCalendarAction(data, 's1', preview);
+    assert.equal(committed.attendance[key], undefined);
+    assert.equal(committed.students[0].calendarReview.pending.length, 0);
+});

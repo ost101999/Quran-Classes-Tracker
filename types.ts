@@ -90,7 +90,7 @@ export interface CalendarReviewSnapshot {
 }
 export interface CalendarProposal {
   id: string;
-  kind: 'scheduled' | 'red' | 'moved' | 'weekly';
+  kind: 'scheduled' | 'red' | 'moved' | 'weekly' | 'reset';
   detectedAt: string;
   event?: CalendarOccurrence;
   from?: string;
@@ -166,7 +166,7 @@ export interface AppState {
   paymentStatus?: Record<string, boolean>;    // key format: `studentId_or_academyName_month_year`
   makeupLinks?: MakeupLink[];  // Track makeup class relationships
   showMakeupLines?: boolean;   // Toggle visibility of connection lines
-  
+
   // Tajweed System
   tajweedBank?: Record<string, TajweedLesson>; // key is lessonId
   tajweedAssignments?: Record<string, TajweedAssignment>; // key is assignmentId

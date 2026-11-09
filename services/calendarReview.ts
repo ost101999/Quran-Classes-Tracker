@@ -1,7 +1,7 @@
 import { AttendanceStatus, type Student, type CalendarOccurrence, type CalendarProposal, type CalendarReviewState, type CalendarSchedulesResult, type AttendanceRecord, type MakeupLink } from '../types';
 import { cairoDate, replaceScheduleFrom, scheduledCount } from './studentSchedule';
 
-export type CalendarAction = 'schedule' | 'double' | 'makeup' | 'apology' | 'absence' | 'teacher' | 'move' | 'weekly' | 'ignore';
+export type CalendarAction = 'schedule' | 'double' | 'makeup' | 'apology' | 'absence' | 'teacher' | 'move' | 'weekly' | 'reset' | 'ignore';
 export type ReviewData = { students: Student[]; attendance: AttendanceRecord; makeupLinks: MakeupLink[]; savedReports: Record<string, unknown>; savedReportDrafts?: Record<string, unknown>; lastReports?: Record<string, unknown>; dayTransitionTime?: string };
 export type ActionOptions = { sourceDate?: string; effectiveFrom?: string; doubleTarget?: boolean };
 export type CalendarActionPreview = { guard: string; changes: { key: string; date: string; before: AttendanceStatus | undefined; after: AttendanceStatus }[]; lines: string[]; requiresReplace: boolean; student: Student; links: MakeupLink[]; proposal: CalendarProposal; action: CalendarAction; options: ActionOptions };
@@ -32,59 +32,76 @@ export function ingestCalendarReviews(students: Student[], requests: { id: strin
     for (const event of snapshot.events) {
       if (!event.id || !Number.isFinite(Date.parse(event.start))) continue;
       const previous = observed[event.id];
-      if (previous && fingerprint(previous.event) === fingerprint(event)) continue;
-      const revision = (previous?.revision || 0) + 1;
-      observed[event.id] = { event, revision, present: true };
-      // A newer date supersedes unreviewed suggestions for that same occurrence.
-      if (previous && previous.event.start !== event.start) pending = pending.filter(item => item.event?.id !== event.id);
+      const unchanged = !!(previous && fingerprint(previous.event) === fingerprint(event));
+      const revision = unchanged ? previous.revision : (previous?.revision || 0) + 1;
+      if (!unchanged) {
+        observed[event.id] = { event, revision, present: true };
+        // A newer date supersedes unreviewed suggestions for that same occurrence.
+        if (previous && previous.event.start !== event.start) pending = pending.filter(item => item.event?.id !== event.id);
+      }
       const base = { event, detectedAt: snapshot.fetchedAt };
-      const from = previous ? (previous.event.start !== event.start ? previous.event.start : undefined)
-        : event.originalStart && Date.parse(event.originalStart) !== Date.parse(event.start) ? event.originalStart : undefined;
-      if (from) propose({ ...base, id: `${event.id}:moved:${revision}`, kind: 'moved', from });
-      if (color(event) === 'red') propose({ ...base, id: `${event.id}:red:${revision}`, kind: 'red' });
-      else if (color(event) === 'green' || (!previous && !event.recurring && !from)) {
-        propose({ ...base, id: `${event.id}:scheduled:${revision}`, kind: 'scheduled', reason: color(event) === 'green' ? 'green' : 'one-off' });
+        if (!unchanged) {
+          const from = previous ? (previous.event.start !== event.start ? previous.event.start : undefined)
+            : event.originalStart && Date.parse(event.originalStart) !== Date.parse(event.start) ? event.originalStart : undefined;
+          if (from) propose({ ...base, id: `${event.id}:moved:${revision}`, kind: 'moved', from });
+          if (color(event) === 'red') {
+            pending = pending.filter(item => item.event?.id !== event.id || item.kind === 'moved');
+            propose({ ...base, id: `${event.id}:red:${revision}`, kind: 'red' });
+          } else if (color(event) === 'green' || (!previous && !event.recurring && !from)) {
+            pending = pending.filter(item => item.event?.id !== event.id || item.kind === 'moved');
+            propose({ ...base, id: `${event.id}:scheduled:${revision}`, kind: 'scheduled', reason: color(event) === 'green' ? 'green' : 'one-off' });
+          }
+        }
+        if (color(event) === '') {
+          const latestColorDecision = Object.entries(decisions)
+            .filter(([key, val]) => key.startsWith(`${event.id}:`) && ['apology', 'absence', 'teacher', 'schedule', 'double', 'reset'].includes(val.action))
+            .map(([key, val]) => ({ rev: Number(key.split(':').pop()) || 0, action: val.action }))
+            .sort((a, b) => b.rev - a.rev)[0];
+          if (latestColorDecision && latestColorDecision.action !== 'reset' && revision > latestColorDecision.rev) {
+            pending = pending.filter(item => item.event?.id !== event.id || item.kind === 'moved' || item.id === `${event.id}:reset:${revision}`);
+            propose({ ...base, id: `${event.id}:reset:${revision}`, kind: 'reset' });
+          }
+        }
       }
-    }
-    const presentIds = new Set(snapshot.events.map(event => event.id));
-    const archivedIds = new Set(snapshot.archivedIds || []);
-    const archivedStarts = new Set(snapshot.archivedStarts || []);
-    for (const [id, item] of Object.entries(observed)) {
-      const isPresent = presentIds.has(id);
-      const isArchived = !isPresent && (archivedIds.has(id) || archivedStarts.has(item.event.start));
-      if (!isPresent && !isArchived) {
-        pending = pending.filter(proposal => proposal.event?.id !== id);
-        delete observed[id];
-        continue;
+      const presentIds = new Set(snapshot.events.map(event => event.id));
+      const archivedIds = new Set(snapshot.archivedIds || []);
+      const archivedStarts = new Set(snapshot.archivedStarts || []);
+      for (const [id, item] of Object.entries(observed)) {
+        const isPresent = presentIds.has(id);
+        const isArchived = !isPresent && (archivedIds.has(id) || archivedStarts.has(item.event.start));
+        if (!isPresent && !isArchived) {
+          pending = pending.filter(proposal => proposal.event?.id !== id);
+          delete observed[id];
+          continue;
+        }
+        if (item.present !== isPresent) observed[id] = { ...item, present: isPresent };
       }
-      if (item.present !== isPresent) observed[id] = { ...item, present: isPresent };
-    }
-    if (snapshot.weeklySignature && snapshot.weeklyDays) {
-      const currentDays = student.days || [];
-      const hasDoubleDay = currentDays.some((day, index) => currentDays.indexOf(day) !== index);
-      const matchesWeekly = sameDays(currentDays, snapshot.weeklyDays)
-        || (!!snapshot.weeklyExpandedDays && (student.duration === 'خليط' || hasDoubleDay) && sameDays(currentDays, snapshot.weeklyExpandedDays));
-      const proposedDays = (student.duration === 'خليط' || hasDoubleDay) && snapshot.weeklyExpandedDays ? snapshot.weeklyExpandedDays : snapshot.weeklyDays;
-      const weeklyId = `weekly:${snapshot.weeklySignature}:${[...currentDays].sort().join(',')}`;
-      pending = pending.filter(item => item.kind !== 'weekly' || item.id === weeklyId);
-      for (const key of Object.keys(decisions)) {
-        if (key.startsWith('weekly:') && (matchesWeekly || key !== weeklyId)) delete decisions[key];
+      if (snapshot.weeklySignature && snapshot.weeklyDays) {
+        const currentDays = student.days || [];
+        const hasDoubleDay = currentDays.some((day, index) => currentDays.indexOf(day) !== index);
+        const matchesWeekly = sameDays(currentDays, snapshot.weeklyDays)
+          || (!!snapshot.weeklyExpandedDays && (student.duration === 'خليط' || hasDoubleDay) && sameDays(currentDays, snapshot.weeklyExpandedDays));
+        const proposedDays = (student.duration === 'خليط' || hasDoubleDay) && snapshot.weeklyExpandedDays ? snapshot.weeklyExpandedDays : snapshot.weeklyDays;
+        const weeklyId = `weekly:${snapshot.weeklySignature}:${[...currentDays].sort().join(',')}`;
+        pending = pending.filter(item => item.kind !== 'weekly' || item.id === weeklyId);
+        for (const key of Object.keys(decisions)) {
+          if (key.startsWith('weekly:') && (matchesWeekly || key !== weeklyId)) delete decisions[key];
+        }
+        if (!matchesWeekly) propose({ id: weeklyId, kind: 'weekly', signature: snapshot.weeklySignature, days: proposedDays, detectedAt: snapshot.fetchedAt });
+        else pending = pending.filter(item => item.kind !== 'weekly');
+      } else pending = pending.filter(item => item.kind !== 'weekly');
+      // Keep detected colors even when an external script clears/archives the event.
+      // Keep outstanding questions, but bound the acknowledged observation history.
+      const cutoff = Date.parse(snapshot.fetchedAt) - 120 * 86400000;
+      for (const [id, item] of Object.entries(observed)) {
+        if (Date.parse(item.event.start) < cutoff && !pending.some(proposal => proposal.event?.id === id)) delete observed[id];
       }
-      if (!matchesWeekly) propose({ id: weeklyId, kind: 'weekly', signature: snapshot.weeklySignature, days: proposedDays, detectedAt: snapshot.fetchedAt });
-      else pending = pending.filter(item => item.kind !== 'weekly');
-    } else pending = pending.filter(item => item.kind !== 'weekly');
-    // Keep detected colors even when an external script clears/archives the event.
-    // Keep outstanding questions, but bound the acknowledged observation history.
-    const cutoff = Date.parse(snapshot.fetchedAt) - 120 * 86400000;
-    for (const [id, item] of Object.entries(observed)) {
-      if (Date.parse(item.event.start) < cutoff && !pending.some(proposal => proposal.event?.id === id)) delete observed[id];
-    }
-    for (const [id, decision] of Object.entries(decisions)) if (Date.parse(decision.at) < cutoff && !pending.some(proposal => proposal.id === id)) delete decisions[id];
-    const state: CalendarReviewState = { name: snapshot.name, observed, pending, decisions, ...(snapshot.weeklySignature ? { weeklySignature: snapshot.weeklySignature } : old.weeklySignature ? { weeklySignature: old.weeklySignature } : {}) };
-    if (JSON.stringify(old) === JSON.stringify(state)) return student;
-    changed = true;
-    return { ...student, calendarReview: state };
-  });
+      for (const [id, decision] of Object.entries(decisions)) if (Date.parse(decision.at) < cutoff && !pending.some(proposal => proposal.id === id)) delete decisions[id];
+      const state: CalendarReviewState = { name: snapshot.name, observed, pending, decisions, ...(snapshot.weeklySignature ? { weeklySignature: snapshot.weeklySignature } : old.weeklySignature ? { weeklySignature: old.weeklySignature } : {}) };
+      if (JSON.stringify(old) === JSON.stringify(state)) return student;
+      changed = true;
+      return { ...student, calendarReview: state };
+    });
   return changed ? next : students;
 }
 
@@ -98,7 +115,7 @@ export function prepareCalendarAction(data: ReviewData, studentId: string, propo
   const student = data.students.find(item => item.id === studentId);
   const proposal = student?.calendarReview?.pending.find(item => item.id === proposalId);
   if (!student || !proposal || student.calendarReview?.name !== student.name.trim()) throw new Error('الاقتراح لم يعد متاحًا. افتح المراجعة من جديد.');
-  const allowed = proposal.kind === 'red' ? ['apology', 'absence', 'teacher'] : proposal.kind === 'moved' ? ['move', 'makeup'] : proposal.kind === 'weekly' ? ['weekly'] : ['schedule', 'double', 'makeup'];
+  const allowed = proposal.kind === 'red' ? ['apology', 'absence', 'teacher'] : proposal.kind === 'reset' ? ['reset'] : proposal.kind === 'moved' ? ['move', 'makeup'] : proposal.kind === 'weekly' ? ['weekly'] : ['schedule', 'double', 'makeup'];
   if (action !== 'ignore' && !allowed.includes(action)) throw new Error('اختر الإجراء المناسب لهذا الاقتراح.');
   const changes: CalendarActionPreview['changes'] = [];
   let updatedStudent = student;
@@ -107,7 +124,7 @@ export function prepareCalendarAction(data: ReviewData, studentId: string, propo
   const add = (date: string, after: AttendanceStatus) => {
     const { key, month, year, day } = dateKey(studentId, date);
     const before = data.attendance[key];
-    if (before === after) return;
+    if ((before || '') === after) return;
     if (data.savedReports[key] || data.savedReportDrafts?.[key] || data.lastReports?.[key]) throw new Error(`حصة ${date} عليها تقرير أو مسودة محفوظة. راجعها يدويًا قبل تغيير حالتها.`);
     if (data.makeupLinks.some(link => link.studentId === studentId && link.month === month && link.year === year && (link.missedDay === day || link.makeupDay === day))) throw new Error(`يوم ${date} مرتبط بالفعل بتعويض. راجع الربط الحالي أولًا.`);
     changes.push({ key, date, before, after });
@@ -137,6 +154,7 @@ export function prepareCalendarAction(data: ReviewData, studentId: string, propo
     const target = cairoDate(proposal.event.start, data.dayTransitionTime);
     const targetParts = dateKey(studentId, target);
     if (action === 'schedule' || action === 'double') add(target, action === 'double' ? AttendanceStatus.EXTRA_DOUBLE : AttendanceStatus.EXTRA_DAY);
+    else if (action === 'reset') add(target, AttendanceStatus.ABSENT);
     else if (action === 'apology') add(target, AttendanceStatus.ABSENCE_RED);
     else if (action === 'teacher') add(target, AttendanceStatus.UNEXCUSED_ABSENCE);
     else if (action === 'absence') {
@@ -163,7 +181,7 @@ export function prepareCalendarAction(data: ReviewData, studentId: string, propo
       }
     }
   }
-  const requiresReplace = changes.some(change => !!change.before && ![AttendanceStatus.EXTRA_DAY, AttendanceStatus.EXTRA_DOUBLE, AttendanceStatus.EXEMPT].includes(change.before));
+  const requiresReplace = changes.some(change => !!change.before && ![AttendanceStatus.EXTRA_DAY, AttendanceStatus.EXTRA_DOUBLE, AttendanceStatus.EXEMPT, ...(action === 'reset' ? [AttendanceStatus.ABSENCE_RED, AttendanceStatus.PAID_ABSENCE, AttendanceStatus.PAID_ABSENCE_DOUBLE, AttendanceStatus.UNEXCUSED_ABSENCE] : [])].includes(change.before));
   const guard = JSON.stringify([student, changes.map(change => [change.key, change.before || '', data.savedReports[change.key], data.savedReportDrafts?.[change.key], data.lastReports?.[change.key]]), data.makeupLinks, action, options, data.dayTransitionTime || '00:00']);
   return { guard, changes, lines, requiresReplace, student: updatedStudent, links, proposal, action, options };
 }
@@ -177,5 +195,10 @@ export function commitCalendarAction(data: ReviewData, studentId: string, previe
     ? Object.fromEntries(Object.entries(review.decisions).filter(([key]) => !key.startsWith('weekly:')))
     : { ...review.decisions, [current.proposal.id]: { action: current.action, at: new Date().toISOString() } };
   const student = { ...current.student, calendarReview: { ...review, pending: review.pending.filter(item => item.id !== current.proposal.id), decisions: nextDecisions } };
-  return { students: data.students.map(item => item.id === studentId ? student : item), attendance: { ...data.attendance, ...Object.fromEntries(current.changes.map(change => [change.key, change.after])) }, makeupLinks: current.links };
+  const nextAttendance = { ...data.attendance };
+  for (const change of current.changes) {
+    if (change.after === AttendanceStatus.ABSENT) delete nextAttendance[change.key];
+    else nextAttendance[change.key] = change.after;
+  }
+  return { students: data.students.map(item => item.id === studentId ? student : item), attendance: nextAttendance, makeupLinks: current.links };
 }
