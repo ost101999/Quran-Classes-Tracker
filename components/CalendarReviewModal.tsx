@@ -1,22 +1,46 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { X, Calendar, RefreshCw, ArrowLeftRight } from 'lucide-react';
 import type { Student, CalendarProposal } from '../types';
-import { prepareCalendarAction, type CalendarAction, type ActionOptions, type CalendarActionPreview, type ReviewData } from '../services/calendarReview';
+import { getRecentApologyClasses, prepareCalendarAction, type CalendarAction, type ActionOptions, type CalendarActionPreview, type ReviewData } from '../services/calendarReview';
 import { cairoDate } from '../services/studentSchedule';
 
 const days = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
 const dayNames = (values: number[]) => [...values].sort((a, b) => (a + 1) % 7 - (b + 1) % 7).map(day => days[day]).join('، ');
 const dateLabel = (value: string) => new Intl.DateTimeFormat('ar-EG', { timeZone: 'Africa/Cairo', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(value));
 const effectiveDayLabel = (value: string, dayTransitionTime?: string) => new Intl.DateTimeFormat('ar-EG', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(`${cairoDate(value, dayTransitionTime)}T12:00:00Z`));
+const isoDayLabel = (date: string) => new Intl.DateTimeFormat('ar-EG', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(`${date}T12:00:00Z`));
 
 const ProposalCard: React.FC<{ student: Student; proposal: CalendarProposal; data: ReviewData; disabled: boolean; onConfirm: (studentId: string, preview: CalendarActionPreview, replace: boolean) => void }> = ({ student, proposal, data, disabled, onConfirm }) => {
-  const [action, setAction] = useState<CalendarAction | ''>(proposal.kind === 'red' ? 'apology' : proposal.kind === 'reset' ? 'reset' : proposal.kind === 'weekly' ? 'weekly' : proposal.kind === 'moved' ? 'move' : 'schedule');
-  const [sourceDate, setSourceDate] = useState(proposal.from ? cairoDate(proposal.from, data.dayTransitionTime) : '');
+  const targetDate = proposal.event ? cairoDate(proposal.event.start, data.dayTransitionTime) : '';
+  const recentApologies = proposal.kind === 'scheduled' && targetDate ? getRecentApologyClasses(student, data, targetDate, 3) : [];
+  const hasPreviousApology = proposal.reason === 'green' && recentApologies.some(item => item.date < targetDate);
+  const [userEditedAction, setUserEditedAction] = useState(false);
+  const [action, setAction] = useState<CalendarAction | ''>(
+    proposal.kind === 'red' ? 'apology'
+      : proposal.kind === 'reset' ? 'reset'
+        : proposal.kind === 'weekly' ? 'weekly'
+          : proposal.kind === 'moved' ? 'move'
+            : (proposal.reason === 'green' && recentApologies.length > 0) ? 'makeup'
+              : 'schedule'
+  );
+  const [sourceDate, setSourceDate] = useState(
+    proposal.from ? cairoDate(proposal.from, data.dayTransitionTime) : (recentApologies[0]?.date || '')
+  );
   const [effectiveFrom, setEffectiveFrom] = useState(cairoDate(new Date(), data.dayTransitionTime));
   const [doubleTarget, setDoubleTarget] = useState(false);
   const [preview, setPreview] = useState<CalendarActionPreview | null>(null);
   const [replace, setReplace] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!userEditedAction && proposal.kind === 'scheduled' && hasPreviousApology && action !== 'makeup') {
+      setAction('makeup');
+      setSourceDate(recentApologies[0]?.date || '');
+    } else if (action === 'makeup' && proposal.kind === 'scheduled' && recentApologies.length > 0 && !recentApologies.some(item => item.date === sourceDate)) {
+      setSourceDate(recentApologies[0].date);
+    }
+  }, [hasPreviousApology, recentApologies, userEditedAction, proposal.kind, action, sourceDate]);
+
   const missing = proposal.event && student.calendarReview?.observed[proposal.event.id]?.present === false;
   const options: ActionOptions = { sourceDate, effectiveFrom, doubleTarget };
   const resetPreview = () => { setPreview(null); setReplace(false); setError(''); };
@@ -55,7 +79,7 @@ const ProposalCard: React.FC<{ student: Student; proposal: CalendarProposal; dat
     {missing && <p className="text-sm text-amber-700">هذا الحدث رُصد سابقًا ولم يظهر في آخر قراءة؛ قد يكون أُرشف أو حُذف. تحقق من الحصة قبل الموافقة.</p>}
     {proposal.event && student.calendarReview?.observed[proposal.event.id]?.event.colorId !== proposal.event.colorId && <p className="text-sm text-amber-700">لون الحدث تغيّر بعد رصد الاقتراح. احتفظنا بالملاحظة لتراجعها بنفسك.</p>}
     <label className="block text-sm font-bold text-gray-700">الإجراء المقترح
-      <select aria-label={`إجراء ${student.name}`} value={action} onChange={event => { setAction(event.target.value as CalendarAction); resetPreview(); }} className="block w-full mt-1 rounded-xl border border-gray-200 p-2 bg-white" disabled={disabled}>
+      <select aria-label={`إجراء ${student.name}`} value={action} onChange={event => { const next = event.target.value as CalendarAction; setUserEditedAction(true); setAction(next); if (next === 'makeup' && proposal.kind === 'scheduled' && !sourceDate && recentApologies[0]) setSourceDate(recentApologies[0].date); resetPreview(); }} className="block w-full mt-1 rounded-xl border border-gray-200 p-2 bg-white" disabled={disabled}>
         {proposal.kind === 'red' ? <><option value="apology">اعتذار الطالب — دائرة حمراء</option><option value="absence">غياب الطالب — يُحسب ضمن الحصص</option><option value="teacher">اعتذار المعلم — دائرة حمراء بشرطة</option></>
           : proposal.kind === 'reset' ? <option value="reset">إرجاع الحصة لوضعها الطبيعي (مسح الاعتذار أو الغياب)</option>
             : proposal.kind === 'weekly' ? <option value="weekly">تحديث الأيام الثابتة من تاريخ محدد</option>
@@ -63,7 +87,15 @@ const ProposalCard: React.FC<{ student: Student; proposal: CalendarProposal; dat
                 : <><option value="schedule">حصة مجدولة — دائرة زرقاء</option><option value="double">حصة ثانية في نفس اليوم — دائرتان مجدولتان</option><option value="makeup">تعويض عن حصة سابقة</option></>}
       </select>
     </label>
-    {action === 'makeup' && <label className="block text-sm">تاريخ الحصة الأصلية<input type="date" aria-label="تاريخ الحصة الأصلية" value={sourceDate} onChange={event => { setSourceDate(event.target.value); resetPreview(); }} className="block mt-1 border rounded-lg p-2" /></label>}
+    {action === 'makeup' && (proposal.kind === 'scheduled'
+      ? <label className="block text-sm font-bold text-gray-700">الحصة الأصلية (آخر حصص الاعتذار)
+        <select aria-label="تاريخ الحصة الأصلية" value={sourceDate} onChange={event => { setSourceDate(event.target.value); resetPreview(); }} className="block w-full mt-1 rounded-xl border border-gray-200 p-2 bg-white font-normal" disabled={disabled || recentApologies.length === 0}>
+          {recentApologies.length === 0
+            ? <option value="">لا توجد حصص اعتذار سابقة مسجلة في هذا الشهر</option>
+            : recentApologies.map(item => <option key={item.date} value={item.date}>{isoDayLabel(item.date)} — {item.status === 'x' ? 'اعتذار المعلم (بشرطة)' : 'اعتذار الطالب'}</option>)}
+        </select>
+      </label>
+      : <label className="block text-sm">تاريخ الحصة الأصلية<input type="date" aria-label="تاريخ الحصة الأصلية" value={sourceDate} onChange={event => { setSourceDate(event.target.value); resetPreview(); }} className="block mt-1 border rounded-lg p-2" /></label>)}
     {action === 'weekly' && <label className="block text-sm">بداية تطبيق الأيام الجديدة<input type="date" aria-label="بداية الجدول الجديد" min={cairoDate(new Date(), data.dayTransitionTime)} value={effectiveFrom} onChange={event => { setEffectiveFrom(event.target.value); resetPreview(); }} className="block mt-1 border rounded-lg p-2" /></label>}
     {(action === 'makeup' || action === 'move') && <label className="flex gap-2 items-center text-sm"><input type="checkbox" checked={doubleTarget} onChange={event => { setDoubleTarget(event.target.checked); resetPreview(); }} />الموعد الجديد حصة ثانية في نفس اليوم</label>}
     {error && <p role="alert" className="text-red-700 text-sm">{error}</p>}

@@ -5,6 +5,35 @@ export type CalendarAction = 'schedule' | 'double' | 'makeup' | 'apology' | 'abs
 export type ReviewData = { students: Student[]; attendance: AttendanceRecord; makeupLinks: MakeupLink[]; savedReports: Record<string, unknown>; savedReportDrafts?: Record<string, unknown>; lastReports?: Record<string, unknown>; dayTransitionTime?: string };
 export type ActionOptions = { sourceDate?: string; effectiveFrom?: string; doubleTarget?: boolean };
 export type CalendarActionPreview = { guard: string; changes: { key: string; date: string; before: AttendanceStatus | undefined; after: AttendanceStatus }[]; lines: string[]; requiresReplace: boolean; student: Student; links: MakeupLink[]; proposal: CalendarProposal; action: CalendarAction; options: ActionOptions };
+export type ApologyClassOption = { date: string; day: number; month: number; year: number; status: AttendanceStatus.ABSENCE_RED | AttendanceStatus.UNEXCUSED_ABSENCE };
+
+export function getRecentApologyClasses(student: Student, data: ReviewData, targetDate: string, limit = 3): ApologyClassOption[] {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) return [];
+  const [targetYear, targetMonthNum] = targetDate.split('-').map(Number);
+  const targetMonth = targetMonthNum - 1;
+  const prefix = `${student.id}_`;
+  const items: ApologyClassOption[] = [];
+  for (const [key, status] of Object.entries(data.attendance)) {
+    if (!key.startsWith(prefix)) continue;
+    if (status !== AttendanceStatus.ABSENCE_RED && status !== AttendanceStatus.UNEXCUSED_ABSENCE) continue;
+    const parts = key.slice(prefix.length).split('_').map(Number);
+    if (parts.length !== 3 || parts.some(p => !Number.isInteger(p))) continue;
+    const [day, month, year] = parts;
+    if (month !== targetMonth || year !== targetYear) continue;
+    const date = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    if (date === targetDate) continue;
+    if (data.savedReports[key] || data.savedReportDrafts?.[key] || data.lastReports?.[key]) continue;
+    if (data.makeupLinks.some(link => link.studentId === student.id && link.month === month && link.year === year && (link.missedDay === day || link.makeupDay === day))) continue;
+    items.push({ date, day, month, year, status });
+  }
+  items.sort((a, b) => {
+    const aBefore = a.date < targetDate ? 0 : 1;
+    const bBefore = b.date < targetDate ? 0 : 1;
+    if (aBefore !== bBefore) return aBefore - bBefore;
+    return b.date.localeCompare(a.date);
+  });
+  return items.slice(0, limit);
+}
 const green = new Set(['2', '10']);
 const red = new Set(['4', '11']);
 const color = (event: CalendarOccurrence) => green.has(event.colorId) ? 'green' : red.has(event.colorId) ? 'red' : '';
@@ -169,7 +198,8 @@ export function prepareCalendarAction(data: ReviewData, studentId: string, propo
       } else {
         const sourceStatus = data.attendance[sourceParts.key];
         const sourceCount = scheduledCount(student, sourceParts.day, sourceParts.month, sourceParts.year);
-        const otherSourceEvent = Object.values(student.calendarReview?.observed || {}).some(item => item.present !== false && item.event.id !== proposal.event!.id && cairoDate(item.event.start, data.dayTransitionTime) === source);
+        const sourceEventsOnDay = Object.values(student.calendarReview?.observed || {}).filter(item => item.present !== false && item.event.id !== proposal.event!.id && cairoDate(item.event.start, data.dayTransitionTime) === source);
+        const otherSourceEvent = proposal.kind === 'moved' ? sourceEventsOnDay.length > 0 : sourceEventsOnDay.length > 1;
         if (sourceCount > 1 || [AttendanceStatus.EXTRA_DOUBLE, AttendanceStatus.DOUBLE_CLASS, AttendanceStatus.PAID_ABSENCE_DOUBLE].includes(sourceStatus) || otherSourceEvent) throw new Error('اليوم الأصلي يحتوي على أكثر من حصة أو حدث آخر. راجعه يدويًا حتى لا تُلغى الحصة الأخرى.');
         const targetCount = scheduledCount(student, targetParts.day, targetParts.month, targetParts.year);
         if (!options.doubleTarget && (targetCount > 0 || data.attendance[targetParts.key] === AttendanceStatus.EXTRA_DAY)) throw new Error('اليوم الجديد به حصة مجدولة بالفعل. اختر «حصة ثانية في نفس اليوم» إذا كان المقصود إضافة الحصة المنقولة إليها.');
@@ -181,7 +211,7 @@ export function prepareCalendarAction(data: ReviewData, studentId: string, propo
       }
     }
   }
-  const requiresReplace = changes.some(change => !!change.before && ![AttendanceStatus.EXTRA_DAY, AttendanceStatus.EXTRA_DOUBLE, AttendanceStatus.EXEMPT, ...(action === 'reset' ? [AttendanceStatus.ABSENCE_RED, AttendanceStatus.PAID_ABSENCE, AttendanceStatus.PAID_ABSENCE_DOUBLE, AttendanceStatus.UNEXCUSED_ABSENCE] : [])].includes(change.before));
+  const requiresReplace = changes.some(change => !!change.before && ![AttendanceStatus.EXTRA_DAY, AttendanceStatus.EXTRA_DOUBLE, AttendanceStatus.EXEMPT, ...(action === 'reset' ? [AttendanceStatus.ABSENCE_RED, AttendanceStatus.PAID_ABSENCE, AttendanceStatus.PAID_ABSENCE_DOUBLE, AttendanceStatus.UNEXCUSED_ABSENCE] : []), ...(action === 'makeup' && change.after === AttendanceStatus.POSTPONED ? [AttendanceStatus.ABSENCE_RED, AttendanceStatus.UNEXCUSED_ABSENCE] : [])].includes(change.before));
   const guard = JSON.stringify([student, changes.map(change => [change.key, change.before || '', data.savedReports[change.key], data.savedReportDrafts?.[change.key], data.lastReports?.[change.key]]), data.makeupLinks, action, options, data.dayTransitionTime || '00:00']);
   return { guard, changes, lines, requiresReplace, student: updatedStudent, links, proposal, action, options };
 }

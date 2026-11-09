@@ -13,7 +13,7 @@ function loadTs(file, cache = new Map()) {
     vm.runInNewContext(code, { exports: mod.exports, module: mod, require: name => name.startsWith('.') ? loadTs(path.resolve(path.dirname(file), name), cache) : require(name), Date, Intl, Map, Set, JSON, console });
     return mod.exports;
 }
-const { ingestCalendarReviews, prepareCalendarAction, commitCalendarAction } = loadTs('../services/calendarReview.ts');
+const { getRecentApologyClasses, ingestCalendarReviews, prepareCalendarAction, commitCalendarAction } = loadTs('../services/calendarReview.ts');
 const { cairoDate, scheduledCount, replaceScheduleFrom } = loadTs('../services/studentSchedule.ts');
 const { createCalendarSchedules, currentWeek, reviewFor } = require('../calendar-schedules');
 const json = value => JSON.parse(JSON.stringify(value));
@@ -341,4 +341,31 @@ test('returning event color to default after confirming red or green proposes re
     committed = commitCalendarAction(data, 's1', preview);
     assert.equal(committed.attendance[key], undefined);
     assert.equal(committed.students[0].calendarReview.pending.length, 0);
+});
+
+test('getRecentApologyClasses returns last 3 student/teacher apologies and allows 1-click makeup confirmation', () => {
+    const redNov3 = occurrence({ id: 'ev-nov3', start: '2026-11-03T18:00:00Z', end: '2026-11-03T18:30:00Z', colorId: '11', recurring: true });
+    const greenNov14 = occurrence({ id: 'ev-nov14', start: '2026-11-14T18:00:00Z', end: '2026-11-14T18:30:00Z', colorId: '10', recurring: false });
+    let students = ingest([student()], [redNov3, greenNov14]);
+    const data = state(students);
+    data.attendance.s1_1_10_2026 = 'r';  // 2026-11-01 student apology
+    data.attendance.s1_3_10_2026 = 'x';  // 2026-11-03 teacher apology
+    data.attendance.s1_8_10_2026 = 'r';  // 2026-11-08 student apology
+    data.attendance.s1_10_10_2026 = 'x'; // 2026-11-10 teacher apology
+
+    const recent = getRecentApologyClasses(students[0], data, '2026-11-14', 3);
+    assert.deepEqual(json(recent.map(item => [item.date, item.status])), [
+        ['2026-11-10', 'x'],
+        ['2026-11-08', 'r'],
+        ['2026-11-03', 'x'],
+    ]);
+
+    // Confirming makeup against 2026-11-03 (which also has a single observed red event) works without requiresReplace
+    const greenProposal = students[0].calendarReview.pending.find(p => p.kind === 'scheduled');
+    const preview = prepareCalendarAction(data, 's1', greenProposal.id, 'makeup', { sourceDate: '2026-11-03' });
+    assert.equal(preview.requiresReplace, false);
+    const committed = commitCalendarAction(data, 's1', preview);
+    assert.equal(committed.attendance.s1_3_10_2026, 'م');
+    assert.equal(committed.attendance.s1_14_10_2026, 'e');
+    assert.equal(committed.makeupLinks[0].originalStatus, 'x');
 });
