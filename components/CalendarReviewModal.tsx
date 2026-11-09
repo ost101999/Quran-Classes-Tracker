@@ -10,7 +10,7 @@ const dateLabel = (value: string) => new Intl.DateTimeFormat('ar-EG', { timeZone
 const effectiveDayLabel = (value: string, dayTransitionTime?: string) => new Intl.DateTimeFormat('ar-EG', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(`${cairoDate(value, dayTransitionTime)}T12:00:00Z`));
 
 const ProposalCard: React.FC<{ student: Student; proposal: CalendarProposal; data: ReviewData; disabled: boolean; onConfirm: (studentId: string, preview: CalendarActionPreview, replace: boolean) => void }> = ({ student, proposal, data, disabled, onConfirm }) => {
-  const [action, setAction] = useState<CalendarAction | ''>(proposal.kind === 'red' ? '' : proposal.kind === 'weekly' ? 'weekly' : proposal.kind === 'moved' ? 'move' : 'schedule');
+  const [action, setAction] = useState<CalendarAction | ''>(proposal.kind === 'red' ? 'apology' : proposal.kind === 'weekly' ? 'weekly' : proposal.kind === 'moved' ? 'move' : 'schedule');
   const [sourceDate, setSourceDate] = useState(proposal.from ? cairoDate(proposal.from, data.dayTransitionTime) : '');
   const [effectiveFrom, setEffectiveFrom] = useState(cairoDate(new Date(), data.dayTransitionTime));
   const [doubleTarget, setDoubleTarget] = useState(false);
@@ -56,7 +56,7 @@ const ProposalCard: React.FC<{ student: Student; proposal: CalendarProposal; dat
     {proposal.event && student.calendarReview?.observed[proposal.event.id]?.event.colorId !== proposal.event.colorId && <p className="text-sm text-amber-700">لون الحدث تغيّر بعد رصد الاقتراح. احتفظنا بالملاحظة لتراجعها بنفسك.</p>}
     <label className="block text-sm font-bold text-gray-700">الإجراء المقترح
       <select aria-label={`إجراء ${student.name}`} value={action} onChange={event => { setAction(event.target.value as CalendarAction); resetPreview(); }} className="block w-full mt-1 rounded-xl border border-gray-200 p-2 bg-white" disabled={disabled}>
-        {proposal.kind === 'red' ? <><option value="">اختر معنى اللون الأحمر…</option><option value="apology">اعتذار الطالب — دائرة حمراء</option><option value="absence">غياب الطالب — يُحسب ضمن الحصص</option><option value="teacher">اعتذار المعلم — دائرة حمراء بشرطة</option></>
+        {proposal.kind === 'red' ? <><option value="apology">اعتذار الطالب — دائرة حمراء</option><option value="absence">غياب الطالب — يُحسب ضمن الحصص</option><option value="teacher">اعتذار المعلم — دائرة حمراء بشرطة</option></>
           : proposal.kind === 'weekly' ? <option value="weekly">تحديث الأيام الثابتة من تاريخ محدد</option>
           : proposal.kind === 'moved' ? <><option value="move">نقل هذه الحصة فقط بين اليومين</option><option value="makeup">اعتبار الموعد الجديد تعويضًا عن الحصة الأصلية</option></>
           : <><option value="schedule">حصة مجدولة — دائرة زرقاء</option><option value="double">حصة ثانية في نفس اليوم — دائرتان مجدولتان</option><option value="makeup">تعويض عن حصة سابقة</option></>}
