@@ -6,7 +6,14 @@ const identityHash = value => crypto.createHash('sha256').update(JSON.stringify(
 
 const CAIRO = 'Africa/Cairo';
 const API = 'https://www.googleapis.com/calendar/v3/';
-const TOKEN_PATH = path.join(os.homedir(), 'MyAutoScripts', '5- My Programs', '1- Google Calender Magic Opener', 'Support Files', 'token.json');
+const TOKEN_SUFFIX = ['MyAutoScripts', '5- My Programs', '1- Google Calender Magic Opener', 'Support Files', 'token.json'];
+
+function calendarTokenPath({ override = process.env.QURAN_CALENDAR_TOKEN_PATH, home = os.homedir(), systemDrive = process.env.SystemDrive } = {}) {
+    if (override) return override;
+    const candidates = [path.join(home, ...TOKEN_SUFFIX)];
+    if (systemDrive) candidates.push(path.join(`${systemDrive}${path.sep}`, ...TOKEN_SUFFIX));
+    return candidates.find(candidate => fs.existsSync(candidate)) || candidates[0];
+}
 
 function dateParts(date, timeZone) {
     return Object.fromEntries(new Intl.DateTimeFormat('en-GB', {
@@ -75,7 +82,7 @@ function scheduleFor(name, events, week, updatedAt) {
     return { source: 'google-calendar', name: name.trim(), ...week, updatedAt, status: slots.length ? 'ready' : 'empty', message: message.trim(), slots };
 }
 
-function createCalendarSchedules({ fetchImpl = globalThis.fetch, readToken = () => JSON.parse(fs.readFileSync(process.env.QURAN_CALENDAR_TOKEN_PATH || TOKEN_PATH, 'utf8')), now = () => new Date() } = {}) {
+function createCalendarSchedules({ fetchImpl = globalThis.fetch, readToken = () => JSON.parse(fs.readFileSync(calendarTokenPath(), 'utf8')), now = () => new Date() } = {}) {
     let access;
     let snapshot;
     let pending;
@@ -250,4 +257,4 @@ function reviewFor(name, snapshot, dayTransitionTime = '00:00') {
     };
 }
 
-module.exports = { createCalendarSchedules, currentWeek, scheduleFor, reviewFor };
+module.exports = { createCalendarSchedules, calendarTokenPath, currentWeek, scheduleFor, reviewFor };

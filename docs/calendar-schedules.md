@@ -3,7 +3,7 @@
 The desktop app reads Google Calendar directly using the existing read-only OAuth
 connection from Google Calendar Magic Opener. `calendar-schedules.js` runs only in
 Electron's main process. Tokens never enter React, Firebase, or the student portal.
-The default token location is `~/MyAutoScripts/5- My Programs/1- Google Calender Magic Opener/Support Files/token.json`.
+The app looks for the token under `~/MyAutoScripts/5- My Programs/1- Google Calender Magic Opener/Support Files/token.json`, then on Windows under the system drive's `MyAutoScripts` folder.
 For another installation (including Windows), set `QURAN_CALENDAR_TOKEN_PATH` to its
 existing authorized-user token file before launching the desktop app. Refreshed
 access tokens stay in memory; the other program's token file is not changed.
