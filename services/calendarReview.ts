@@ -60,13 +60,17 @@ export function ingestCalendarReviews(students: Student[], requests: { id: strin
       if (item.present !== isPresent) observed[id] = { ...item, present: isPresent };
     }
     if (snapshot.weeklySignature && snapshot.weeklyDays) {
-      pending = pending.filter(item => item.kind !== 'weekly' || item.signature === snapshot.weeklySignature);
       const currentDays = student.days || [];
       const hasDoubleDay = currentDays.some((day, index) => currentDays.indexOf(day) !== index);
       const matchesWeekly = sameDays(currentDays, snapshot.weeklyDays)
         || (!!snapshot.weeklyExpandedDays && (student.duration === 'خليط' || hasDoubleDay) && sameDays(currentDays, snapshot.weeklyExpandedDays));
       const proposedDays = (student.duration === 'خليط' || hasDoubleDay) && snapshot.weeklyExpandedDays ? snapshot.weeklyExpandedDays : snapshot.weeklyDays;
-      if (!matchesWeekly) propose({ id: `weekly:${snapshot.weeklySignature}`, kind: 'weekly', signature: snapshot.weeklySignature, days: proposedDays, detectedAt: snapshot.fetchedAt });
+      const weeklyId = `weekly:${snapshot.weeklySignature}:${[...currentDays].sort().join(',')}`;
+      pending = pending.filter(item => item.kind !== 'weekly' || item.id === weeklyId);
+      for (const key of Object.keys(decisions)) {
+        if (key.startsWith('weekly:') && (matchesWeekly || key !== weeklyId)) delete decisions[key];
+      }
+      if (!matchesWeekly) propose({ id: weeklyId, kind: 'weekly', signature: snapshot.weeklySignature, days: proposedDays, detectedAt: snapshot.fetchedAt });
       else pending = pending.filter(item => item.kind !== 'weekly');
     } else pending = pending.filter(item => item.kind !== 'weekly');
     // Keep detected colors even when an external script clears/archives the event.
@@ -169,6 +173,9 @@ export function commitCalendarAction(data: ReviewData, studentId: string, previe
   if (current.guard !== preview.guard) throw new Error('تغيرت البيانات أثناء المراجعة. اعرض التعديل من جديد قبل تأكيده.');
   if (current.requiresReplace && !allowReplace) throw new Error('أكد مراجعة الحالة المسجلة قبل استبدالها.');
   const review = current.student.calendarReview!;
-  const student = { ...current.student, calendarReview: { ...review, pending: review.pending.filter(item => item.id !== current.proposal.id), decisions: { ...review.decisions, [current.proposal.id]: { action: current.action, at: new Date().toISOString() } } } };
+  const nextDecisions = current.action === 'weekly'
+    ? Object.fromEntries(Object.entries(review.decisions).filter(([key]) => !key.startsWith('weekly:')))
+    : { ...review.decisions, [current.proposal.id]: { action: current.action, at: new Date().toISOString() } };
+  const student = { ...current.student, calendarReview: { ...review, pending: review.pending.filter(item => item.id !== current.proposal.id), decisions: nextDecisions } };
   return { students: data.students.map(item => item.id === studentId ? student : item), attendance: { ...data.attendance, ...Object.fromEntries(current.changes.map(change => [change.key, change.after])) }, makeupLinks: current.links };
 }

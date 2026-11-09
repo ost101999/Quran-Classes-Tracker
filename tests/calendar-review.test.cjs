@@ -289,3 +289,32 @@ test('a 60-minute class on Saturday and 30-minute class on Sunday matches [6, 6,
     const [afterReg60] = ingestCalendarReviews([regular60Student], [{ id: 's1', name: 'Bilal' }], { available: true, schedules: {}, reviews: { s1: single60Rev } });
     assert.equal(afterReg60.calendarReview.pending.length, 0);
 });
+
+test('weekly proposal re-prompts if student days in app or calendar days change after approval or ignore', () => {
+    const future = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+    // 1. Student has Wednesday [3], Calendar has Monday [1] (sig-mon)
+    let students = ingest([{ ...student(), days: [3] }], [], { weeklyDays: [1], weeklySignature: 'sig-mon' });
+    assert.equal(students[0].calendarReview.pending.length, 1);
+
+    // 2. Teacher approves updating to Monday [1]
+    let data = state(students);
+    let committed = commitCalendarAction(data, 's1', prepareCalendarAction(data, 's1', students[0].calendarReview.pending[0].id, 'weekly', { effectiveFrom: future }));
+    assert.deepEqual(json(committed.students[0].days), [1]);
+    assert.equal(committed.students[0].calendarReview.pending.length, 0);
+
+    // 3. Teacher manually changes student days back to Wednesday [3] in the app -> should immediately re-propose!
+    const manuallyEdited = [{ ...committed.students[0], days: [3] }];
+    students = ingest(manuallyEdited, [], { weeklyDays: [1], weeklySignature: 'sig-mon' });
+    assert.equal(students[0].calendarReview.pending.length, 1);
+    assert.deepEqual(json(students[0].calendarReview.pending[0].days), [1]);
+
+    // 4. Teacher clicks Ignore this time -> stays silent while App=[3] & Calendar=[1]
+    data = state(students);
+    committed = commitCalendarAction(data, 's1', prepareCalendarAction(data, 's1', students[0].calendarReview.pending[0].id, 'ignore'));
+    students = ingest(committed.students, [], { weeklyDays: [1], weeklySignature: 'sig-mon' });
+    assert.equal(students[0].calendarReview.pending.length, 0);
+
+    // 5. Teacher changes student days in App to Thursday [4] -> new mismatch prompts again!
+    students = ingest([{ ...students[0], days: [4] }], [], { weeklyDays: [1], weeklySignature: 'sig-mon' });
+    assert.equal(students[0].calendarReview.pending.length, 1);
+});
