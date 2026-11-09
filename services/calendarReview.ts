@@ -2,7 +2,7 @@ import { AttendanceStatus, type Student, type CalendarOccurrence, type CalendarP
 import { cairoDate, replaceScheduleFrom, scheduledCount } from './studentSchedule';
 
 export type CalendarAction = 'schedule' | 'double' | 'makeup' | 'apology' | 'absence' | 'teacher' | 'move' | 'weekly' | 'ignore';
-export type ReviewData = { students: Student[]; attendance: AttendanceRecord; makeupLinks: MakeupLink[]; savedReports: Record<string, unknown>; savedReportDrafts?: Record<string, unknown>; lastReports?: Record<string, unknown> };
+export type ReviewData = { students: Student[]; attendance: AttendanceRecord; makeupLinks: MakeupLink[]; savedReports: Record<string, unknown>; savedReportDrafts?: Record<string, unknown>; lastReports?: Record<string, unknown>; dayTransitionTime?: string };
 export type ActionOptions = { sourceDate?: string; effectiveFrom?: string; doubleTarget?: boolean };
 export type CalendarActionPreview = { guard: string; changes: { key: string; date: string; before: AttendanceStatus | undefined; after: AttendanceStatus }[]; lines: string[]; requiresReplace: boolean; student: Student; links: MakeupLink[]; proposal: CalendarProposal; action: CalendarAction; options: ActionOptions };
 const green = new Set(['2', '10']);
@@ -47,12 +47,26 @@ export function ingestCalendarReviews(students: Student[], requests: { id: strin
       }
     }
     const presentIds = new Set(snapshot.events.map(event => event.id));
+    const archivedIds = new Set(snapshot.archivedIds || []);
+    const archivedStarts = new Set(snapshot.archivedStarts || []);
     for (const [id, item] of Object.entries(observed)) {
-      if (item.present !== presentIds.has(id)) observed[id] = { ...item, present: presentIds.has(id) };
+      const isPresent = presentIds.has(id);
+      const isArchived = !isPresent && (archivedIds.has(id) || archivedStarts.has(item.event.start));
+      if (!isPresent && !isArchived) {
+        pending = pending.filter(proposal => proposal.event?.id !== id);
+        delete observed[id];
+        continue;
+      }
+      if (item.present !== isPresent) observed[id] = { ...item, present: isPresent };
     }
     if (snapshot.weeklySignature && snapshot.weeklyDays) {
       pending = pending.filter(item => item.kind !== 'weekly' || item.signature === snapshot.weeklySignature);
-      if (!sameDays(student.days || [], snapshot.weeklyDays)) propose({ id: `weekly:${snapshot.weeklySignature}`, kind: 'weekly', signature: snapshot.weeklySignature, days: snapshot.weeklyDays, detectedAt: snapshot.fetchedAt });
+      const currentDays = student.days || [];
+      const hasDoubleDay = currentDays.some((day, index) => currentDays.indexOf(day) !== index);
+      const matchesWeekly = sameDays(currentDays, snapshot.weeklyDays)
+        || (!!snapshot.weeklyExpandedDays && (student.duration === 'خليط' || hasDoubleDay) && sameDays(currentDays, snapshot.weeklyExpandedDays));
+      const proposedDays = (student.duration === 'خليط' || hasDoubleDay) && snapshot.weeklyExpandedDays ? snapshot.weeklyExpandedDays : snapshot.weeklyDays;
+      if (!matchesWeekly) propose({ id: `weekly:${snapshot.weeklySignature}`, kind: 'weekly', signature: snapshot.weeklySignature, days: proposedDays, detectedAt: snapshot.fetchedAt });
       else pending = pending.filter(item => item.kind !== 'weekly');
     } else pending = pending.filter(item => item.kind !== 'weekly');
     // Keep detected colors even when an external script clears/archives the event.
@@ -97,9 +111,10 @@ export function prepareCalendarAction(data: ReviewData, studentId: string, propo
   };
   if (action === 'ignore') lines.push('تجاهل هذا الاقتراح دون تغيير بيانات الطالب.');
   else if (action === 'weekly') {
-    const effective = options.effectiveFrom || cairoDate();
+    const todayCairo = cairoDate(new Date(), data.dayTransitionTime);
+    const effective = options.effectiveFrom || todayCairo;
     dateKey(studentId, effective);
-    if (effective < cairoDate()) throw new Error('تاريخ بداية الجدول الجديد يجب أن يكون اليوم أو بعده لحماية سجل الحصص السابق.');
+    if (effective < todayCairo) throw new Error('تاريخ بداية الجدول الجديد يجب أن يكون اليوم أو بعده لحماية سجل الحصص السابق.');
     if (!proposal.days?.length || proposal.days.some(day => day < 0 || day > 6)) throw new Error('الأيام المقترحة غير صالحة.');
     updatedStudent = replaceScheduleFrom(student, proposal.days, effective);
     for (const key of new Set([...Object.keys(data.attendance), ...Object.keys(data.savedReports), ...Object.keys(data.savedReportDrafts || {})])) {
@@ -115,7 +130,7 @@ export function prepareCalendarAction(data: ReviewData, studentId: string, propo
     lines.push(`تحديث الأيام الثابتة ابتداءً من ${effective}، مع الاحتفاظ بالجدول السابق قبل هذا التاريخ.`);
   } else {
     if (!proposal.event) throw new Error('بيانات الحصة غير متاحة.');
-    const target = cairoDate(proposal.event.start);
+    const target = cairoDate(proposal.event.start, data.dayTransitionTime);
     const targetParts = dateKey(studentId, target);
     if (action === 'schedule' || action === 'double') add(target, action === 'double' ? AttendanceStatus.EXTRA_DOUBLE : AttendanceStatus.EXTRA_DAY);
     else if (action === 'apology') add(target, AttendanceStatus.ABSENCE_RED);
@@ -124,7 +139,7 @@ export function prepareCalendarAction(data: ReviewData, studentId: string, propo
       const isDouble = scheduledCount(student, targetParts.day, targetParts.month, targetParts.year) >= 2 || [AttendanceStatus.EXTRA_DOUBLE, AttendanceStatus.DOUBLE_CLASS, AttendanceStatus.PAID_ABSENCE_DOUBLE].includes(data.attendance[targetParts.key]);
       add(target, isDouble ? AttendanceStatus.PAID_ABSENCE_DOUBLE : AttendanceStatus.PAID_ABSENCE);
     } else {
-      const source = action === 'move' ? (proposal.from ? cairoDate(proposal.from) : '') : options.sourceDate || (proposal.from ? cairoDate(proposal.from) : '');
+      const source = action === 'move' ? (proposal.from ? cairoDate(proposal.from, data.dayTransitionTime) : '') : options.sourceDate || (proposal.from ? cairoDate(proposal.from, data.dayTransitionTime) : '');
       const sourceParts = dateKey(studentId, source);
       if (source === target) {
         if (action === 'makeup') throw new Error('اختر يوم الحصة الأصلية مختلفًا عن يوم التعويض.');
@@ -132,7 +147,7 @@ export function prepareCalendarAction(data: ReviewData, studentId: string, propo
       } else {
         const sourceStatus = data.attendance[sourceParts.key];
         const sourceCount = scheduledCount(student, sourceParts.day, sourceParts.month, sourceParts.year);
-        const otherSourceEvent = Object.values(student.calendarReview?.observed || {}).some(item => item.present !== false && item.event.id !== proposal.event!.id && cairoDate(item.event.start) === source);
+        const otherSourceEvent = Object.values(student.calendarReview?.observed || {}).some(item => item.present !== false && item.event.id !== proposal.event!.id && cairoDate(item.event.start, data.dayTransitionTime) === source);
         if (sourceCount > 1 || [AttendanceStatus.EXTRA_DOUBLE, AttendanceStatus.DOUBLE_CLASS, AttendanceStatus.PAID_ABSENCE_DOUBLE].includes(sourceStatus) || otherSourceEvent) throw new Error('اليوم الأصلي يحتوي على أكثر من حصة أو حدث آخر. راجعه يدويًا حتى لا تُلغى الحصة الأخرى.');
         const targetCount = scheduledCount(student, targetParts.day, targetParts.month, targetParts.year);
         if (!options.doubleTarget && (targetCount > 0 || data.attendance[targetParts.key] === AttendanceStatus.EXTRA_DAY)) throw new Error('اليوم الجديد به حصة مجدولة بالفعل. اختر «حصة ثانية في نفس اليوم» إذا كان المقصود إضافة الحصة المنقولة إليها.');
@@ -145,7 +160,7 @@ export function prepareCalendarAction(data: ReviewData, studentId: string, propo
     }
   }
   const requiresReplace = changes.some(change => !!change.before && ![AttendanceStatus.EXTRA_DAY, AttendanceStatus.EXTRA_DOUBLE, AttendanceStatus.EXEMPT].includes(change.before));
-  const guard = JSON.stringify([student, changes.map(change => [change.key, change.before || '', data.savedReports[change.key], data.savedReportDrafts?.[change.key], data.lastReports?.[change.key]]), data.makeupLinks, action, options]);
+  const guard = JSON.stringify([student, changes.map(change => [change.key, change.before || '', data.savedReports[change.key], data.savedReportDrafts?.[change.key], data.lastReports?.[change.key]]), data.makeupLinks, action, options, data.dayTransitionTime || '00:00']);
   return { guard, changes, lines, requiresReplace, student: updatedStudent, links, proposal, action, options };
 }
 

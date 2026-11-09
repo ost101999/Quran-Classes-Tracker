@@ -12,7 +12,7 @@ const { createSelectiveSync, cloudProjection, get } = require('./selective-sync'
 const { readMatches } = require('./shortcut-links');
 const { createCalendarSchedules } = require('./calendar-schedules');
 const getCalendarSchedules = createCalendarSchedules();
-ipcMain.handle('get-calendar-schedules', (_event, students, force, review) => getCalendarSchedules(students, { force: force === true, review: review === true }));
+ipcMain.handle('get-calendar-schedules', (_event, students, force, review, dayTransitionTime) => getCalendarSchedules(students, { force: force === true, review: review === true, dayTransitionTime }));
 const chromeTabBridge = createChromeTabBridge({ onFocus: focusChromeWindow });
 
 ipcMain.handle('get-shortcut-links', (_event, students) => {

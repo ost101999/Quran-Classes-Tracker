@@ -1,9 +1,25 @@
 import type { Student } from '../types';
 
-export function cairoDate(value: string | number | Date = new Date()): string {
-  const parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Cairo', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(value));
+export function parseTransitionMinutes(dayTransitionTime = '00:00'): number {
+  const match = /^(\d{1,2}):(\d{2})$/.exec(String(dayTransitionTime || '00:00').trim());
+  if (!match) return 0;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (!Number.isInteger(hour) || !Number.isInteger(minute) || hour < 0 || hour > 23 || minute < 0 || minute > 59) return 0;
+  return hour * 60 + minute;
+}
+
+export function cairoDate(value: string | number | Date = new Date(), dayTransitionTime = '00:00'): string {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Africa/Cairo', year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).formatToParts(new Date(value));
   const get = (type: string) => parts.find(part => part.type === type)!.value;
-  return `${get('year')}-${get('month')}-${get('day')}`;
+  const date = new Date(Date.UTC(Number(get('year')), Number(get('month')) - 1, Number(get('day'))));
+  if (Number(get('hour')) * 60 + Number(get('minute')) < parseTransitionMinutes(dayTransitionTime)) {
+    date.setUTCDate(date.getUTCDate() - 1);
+  }
+  return date.toISOString().slice(0, 10);
 }
 
 export function scheduleConfigOnDate(student: Student, date: string) {

@@ -82,7 +82,10 @@ export interface CalendarReviewSnapshot {
   name: string;
   fetchedAt: string;
   events: CalendarOccurrence[];
+  archivedIds?: string[];
+  archivedStarts?: string[];
   weeklyDays?: number[];
+  weeklyExpandedDays?: number[];
   weeklySignature?: string;
 }
 export interface CalendarProposal {

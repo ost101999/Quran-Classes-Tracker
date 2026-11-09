@@ -7,11 +7,12 @@ import { cairoDate } from '../services/studentSchedule';
 const days = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
 const dayNames = (values: number[]) => [...values].sort((a, b) => (a + 1) % 7 - (b + 1) % 7).map(day => days[day]).join('، ');
 const dateLabel = (value: string) => new Intl.DateTimeFormat('ar-EG', { timeZone: 'Africa/Cairo', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(value));
+const effectiveDayLabel = (value: string, dayTransitionTime?: string) => new Intl.DateTimeFormat('ar-EG', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(`${cairoDate(value, dayTransitionTime)}T12:00:00Z`));
 
 const ProposalCard: React.FC<{ student: Student; proposal: CalendarProposal; data: ReviewData; disabled: boolean; onConfirm: (studentId: string, preview: CalendarActionPreview, replace: boolean) => void }> = ({ student, proposal, data, disabled, onConfirm }) => {
   const [action, setAction] = useState<CalendarAction | ''>(proposal.kind === 'red' ? '' : proposal.kind === 'weekly' ? 'weekly' : proposal.kind === 'moved' ? 'move' : 'schedule');
-  const [sourceDate, setSourceDate] = useState(proposal.from ? cairoDate(proposal.from) : '');
-  const [effectiveFrom, setEffectiveFrom] = useState(cairoDate());
+  const [sourceDate, setSourceDate] = useState(proposal.from ? cairoDate(proposal.from, data.dayTransitionTime) : '');
+  const [effectiveFrom, setEffectiveFrom] = useState(cairoDate(new Date(), data.dayTransitionTime));
   const [doubleTarget, setDoubleTarget] = useState(false);
   const [preview, setPreview] = useState<CalendarActionPreview | null>(null);
   const [replace, setReplace] = useState(false);
@@ -21,8 +22,16 @@ const ProposalCard: React.FC<{ student: Student; proposal: CalendarProposal; dat
   const resetPreview = () => { setPreview(null); setReplace(false); setError(''); };
   const prepare = () => {
     if (!action) return;
-    try { setPreview(prepareCalendarAction(data, student.id, proposal.id, action, options)); setError(''); setReplace(false); }
-    catch (err) { setError((err as Error).message); }
+    try {
+      const nextPreview = prepareCalendarAction(data, student.id, proposal.id, action, options);
+      setError('');
+      if (nextPreview.requiresReplace) {
+        setPreview(nextPreview);
+        setReplace(false);
+        return;
+      }
+      onConfirm(student.id, nextPreview, false);
+    } catch (err) { setError((err as Error).message); }
   };
   const confirm = (value: CalendarActionPreview, allowReplace = false) => {
     try { onConfirm(student.id, value, allowReplace); setError(''); }
@@ -36,11 +45,11 @@ const ProposalCard: React.FC<{ student: Student; proposal: CalendarProposal; dat
       <span aria-hidden="true" className={`shrink-0 w-5 h-5 mt-2 rounded-full ${proposal.kind === 'red' ? 'bg-red-500' : 'border-2 border-blue-400'}`} />
     </div>
     {proposal.event && <div className="bg-gray-50 rounded-xl p-3 text-sm text-gray-700">
-      {proposal.from && <p>من: {dateLabel(proposal.from)}</p>}
-      <p>{proposal.from ? 'إلى: ' : 'الموعد: '}{dateLabel(proposal.event.start)}</p>
-      <p className="text-xs text-gray-500 mt-1">التاريخ والوقت أعلاه بتوقيت القاهرة لتحديد خانة الحضور.</p>
+      {proposal.from && <p>من: {dateLabel(proposal.from)}{cairoDate(proposal.from, data.dayTransitionTime) !== cairoDate(proposal.from) ? ` (يُحسب يوم ${effectiveDayLabel(proposal.from, data.dayTransitionTime)})` : ''}</p>}
+      <p>{proposal.from ? 'إلى: ' : 'الموعد: '}{dateLabel(proposal.event.start)}{cairoDate(proposal.event.start, data.dayTransitionTime) !== cairoDate(proposal.event.start) ? ` (يُحسب يوم ${effectiveDayLabel(proposal.event.start, data.dayTransitionTime)})` : ''}</p>
+      <p className="text-xs text-gray-500 mt-1">التاريخ والوقت أعلاه بتوقيت القاهرة لتحديد خانة الحضور{data.dayTransitionTime && data.dayTransitionTime !== '00:00' ? ` (بداية اليوم: ${data.dayTransitionTime})` : ''}.</p>
     </div>}
-    {proposal.kind === 'weekly' && <div className="bg-blue-50 rounded-xl p-3 text-sm text-blue-900"><p>الأيام الحالية: {dayNames(student.days || []) || 'غير محددة'}</p><p>الأيام المقترحة: {dayNames(proposal.days || [])}</p></div>}
+    {proposal.kind === 'weekly' && <div className="bg-blue-50 rounded-xl p-3 text-sm text-blue-900"><p>الأيام الحالية في التطبيق: {dayNames(student.days || []) || 'غير محددة'}</p><p>أيام جوجل كاليندر: {dayNames(proposal.days || [])}</p></div>}
     {missing && <p className="text-sm text-amber-700">هذا الحدث رُصد سابقًا ولم يظهر في آخر قراءة؛ قد يكون أُرشف أو حُذف. تحقق من الحصة قبل الموافقة.</p>}
     {proposal.event && student.calendarReview?.observed[proposal.event.id]?.event.colorId !== proposal.event.colorId && <p className="text-sm text-amber-700">لون الحدث تغيّر بعد رصد الاقتراح. احتفظنا بالملاحظة لتراجعها بنفسك.</p>}
     <label className="block text-sm font-bold text-gray-700">الإجراء المقترح
@@ -52,7 +61,7 @@ const ProposalCard: React.FC<{ student: Student; proposal: CalendarProposal; dat
       </select>
     </label>
     {action === 'makeup' && <label className="block text-sm">تاريخ الحصة الأصلية<input type="date" aria-label="تاريخ الحصة الأصلية" value={sourceDate} onChange={event => { setSourceDate(event.target.value); resetPreview(); }} className="block mt-1 border rounded-lg p-2" /></label>}
-    {action === 'weekly' && <label className="block text-sm">بداية تطبيق الأيام الجديدة<input type="date" aria-label="بداية الجدول الجديد" min={cairoDate()} value={effectiveFrom} onChange={event => { setEffectiveFrom(event.target.value); resetPreview(); }} className="block mt-1 border rounded-lg p-2" /></label>}
+    {action === 'weekly' && <label className="block text-sm">بداية تطبيق الأيام الجديدة<input type="date" aria-label="بداية الجدول الجديد" min={cairoDate(new Date(), data.dayTransitionTime)} value={effectiveFrom} onChange={event => { setEffectiveFrom(event.target.value); resetPreview(); }} className="block mt-1 border rounded-lg p-2" /></label>}
     {(action === 'makeup' || action === 'move') && <label className="flex gap-2 items-center text-sm"><input type="checkbox" checked={doubleTarget} onChange={event => { setDoubleTarget(event.target.checked); resetPreview(); }} />الموعد الجديد حصة ثانية في نفس اليوم</label>}
     {error && <p role="alert" className="text-red-700 text-sm">{error}</p>}
     {preview && <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2">
@@ -64,7 +73,7 @@ const ProposalCard: React.FC<{ student: Student; proposal: CalendarProposal; dat
       <button type="button" onClick={resetPreview} className="px-3 py-2 text-gray-600">رجوع</button>
     </div>}
     {!preview && <div className="flex gap-3">
-      <button type="button" disabled={disabled || !action} onClick={prepare} className="rounded-xl bg-blue-700 px-4 py-2 text-white font-bold text-sm disabled:opacity-40">مراجعة الاقتراح</button>
+      <button type="button" disabled={disabled || !action} onClick={prepare} className="rounded-xl bg-blue-700 px-4 py-2 text-white font-bold text-sm disabled:opacity-40">تأكيد</button>
       <button type="button" disabled={disabled} onClick={() => { try { confirm(prepareCalendarAction(data, student.id, proposal.id, 'ignore')); } catch (err) { setError((err as Error).message); } }} className="text-sm text-gray-600 px-3 py-2">تجاهل هذا التغيير</button>
     </div>}
   </article>;

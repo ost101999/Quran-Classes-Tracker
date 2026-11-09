@@ -2346,7 +2346,7 @@ function App() {
   const [calendarReading, setCalendarReading] = useState(false);
   const [calendarRefresh, setCalendarRefresh] = useState(0);
   const calendarForceRefresh = useRef(false);
-  const calendarReviewData = { students, attendance, makeupLinks, savedReports, savedReportDrafts, lastReports };
+  const calendarReviewData = { students, attendance, makeupLinks, savedReports, savedReportDrafts, lastReports, dayTransitionTime };
   const calendarReviewDataRef = useRef(calendarReviewData);
   calendarReviewDataRef.current = calendarReviewData;
   const calendarPendingCount = students.reduce((total, student) => total + (student.calendarReview?.name === student.name.trim() ? student.calendarReview.pending.length : 0), 0);
@@ -4755,7 +4755,7 @@ function App() {
         const requests = students.filter(student => !student.deletedAt || student.deletedAt.year > now.getFullYear() || (student.deletedAt.year === now.getFullYear() && student.deletedAt.month > now.getMonth())).map(({ id, name }) => ({ id, name }));
         const force = calendarForceRefresh.current;
         calendarForceRefresh.current = false;
-        const result = await window.electronAPI!.getCalendarSchedules!(requests, force, true);
+        const result = await window.electronAPI!.getCalendarSchedules!(requests, force, true, dayTransitionTime);
         if (!cancelled && !applyingCloudRef.current) {
           setCalendarReadError(!result.available ? result.error || 'تعذّر قراءة التقويم. الاقتراحات السابقة محفوظة.' : requests.length && !result.reviews ? 'أعد تشغيل التطبيق لتفعيل رصد ألوان الكاليندر وتغييرات الحصص.' : '');
           setStudents(previous => ingestCalendarReviews(applyCalendarSchedules(previous, requests, result), requests, result));
@@ -4773,7 +4773,7 @@ function App() {
       window.removeEventListener('focus', refresh);
       window.removeEventListener('online', refresh);
     };
-  }, [students, isLoaded, initialSyncReady, isModalOpen, syncConflicts.length, resolvingConflict, calendarRefresh]);
+  }, [students, isLoaded, initialSyncReady, isModalOpen, syncConflicts.length, resolvingConflict, calendarRefresh, dayTransitionTime]);
 
   // Read the shortcut file locally. Only unique, exact folder matches are linked
   // automatically, and existing links are never replaced.
@@ -8029,6 +8029,7 @@ function App() {
             } : undefined}
             students={students}
             showToast={showToast}
+            dayTransitionTime={dayTransitionTime}
           />
         )
       }

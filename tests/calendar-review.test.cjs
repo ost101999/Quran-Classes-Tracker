@@ -55,14 +55,17 @@ test('ignoring persists across reload and green color cleanup does not re-ask as
     assert.equal(recolored[0].calendarReview.pending[0].kind, 'red');
 });
 
-test('pending evidence survives archive/removal and color reset without inferring absence', () => {
+test('pending evidence survives archive and color reset, while deleted events are removed automatically', () => {
     const first = ingest([student()], [occurrence({ colorId: '11' })]);
     const reset = ingest(first, [occurrence({ colorId: '' })]);
     assert.equal(reset[0].calendarReview.pending.length, 1);
-    const removed = ingest(reset, []);
-    assert.equal(removed[0].calendarReview.pending.length, 1);
-    assert.equal(removed[0].calendarReview.observed['occurrence-1'].present, false);
-    assert.equal(ingest(removed, []), removed);
+    const archived = ingest(reset, [], { archivedIds: ['occurrence-1'] });
+    assert.equal(archived[0].calendarReview.pending.length, 1);
+    assert.equal(archived[0].calendarReview.observed['occurrence-1'].present, false);
+    assert.equal(ingest(archived, [], { archivedIds: ['occurrence-1'] }), archived);
+    const deleted = ingest(archived, []);
+    assert.equal(deleted[0].calendarReview.pending.length, 0);
+    assert.equal(deleted[0].calendarReview.observed['occurrence-1'], undefined);
 });
 
 test('a moved recurring exception is detected on first read; repeat reads do not re-prompt', () => {
@@ -218,4 +221,71 @@ test('moving one class must not erase another class at its source or silently me
     assert.throws(() => prepareCalendarAction(data, 's1', p.id, 'move'), /حصة مجدولة بالفعل/);
     const approved = commitCalendarAction(data, 's1', prepareCalendarAction(data, 's1', p.id, 'move', { doubleTarget: true }));
     assert.equal(approved.attendance.s1_12_10_2026, 'ed');
+});
+
+test('dayTransitionTime shifts early-morning Cairo classes and recurrence days to the previous day', async () => {
+    // 2026-11-10T23:00:00Z is Wednesday 2026-11-11 01:00 AM in Africa/Cairo (UTC+2).
+    // With dayTransitionTime = '07:00', 01:00 AM belongs to Tuesday 2026-11-10.
+    const wednesday1amCairo = '2026-11-10T23:00:00Z';
+    assert.equal(cairoDate(wednesday1amCairo, '00:00'), '2026-11-11');
+    assert.equal(cairoDate(wednesday1amCairo, '07:00'), '2026-11-10');
+
+    const e = occurrence({ start: wednesday1amCairo, end: '2026-11-10T23:30:00Z', colorId: '10', recurring: false });
+    const students = ingest([student()], [e]);
+    const data = { ...state(students), dayTransitionTime: '07:00' };
+    const proposal = students[0].calendarReview.pending[0];
+    const preview = prepareCalendarAction(data, 's1', proposal.id, 'schedule');
+    const committed = commitCalendarAction(data, 's1', preview);
+    assert.equal(committed.attendance[attendanceKey('s1', '2026-11-10')], 'e');
+    assert.equal(committed.attendance[attendanceKey('s1', '2026-11-11')], undefined);
+
+    // Recurrence on Wednesday 01:00 AM Cairo should map to Tuesday (2) when dayTransitionTime is 07:00.
+    const fakeNow = new Date('2026-11-09T12:00:00Z');
+    const starts = ['2026-11-03T23:00:00Z', '2026-11-10T23:00:00Z', '2026-11-17T23:00:00Z'];
+    const read = createCalendarSchedules({ now: () => fakeNow, readToken: () => ({ token: 'test', expiry: '2027-01-01T00:00:00Z' }), fetchImpl: async raw => {
+        const url = new URL(raw);
+        let value;
+        if (url.pathname.endsWith('/calendarList')) value = { items: [{ id: 'cal', summary: 'Students', selected: true }] };
+        else if (url.searchParams.get('singleEvents') === 'false') value = { items: [{ id: 'series', summary: 'Bilal', recurrence: ['RRULE:FREQ=WEEKLY;BYDAY=WE'], start: { dateTime: starts[0], timeZone: 'Africa/Cairo' } }] };
+        else value = { items: starts.map((start, index) => ({ id: `e${index}`, summary: 'Bilal', iCalUID: 'uid', colorId: '', recurringEventId: 'series', originalStartTime: { dateTime: start }, start: { dateTime: start, timeZone: 'Africa/Cairo' }, end: { dateTime: start } })) };
+        return { ok: true, status: 200, json: async () => value };
+    } });
+    const resMidnight = await read([{ id: 's1', name: 'Bilal' }], { review: true, dayTransitionTime: '00:00' });
+    assert.deepEqual(resMidnight.reviews.s1.weeklyDays, [3]); // Wednesday
+    const res7am = await read([{ id: 's1', name: 'Bilal' }], { review: true, dayTransitionTime: '07:00' });
+    assert.deepEqual(res7am.reviews.s1.weeklyDays, [2]); // Tuesday
+});
+
+test('a 60-minute class on Saturday and 30-minute class on Sunday matches [6, 6, 0] without false weekly prompt', () => {
+    // Next week Saturday (60 min) + Sunday (30 min)
+    const satStart = new Date(Date.parse(week.timeMax) + 12 * 3600000).toISOString();
+    const satEnd = new Date(Date.parse(satStart) + 60 * 60000).toISOString();
+    const sunStart = new Date(Date.parse(week.timeMax) + 86400000 + 12 * 3600000).toISOString();
+    const sunEnd = new Date(Date.parse(sunStart) + 30 * 60000).toISOString();
+    const events = [
+        { ...occurrence({ id: 'sat', start: satStart, end: satEnd, colorId: '', recurring: true }), name: 'Bilal', seriesKey: 's-sat' },
+        { ...occurrence({ id: 'sun', start: sunStart, end: sunEnd, colorId: '', recurring: true }), name: 'Bilal', seriesKey: 's-sun' },
+    ];
+    const snapshot = {
+        week, reviewTimeMax: new Date(Date.parse(week.timeMax) + 7 * 86400000).toISOString(), updatedAt: now.toISOString(), events,
+        masters: new Map([
+            ['s-sat', { recurrence: ['RRULE:FREQ=WEEKLY;BYDAY=SA'], start: { dateTime: satStart }, end: { dateTime: satEnd } }],
+            ['s-sun', { recurrence: ['RRULE:FREQ=WEEKLY;BYDAY=SU'], start: { dateTime: sunStart }, end: { dateTime: sunEnd } }],
+        ]),
+    };
+    const rev = reviewFor('Bilal', snapshot);
+    assert.deepEqual(rev.weeklyDays, [0, 6]);
+    assert.deepEqual(rev.weeklyExpandedDays, [0, 6, 6]);
+
+    // Student with [6, 6, 0] (السبت، السبت، الأحد) should NOT get a weekly proposal
+    const mixedStudent = { ...student(), days: [6, 6, 0], duration: 'خليط' };
+    const [afterIngest] = ingestCalendarReviews([mixedStudent], [{ id: 's1', name: 'Bilal' }], { available: true, schedules: {}, reviews: { s1: rev } });
+    assert.equal(afterIngest.calendarReview.pending.length, 0);
+
+    // Meanwhile, a regular 60-min student with [6] and a single 60-min Saturday event also does NOT get a prompt
+    const single60Snap = { ...snapshot, events: [events[0]], masters: new Map([['s-sat', snapshot.masters.get('s-sat')]]) };
+    const single60Rev = reviewFor('Bilal', single60Snap);
+    const regular60Student = { ...student(), days: [6], duration: '٦٠' };
+    const [afterReg60] = ingestCalendarReviews([regular60Student], [{ id: 's1', name: 'Bilal' }], { available: true, schedules: {}, reviews: { s1: single60Rev } });
+    assert.equal(afterReg60.calendarReview.pending.length, 0);
 });

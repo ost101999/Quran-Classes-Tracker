@@ -27,6 +27,7 @@ interface Props {
   showToast?: (msg: string) => void;
   openStudentWebInitially?: boolean;
   onAcknowledgeMissingReading?: (studentId: string, ids: string[]) => void;
+  dayTransitionTime?: string;
 }
 
 // Convert Western numerals to Hindi numerals
@@ -89,7 +90,7 @@ const shortcutIsComplete = (
   return !missing.some(item => item.folderId === source.folderId && !saved.acknowledged.includes(item.id));
 };
 
-const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollment, academies, student, academyRates, prefillAcademy, currentMonth, currentYear, onAssignTajweed, students, showToast, openStudentWebInitially = false, onAcknowledgeMissingReading }) => {
+const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollment, academies, student, academyRates, prefillAcademy, currentMonth, currentYear, onAssignTajweed, students, showToast, openStudentWebInitially = false, onAcknowledgeMissingReading, dayTransitionTime = '00:00' }) => {
   const [name, setName] = useState(student?.name || '');
   const [academy, setAcademy] = useState(student?.academy || prefillAcademy || '');
   const [studentTargetAge, setStudentTargetAge] = useState<'kids' | 'adults'>(student?.targetAge || 'adults');
@@ -158,7 +159,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
       setScheduleError('');
       try {
         const id = student?.id || 'draft';
-        const result = await window.electronAPI!.getCalendarSchedules!([{ id, name }], force);
+        const result = await window.electronAPI!.getCalendarSchedules!([{ id, name }], force, false, dayTransitionTime);
         if (cancelled) return;
         const schedule = result.schedules[id];
         if (!result.available || !isCurrentSchedule(schedule, name)) {
@@ -186,7 +187,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
       window.removeEventListener('focus', onFocus);
       window.removeEventListener('online', onFocus);
     };
-  }, [showStudentWeb, name, student?.id, scheduleRefresh]);
+  }, [showStudentWeb, name, student?.id, scheduleRefresh, dayTransitionTime]);
 
   useLayoutEffect(() => {
     const panel = showStudentWeb ? studentWebPanelRef.current : mainPanelRef.current;
@@ -293,8 +294,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
     setDayStartDates(prev => {
       const next = { ...prev };
       let changed = false;
-      const today = new Date();
-      const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+      const todayStr = cairoDate(new Date(), dayTransitionTime);
 
       selectedDays.forEach(dayId => {
         // If it's a new day (not in original student and not in prev state)
@@ -428,7 +428,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
     // Once a calendar-reviewed schedule has history, a later manual edit must
     // also preserve the earlier periods instead of silently rewriting them.
     const daysChanged = student?.scheduleHistory?.length && (JSON.stringify(student.days || []) !== JSON.stringify(savedStudent.days || []) || JSON.stringify(student.dayStartDates || {}) !== JSON.stringify(savedStudent.dayStartDates || {}));
-    onSave(daysChanged ? { ...savedStudent, scheduleHistory: replaceScheduleFrom(student!, savedStudent.days || [], cairoDate(), savedStudent.dayStartDates).scheduleHistory } : savedStudent);
+    onSave(daysChanged ? { ...savedStudent, scheduleHistory: replaceScheduleFrom(student!, savedStudent.days || [], cairoDate(new Date(), dayTransitionTime), savedStudent.dayStartDates).scheduleHistory } : savedStudent);
   };
 
   const filteredAcademies = academies.filter(ac =>

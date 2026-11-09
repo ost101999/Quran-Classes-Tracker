@@ -15,8 +15,25 @@ function dateParts(date, timeZone) {
     }).formatToParts(date).filter(part => part.type !== 'literal').map(part => [part.type, Number(part.value)]));
 }
 
-function localMidnight(ymd) {
-    const wall = Date.parse(`${ymd}T00:00:00Z`);
+function parseTransitionMinutes(dayTransitionTime = '00:00') {
+    const match = /^(\d{1,2}):(\d{2})$/.exec(String(dayTransitionTime || '00:00').trim());
+    if (!match) return 0;
+    const hour = Number(match[1]);
+    const minute = Number(match[2]);
+    if (!Number.isInteger(hour) || !Number.isInteger(minute) || hour < 0 || hour > 23 || minute < 0 || minute > 59) return 0;
+    return hour * 60 + minute;
+}
+
+function effectiveDateForParts(p, transitionMinutes = 0) {
+    const day = new Date(Date.UTC(p.year, p.month - 1, p.day));
+    if (p.hour * 60 + p.minute < transitionMinutes) day.setUTCDate(day.getUTCDate() - 1);
+    return day;
+}
+
+function localTime(ymd, transitionMinutes = 0) {
+    const hour = Math.floor(transitionMinutes / 60);
+    const minute = transitionMinutes % 60;
+    const wall = Date.parse(`${ymd}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00Z`);
     let instant = wall;
     for (let attempt = 0; attempt < 4; attempt++) {
         const p = dateParts(new Date(instant), CAIRO);
@@ -27,16 +44,17 @@ function localMidnight(ymd) {
     throw new Error('تعذّر تحديد بداية الأسبوع بتوقيت القاهرة.');
 }
 
-function currentWeek(now = new Date()) {
+function currentWeek(now = new Date(), dayTransitionTime = '00:00') {
+    const transitionMinutes = parseTransitionMinutes(dayTransitionTime);
     const p = dateParts(now, CAIRO);
-    const day = new Date(Date.UTC(p.year, p.month - 1, p.day));
+    const day = effectiveDateForParts(p, transitionMinutes);
     day.setUTCDate(day.getUTCDate() - (day.getUTCDay() + 1) % 7);
     const weekStart = day.toISOString().slice(0, 10);
     day.setUTCDate(day.getUTCDate() + 6);
     const weekEnd = day.toISOString().slice(0, 10);
     day.setUTCDate(day.getUTCDate() + 1);
-    // Exclusive next-Saturday boundary includes every second of Friday.
-    return { weekStart, weekEnd, timeMin: localMidnight(weekStart), timeMax: localMidnight(day.toISOString().slice(0, 10)) };
+    // Exclusive next-Saturday boundary includes every second of Friday's effective day.
+    return { weekStart, weekEnd, timeMin: localTime(weekStart, transitionMinutes), timeMax: localTime(day.toISOString().slice(0, 10), transitionMinutes) };
 }
 
 function scheduleFor(name, events, week, updatedAt) {
@@ -102,10 +120,11 @@ function createCalendarSchedules({ fetchImpl = globalThis.fetch, readToken = () 
             return request(url, { headers: { Authorization: `Bearer ${await token(true)}` } });
         }
     }
-    async function readWeek(week, review = false) {
+    async function readWeek(week, review = false, dayTransitionTime = '00:00') {
+        const transitionMinutes = parseTransitionMinutes(dayTransitionTime);
         const shiftDate = (date, days) => new Date(Date.parse(`${date}T12:00:00Z`) + days * 86400000).toISOString().slice(0, 10);
-        const timeMin = review ? localMidnight(shiftDate(week.weekStart, -7)) : week.timeMin;
-        const timeMax = review ? localMidnight(shiftDate(week.weekStart, 14)) : week.timeMax;
+        const timeMin = review ? localTime(shiftDate(week.weekStart, -7), transitionMinutes) : week.timeMin;
+        const timeMax = review ? localTime(shiftDate(week.weekStart, 14), transitionMinutes) : week.timeMax;
         const calendars = [];
         let pageToken = '';
         do {
@@ -161,21 +180,22 @@ function createCalendarSchedules({ fetchImpl = globalThis.fetch, readToken = () 
             }
         }
         // Failures above reject the entire snapshot instead of publishing a partial schedule.
-        return { week, events, masters, review, reviewTimeMax: timeMax, updatedAt: now().toISOString() };
+        return { week, events, masters, review, reviewTimeMax: timeMax, transitionMinutes, updatedAt: now().toISOString() };
     }
-    return async function getSchedules(students, { force = false, review = false } = {}) {
+    return async function getSchedules(students, { force = false, review = false, dayTransitionTime = '00:00' } = {}) {
         const requests = (Array.isArray(students) ? students : []).filter(student => typeof student?.id === 'string' && typeof student?.name === 'string' && student.name.trim());
         if (!requests.length) return { available: true, schedules: {} };
         try {
-            const week = currentWeek(now());
-            if (!pending && (force || !snapshot || (review && !snapshot.review) || snapshot.week.weekStart !== week.weekStart || now().getTime() - Date.parse(snapshot.updatedAt) >= 55000)) {
-                pending = readWeek(week, review).then(value => { snapshot = value; }).finally(() => { pending = null; });
+            const transitionMinutes = parseTransitionMinutes(dayTransitionTime);
+            const week = currentWeek(now(), dayTransitionTime);
+            if (!pending && (force || !snapshot || (review && !snapshot.review) || snapshot.transitionMinutes !== transitionMinutes || snapshot.week.weekStart !== week.weekStart || now().getTime() - Date.parse(snapshot.updatedAt) >= 55000)) {
+                pending = readWeek(week, review, dayTransitionTime).then(value => { snapshot = value; }).finally(() => { pending = null; });
             }
             if (pending) await pending;
-            if (review && !snapshot.review) return getSchedules(students, { review: true });
-            if (snapshot.week.weekStart !== currentWeek(now()).weekStart) throw new Error('بدأ أسبوع جديد أثناء التحديث. أعد المحاولة.');
+            if ((review && !snapshot.review) || snapshot.transitionMinutes !== transitionMinutes) return getSchedules(students, { review, dayTransitionTime });
+            if (snapshot.week.weekStart !== currentWeek(now(), dayTransitionTime).weekStart) throw new Error('بدأ أسبوع جديد أثناء التحديث. أعد المحاولة.');
             return { available: true, schedules: Object.fromEntries(requests.map(student => [student.id, scheduleFor(student.name, snapshot.events, snapshot.week, snapshot.updatedAt)])),
-                ...(review ? { reviews: Object.fromEntries(requests.map(student => [student.id, reviewFor(student.name, snapshot)])) } : {}),
+                ...(review ? { reviews: Object.fromEntries(requests.map(student => [student.id, reviewFor(student.name, snapshot, dayTransitionTime)])) } : {}),
             };
         } catch (error) {
             snapshot = undefined;
@@ -184,8 +204,11 @@ function createCalendarSchedules({ fetchImpl = globalThis.fetch, readToken = () 
     };
 }
 
-function reviewFor(name, snapshot) {
-    const events = snapshot.events.filter(event => event.name === name.trim() && !event.archive);
+function reviewFor(name, snapshot, dayTransitionTime = '00:00') {
+    const transitionMinutes = snapshot.transitionMinutes !== undefined ? snapshot.transitionMinutes : parseTransitionMinutes(dayTransitionTime);
+    const studentEvents = snapshot.events.filter(event => event.name === name.trim());
+    const events = studentEvents.filter(event => !event.archive);
+    const archivedEvents = studentEvents.filter(event => event.archive);
     const nextWeekOccurrence = event => Date.parse(event.originalStart || event.start) >= Date.parse(snapshot.week.timeMax) && Date.parse(event.originalStart || event.start) < Date.parse(snapshot.reviewTimeMax);
     const seriesKeys = [...new Set(events.filter(event => event.recurring && nextWeekOccurrence(event)).map(event => event.seriesKey))];
     const days = [];
@@ -198,18 +221,32 @@ function reviewFor(name, snapshot) {
         // Only an unbounded weekly rule is evidence of a permanent weekly plan.
         if (rule.FREQ !== 'WEEKLY' || (rule.INTERVAL && rule.INTERVAL !== '1') || Object.keys(rule).some(k => !['FREQ', 'INTERVAL', 'BYDAY', 'WKST'].includes(k)) || (rule.BYDAY && !/^(MO|TU|WE|TH|FR|SA|SU)(,(MO|TU|WE|TH|FR|SA|SU))*$/.test(rule.BYDAY))) { complete = false; break; }
         const expected = rule.BYDAY ? rule.BYDAY.split(',').length : 1;
-        const starts = [...new Set(events.filter(event => event.seriesKey === key).map(event => event.originalStart || event.start))]
-            .filter(start => Date.parse(start) >= Date.parse(snapshot.week.timeMax) && Date.parse(start) < Date.parse(snapshot.reviewTimeMax));
-        if (starts.length !== expected) { complete = false; break; }
-        for (const start of starts) {
-            const p = dateParts(new Date(start), CAIRO);
-            days.push(new Date(Date.UTC(p.year, p.month - 1, p.day)).getUTCDay());
+        const seriesEvents = new Map();
+        for (const event of events.filter(event => event.seriesKey === key)) {
+            const start = event.originalStart || event.start;
+            if (Date.parse(start) >= Date.parse(snapshot.week.timeMax) && Date.parse(start) < Date.parse(snapshot.reviewTimeMax) && !seriesEvents.has(start)) {
+                seriesEvents.set(start, event);
+            }
         }
-        signatures.push([identityHash(key), master.recurrence, master.start]);
+        if (seriesEvents.size !== expected) { complete = false; break; }
+        const masterDurationMs = master.end?.dateTime && master.start?.dateTime ? Date.parse(master.end.dateTime) - Date.parse(master.start.dateTime) : 0;
+        for (const [start, event] of seriesEvents) {
+            const p = dateParts(new Date(start), CAIRO);
+            const dow = effectiveDateForParts(p, transitionMinutes).getUTCDay();
+            const durationMs = event.originalStart ? masterDurationMs : Date.parse(event.end || event.start) - Date.parse(event.start);
+            days.push({ dow, durationMinutes: Number.isFinite(durationMs) && durationMs > 0 ? Math.round(durationMs / 60000) : 0 });
+        }
+        signatures.push([identityHash(key), master.recurrence, master.start, master.end, transitionMinutes]);
     }
+    const sortedDays = days.map(item => item.dow).sort((a, b) => a - b);
+    const expandedDays = days.flatMap(item => item.durationMinutes >= 55 ? [item.dow, item.dow] : [item.dow]).sort((a, b) => a - b);
     return { name: name.trim(), fetchedAt: snapshot.updatedAt,
         events: events.map(({ id, start, end, originalStart, timeZone, colorId, recurring }) => ({ id, start, end, ...(originalStart ? { originalStart } : {}), timeZone, colorId, recurring })),
-        ...(complete ? { weeklyDays: days.sort((a, b) => a - b), weeklySignature: identityHash(signatures.sort((a, b) => a[0].localeCompare(b[0]))) } : {}),
+        ...(archivedEvents.length ? {
+            archivedIds: [...new Set(archivedEvents.map(event => event.id))],
+            archivedStarts: [...new Set(archivedEvents.map(event => event.start))],
+        } : {}),
+        ...(complete ? { weeklyDays: sortedDays, ...(JSON.stringify(expandedDays) !== JSON.stringify(sortedDays) ? { weeklyExpandedDays: expandedDays } : {}), weeklySignature: identityHash(signatures.sort((a, b) => a[0].localeCompare(b[0]))) } : {}),
     };
 }
 
