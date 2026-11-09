@@ -14,7 +14,7 @@ export function applyCalendarSchedules(students: Student[], requests: { id: stri
     const previous = student.calendarSchedule;
     if (previous && Date.parse(previous.updatedAt) > Date.parse(schedule.updatedAt)) return student;
     // Avoid rewriting every student/cloud record when only the fetch timestamp changes.
-    if (previous?.weekStart === schedule.weekStart && previous?.name === schedule.name && student.scheduleMessage === schedule.message && JSON.stringify(previous.slots) === JSON.stringify(schedule.slots)) return student;
+    if (previous?.weekStart === schedule.weekStart && previous?.name === schedule.name && student.scheduleMessage === schedule.message && JSON.stringify(previous.slots || []) === JSON.stringify(schedule.slots || [])) return student;
     changed = true;
     return { ...student, scheduleMessage: schedule.message, calendarSchedule: schedule };
   });

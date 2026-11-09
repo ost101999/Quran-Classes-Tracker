@@ -408,3 +408,26 @@ test('deleting future recurring classes in Google Calendar proposes ending enrol
     assert.deepEqual(json(committed.students[0].days), []);
     assert.ok(committed.students[0].deletedAt);
 });
+
+test('handles Firebase-stripped calendarReview with undefined pending, observed, and decisions', () => {
+    const firebaseStripped = {
+        ...student(),
+        calendarReview: {
+            name: 'Bilal',
+            weeklySignature: 'sig-1',
+        },
+    };
+    const [updated] = ingestCalendarReviews([firebaseStripped], [{ id: 's1', name: 'Bilal' }], {
+        available: true,
+        schedules: {},
+        reviews: {
+            s1: {
+                name: 'Bilal',
+                fetchedAt: now.toISOString(),
+                events: [{ id: 'ev1', start: '2026-11-12T17:00:00.000Z', end: '2026-11-12T17:30:00.000Z', timeZone: 'Europe/Stockholm', colorId: '11', recurring: true }],
+            },
+        },
+    });
+    assert.equal(updated.calendarReview.pending.length, 1);
+    assert.equal(updated.calendarReview.pending[0].kind, 'red');
+});

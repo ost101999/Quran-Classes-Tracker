@@ -51,7 +51,14 @@ export function ingestCalendarReviews(students: Student[], requests: { id: strin
     if (!snapshot || requested.get(student.id) !== student.name || snapshot.name !== student.name.trim()) return student;
     // Identical names in separate student records need manual disambiguation.
     if (students.filter(item => item.name.trim() === student.name.trim()).length > 1) return student;
-    const old: CalendarReviewState = student.calendarReview?.name === snapshot.name ? student.calendarReview : { name: snapshot.name, observed: {}, pending: [], decisions: {} };
+    const old: CalendarReviewState = student.calendarReview?.name === snapshot.name
+      ? {
+          ...student.calendarReview,
+          observed: student.calendarReview.observed || {},
+          pending: Array.isArray(student.calendarReview.pending) ? student.calendarReview.pending : [],
+          decisions: student.calendarReview.decisions || {},
+        }
+      : { name: snapshot.name, observed: {}, pending: [], decisions: {} };
     const observed = { ...old.observed };
     let pending = [...old.pending];
     const decisions = { ...old.decisions };
@@ -120,11 +127,14 @@ export function ingestCalendarReviews(students: Student[], requests: { id: strin
         else pending = pending.filter(item => item.kind !== 'weekly');
       } else {
         const currentDays = student.days || [];
+        const fetchedMs = Date.parse(snapshot.fetchedAt);
+        const hasFutureEvents = snapshot.events.some(event => Date.parse(event.start) >= fetchedMs);
         const hadCalendarSchedule = Boolean(
           old.weeklySignature
-          || (result.schedules?.[student.id]?.slots?.length === 0 && (Object.values(old.observed).some(item => item.event.recurring) || snapshot.events.some(event => event.recurring)))
+          || Object.values(old.observed).some(item => item.event.recurring)
+          || snapshot.events.some(event => event.recurring)
         );
-        if (currentDays.length > 0 && !student.deletedAt && hadCalendarSchedule) {
+        if (currentDays.length > 0 && !student.deletedAt && result.schedules?.[student.id]?.slots?.length === 0 && !hasFutureEvents && hadCalendarSchedule) {
           const weeklyId = `weekly:ended:${[...currentDays].sort().join(',')}`;
           pending = pending.filter(item => item.kind !== 'weekly' || item.id === weeklyId);
           for (const key of Object.keys(decisions)) {
@@ -158,7 +168,7 @@ function dateKey(studentId: string, date: string) {
 
 export function prepareCalendarAction(data: ReviewData, studentId: string, proposalId: string, action: CalendarAction, options: ActionOptions = {}): CalendarActionPreview {
   const student = data.students.find(item => item.id === studentId);
-  const proposal = student?.calendarReview?.pending.find(item => item.id === proposalId);
+  const proposal = (student?.calendarReview?.pending || []).find(item => item.id === proposalId);
   if (!student || !proposal || student.calendarReview?.name !== student.name.trim()) throw new Error('الاقتراح لم يعد متاحًا. افتح المراجعة من جديد.');
   const allowed = proposal.kind === 'red' ? ['apology', 'absence', 'teacher'] : proposal.kind === 'reset' ? ['reset'] : proposal.kind === 'moved' ? ['move', 'makeup'] : proposal.kind === 'weekly' ? ['weekly'] : ['schedule', 'double', 'makeup'];
   if (action !== 'ignore' && !allowed.includes(action)) throw new Error('اختر الإجراء المناسب لهذا الاقتراح.');
@@ -262,10 +272,12 @@ export function commitCalendarAction(data: ReviewData, studentId: string, previe
   if (current.guard !== preview.guard) throw new Error('تغيرت البيانات أثناء المراجعة. اعرض التعديل من جديد قبل تأكيده.');
   if (current.requiresReplace && !allowReplace) throw new Error('أكد مراجعة الحالة المسجلة قبل استبدالها.');
   const review = current.student.calendarReview!;
+  const prevDecisions = review.decisions || {};
+  const prevPending = review.pending || [];
   const nextDecisions = current.action === 'weekly'
-    ? Object.fromEntries(Object.entries(review.decisions).filter(([key]) => !key.startsWith('weekly:')))
-    : { ...review.decisions, [current.proposal.id]: { action: current.action, at: new Date().toISOString() } };
-  const student = { ...current.student, calendarReview: { ...review, pending: review.pending.filter(item => item.id !== current.proposal.id), decisions: nextDecisions } };
+    ? Object.fromEntries(Object.entries(prevDecisions).filter(([key]) => !key.startsWith('weekly:')))
+    : { ...prevDecisions, [current.proposal.id]: { action: current.action, at: new Date().toISOString() } };
+  const student = { ...current.student, calendarReview: { ...review, observed: review.observed || {}, pending: prevPending.filter(item => item.id !== current.proposal.id), decisions: nextDecisions } };
   const nextAttendance = { ...data.attendance };
   for (const change of current.changes) {
     if (change.after === AttendanceStatus.ABSENT) delete nextAttendance[change.key];

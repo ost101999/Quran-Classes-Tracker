@@ -42,7 +42,7 @@ const ProposalCard: React.FC<{ student: Student; proposal: CalendarProposal; dat
     }
   }, [hasPreviousApology, recentApologies, userEditedAction, proposal.kind, action, sourceDate]);
 
-  const missing = proposal.event && student.calendarReview?.observed[proposal.event.id]?.present === false;
+  const missing = proposal.event && student.calendarReview?.observed?.[proposal.event.id]?.present === false;
   const options: ActionOptions = { sourceDate, effectiveFrom, doubleTarget };
   const resetPreview = () => { setPreview(null); setReplace(false); setError(''); };
   const prepare = () => {
@@ -80,7 +80,7 @@ const ProposalCard: React.FC<{ student: Student; proposal: CalendarProposal; dat
     </div>}
     {proposal.kind === 'weekly' && <div className="bg-blue-50 rounded-xl p-3 text-sm text-blue-900"><p>الأيام الحالية في التطبيق: {dayNames(student.days || []) || 'غير محددة'}</p><p>أيام جوجل كاليندر: {dayNames(proposal.days || []) || 'لا توجد مواعيد مستقبلية (محذوف)'}</p></div>}
     {missing && <p className="text-sm text-amber-700">هذا الحدث رُصد سابقًا ولم يظهر في آخر قراءة؛ قد يكون أُرشف أو حُذف. تحقق من الحصة قبل الموافقة.</p>}
-    {proposal.event && student.calendarReview?.observed[proposal.event.id]?.event.colorId !== proposal.event.colorId && <p className="text-sm text-amber-700">لون الحدث تغيّر بعد رصد الاقتراح. احتفظنا بالملاحظة لتراجعها بنفسك.</p>}
+    {proposal.event && student.calendarReview?.observed?.[proposal.event.id]?.event?.colorId !== proposal.event.colorId && <p className="text-sm text-amber-700">لون الحدث تغيّر بعد رصد الاقتراح. احتفظنا بالملاحظة لتراجعها بنفسك.</p>}
     <label className="block text-sm font-bold text-gray-700">الإجراء المقترح
       <select aria-label={`إجراء ${student.name}`} value={action} onChange={event => { const next = event.target.value as CalendarAction; setUserEditedAction(true); setAction(next); if (next === 'makeup' && proposal.kind === 'scheduled' && !sourceDate && recentApologies[0]) setSourceDate(recentApologies[0].date); resetPreview(); }} className="block w-full mt-1 rounded-xl border border-gray-200 p-2 bg-white" disabled={disabled}>
         {proposal.kind === 'red' ? <><option value="apology">اعتذار الطالب — دائرة حمراء</option><option value="absence">غياب الطالب — يُحسب ضمن الحصص</option><option value="teacher">اعتذار المعلم — دائرة حمراء بشرطة</option></>
@@ -125,7 +125,7 @@ export default function CalendarReviewModal({ data, error, loading, disabled, on
     closeRef.current?.focus();
     return () => previous?.focus();
   }, []);
-  const entries = data.students.flatMap(student => student.calendarReview?.name === student.name.trim() ? student.calendarReview.pending.map(proposal => ({ student, proposal })) : []);
+  const entries = data.students.flatMap(student => student.calendarReview?.name === student.name?.trim() ? (student.calendarReview.pending || []).map(proposal => ({ student, proposal })) : []);
   const visible = entries.filter(({ student }) => student.name.toLowerCase().includes(search.toLowerCase()));
   return <div className="fixed inset-0 z-[150] bg-black/45 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose} onKeyDown={event => { event.stopPropagation(); if (event.key === 'Escape') onClose(); }}>
     <section role="dialog" aria-modal="true" aria-labelledby="calendar-review-title" dir="rtl" className="w-full max-w-2xl max-h-[90vh] flex flex-col bg-gray-50 rounded-3xl shadow-2xl font-arabic overflow-hidden" onClick={event => event.stopPropagation()}>

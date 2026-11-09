@@ -543,6 +543,37 @@ const desanitizeStateKeys = (
     data.paymentStatus = desanitizedStatus;
   }
 
+  // 3. Normalize student arrays/maps that Firebase Realtime Database strips when empty
+  if (Array.isArray(data.students)) {
+    data.students = data.students.map((s: any) => {
+      if (!s || typeof s !== 'object') return s;
+      const next = {
+        ...s,
+        days: Array.isArray(s.days) ? s.days : [],
+      };
+      if (next.calendarReview && typeof next.calendarReview === 'object') {
+        next.calendarReview = {
+          ...next.calendarReview,
+          observed: next.calendarReview.observed && typeof next.calendarReview.observed === 'object' ? next.calendarReview.observed : {},
+          pending: Array.isArray(next.calendarReview.pending) ? next.calendarReview.pending : [],
+          decisions: next.calendarReview.decisions && typeof next.calendarReview.decisions === 'object' ? next.calendarReview.decisions : {},
+        };
+      }
+      if (next.calendarSchedule && typeof next.calendarSchedule === 'object') {
+        next.calendarSchedule = {
+          ...next.calendarSchedule,
+          slots: Array.isArray(next.calendarSchedule.slots) ? next.calendarSchedule.slots : [],
+        };
+      }
+      if (Array.isArray(next.scheduleHistory)) {
+        next.scheduleHistory = next.scheduleHistory.map((entry: any) =>
+          entry && typeof entry === 'object' ? { ...entry, days: Array.isArray(entry.days) ? entry.days : [] } : entry
+        );
+      }
+      return next;
+    });
+  }
+
   return data;
 };
 
@@ -2349,7 +2380,7 @@ function App() {
   const calendarReviewData = { students, attendance, makeupLinks, savedReports, savedReportDrafts, lastReports, dayTransitionTime };
   const calendarReviewDataRef = useRef(calendarReviewData);
   calendarReviewDataRef.current = calendarReviewData;
-  const calendarPendingCount = students.reduce((total, student) => total + (student.calendarReview?.name === student.name.trim() ? student.calendarReview.pending.length : 0), 0);
+  const calendarPendingCount = students.reduce((total, student) => total + (student.calendarReview?.name === student.name?.trim() ? (student.calendarReview.pending?.length || 0) : 0), 0);
   const confirmCalendarAction = (studentId: string, preview: CalendarActionPreview, allowReplace: boolean) => {
     if (applyingCloudRef.current || syncConflicts.length || resolvingConflict) throw new Error('انتظر اكتمال المزامنة أو حل التعارض قبل تطبيق التعديل.');
     const updated = commitCalendarAction(calendarReviewDataRef.current, studentId, preview, allowReplace);
