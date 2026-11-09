@@ -1,4 +1,5 @@
 import { formatAttendanceDays } from './reportAttendanceDays';
+import { scheduledCount } from '../services/studentSchedule';
 import ReportMonthNavigation, { useReportMonth } from './ReportMonthNavigation';
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Calendar, Clock, Copy, Check, Wallet, FileText, AlignLeft, DollarSign, ChevronRight, ChevronLeft, Trash2, Edit2, ShieldAlert, ExternalLink, RotateCcw, Users, Image as ImageIcon } from 'lucide-react';
@@ -34,13 +35,7 @@ const toHindiDigits = (num: number | string): string => {
 };
 
 const getScheduledCountOnDate = (student: Student, d: number, m: number, y: number) => {
-    const dow = new Date(y, m, d).getDay();
-    const count = student.days?.filter(day => day === dow).length || 0;
-    if (count === 0) return 0;
-    const startDate = student.dayStartDates?.[dow];
-    if (!startDate) return count;
-    const currentStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-    return currentStr >= startDate ? count : 0;
+    return scheduledCount(student, d, m, y);
 };
 
 const getStatusSessionValue = (status: AttendanceStatus | undefined, student: Student, d: number, m: number, y: number) => {

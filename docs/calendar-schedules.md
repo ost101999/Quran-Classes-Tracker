@@ -44,3 +44,48 @@ it never writes to the production database.
 
 API contracts: https://developers.google.com/workspace/calendar/api/v3/reference/events/list
 and https://developers.google.com/workspace/calendar/api/v3/reference/calendarList/list.
+
+## Review of colors, moves and fixed days
+
+The desktop **مراجعة الكاليندر** button shows a persistent queue. The background
+scan records observations and proposals only; attendance and fixed days change
+only after a teacher selects an action, reviews its preview, and confirms it.
+Ignoring a change also persists, so unchanged polls and app restarts do not repeat
+the same question. Meaningful subsequent changes can produce a new question.
+
+Explicit event colors 2/10 propose a blue planned-class ring. Colors 4/11 ask the
+teacher to distinguish student apology, chargeable student absence, and teacher
+apology. Calendar background colors do not imply attendance. Non-recurring events
+also propose a scheduled class or a makeup. Recurring occurrence identity uses
+its original start, so moving it is distinguished from adding a new occurrence.
+
+Review reads cover the previous, current and next Cairo weeks. Schedule messages
+still include the current week only. Recurrence masters plus next-week original
+occurrences provide fixed-day proposals only for complete, unbounded weekly
+rules. Finite, irregular or incomplete recurrence evidence never automatically
+becomes a permanent weekly schedule. Actual Google events are never edited.
+
+Observations and decisions live under each student's `calendarReview` and use the
+existing cloud sync. Event identities are hashed; OAuth tokens and calendar account
+IDs are not published. Pending color evidence remains visible if another script
+resets the color or archives the event; the card explains that the event/color has
+changed. Colors changed and removed while the desktop is closed cannot be recovered
+from a later snapshot. The `ي-منتهي` archive does not generate new review proposals.
+
+Approval checks the latest application data against the preview. Recorded states
+need an extra replacement checkbox. Saved reports/drafts and existing makeup
+links block automatic replacement and require manual review. Moving a class edits
+only its two concrete dates (including across months), not all recurring weekdays.
+Multi-class source days require manual review; adding to an already scheduled
+target requires explicitly selecting a second class. Makeup linking uses the app's
+existing same-month link model; cross-month makeup links require manual handling.
+
+Fixed weekday changes have a teacher-chosen effective date, no earlier than today.
+`scheduleHistory` preserves previous configurations. Attendance counts, student and
+academy reports, and the student portal use the configuration effective on each
+date. A later manual edit of a versioned schedule also preserves its history.
+Existing recorded classes affected by a new weekly rule block that start date.
+
+Tests: `node --test tests/calendar-review.test.cjs` and
+`CALENDAR_UI_TESTS=1 node --test tests/calendar-review-ui.test.cjs`.
+The browser tests use fixture data only, never the production database.

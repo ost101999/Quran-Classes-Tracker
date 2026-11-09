@@ -65,7 +65,47 @@ export interface CalendarSchedule {
 export interface CalendarSchedulesResult {
   available: boolean;
   schedules: Record<string, CalendarSchedule>;
+  reviews?: Record<string, CalendarReviewSnapshot>;
   error?: string;
+}
+
+export interface CalendarOccurrence {
+  id: string;
+  start: string;
+  end: string;
+  originalStart?: string;
+  timeZone: string;
+  colorId: string;
+  recurring: boolean;
+}
+export interface CalendarReviewSnapshot {
+  name: string;
+  fetchedAt: string;
+  events: CalendarOccurrence[];
+  weeklyDays?: number[];
+  weeklySignature?: string;
+}
+export interface CalendarProposal {
+  id: string;
+  kind: 'scheduled' | 'red' | 'moved' | 'weekly';
+  detectedAt: string;
+  event?: CalendarOccurrence;
+  from?: string;
+  days?: number[];
+  signature?: string;
+  reason?: 'green' | 'one-off';
+}
+export interface CalendarReviewState {
+  name: string;
+  observed: Record<string, { event: CalendarOccurrence; revision: number; present?: boolean }>;
+  pending: CalendarProposal[];
+  decisions: Record<string, { action: string; at: string }>;
+  weeklySignature?: string;
+}
+export interface ScheduleHistoryEntry {
+  before: string;
+  days: number[];
+  dayStartDates?: Record<number, string>;
 }
 
 export interface Student {
@@ -98,6 +138,8 @@ export interface Student {
   shortcutNotRequired?: boolean; // This student intentionally has no shortcut links
   scheduleMessage?: string; // WhatsApp-style schedule text to display in the student portal
   calendarSchedule?: CalendarSchedule;
+  calendarReview?: CalendarReviewState;
+  scheduleHistory?: ScheduleHistoryEntry[];
   isPrepaid?: boolean;
   prepaidTotal?: number;
   prepaidCurrent?: number;

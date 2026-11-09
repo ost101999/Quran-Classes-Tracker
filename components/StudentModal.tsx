@@ -4,6 +4,7 @@ import { Student, StudyPlan, CalendarSchedule } from '../types';
 import { DAYS_OF_WEEK } from '../constants';
 import { linksEquivalent } from '../services/shortcutStudentSync';
 import { isCurrentSchedule } from '../services/calendarStudentSync';
+import { cairoDate, replaceScheduleFrom } from '../services/studentSchedule';
 
 type ShortcutMatch = {
   id: string; folderId: string; path: string; titles: string[]; isQuran: boolean; isReading: boolean;
@@ -424,7 +425,10 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
       }
     }
 
-    onSave(savedStudent);
+    // Once a calendar-reviewed schedule has history, a later manual edit must
+    // also preserve the earlier periods instead of silently rewriting them.
+    const daysChanged = student?.scheduleHistory?.length && (JSON.stringify(student.days || []) !== JSON.stringify(savedStudent.days || []) || JSON.stringify(student.dayStartDates || {}) !== JSON.stringify(savedStudent.dayStartDates || {}));
+    onSave(daysChanged ? { ...savedStudent, scheduleHistory: replaceScheduleFrom(student!, savedStudent.days || [], cairoDate(), savedStudent.dayStartDates).scheduleHistory } : savedStudent);
   };
 
   const filteredAcademies = academies.filter(ac =>

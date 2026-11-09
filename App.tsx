@@ -78,6 +78,9 @@ import { MONTHS, DAYS_OF_WEEK, SURAHS, SURAH_AYAH_COUNTS } from './constants';
 import StudentModal from './components/StudentModal';
 import { applyShortcutMatches, findShortcutDifferences, type ShortcutDifference } from './services/shortcutStudentSync';
 import { applyCalendarSchedules } from './services/calendarStudentSync';
+import { ingestCalendarReviews, commitCalendarAction, type CalendarActionPreview } from './services/calendarReview';
+import { scheduledCount } from './services/studentSchedule';
+import CalendarReviewModal from './components/CalendarReviewModal';
 import StudentDetailsModal from './components/StudentDetailsModal';
 import ConfirmModal from './components/ConfirmModal';
 import AcademyDetailsModal from './components/AcademyDetailsModal';
@@ -2338,6 +2341,24 @@ function App() {
 
   // UI State
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [calendarReviewOpen, setCalendarReviewOpen] = useState(false);
+  const [calendarReadError, setCalendarReadError] = useState('');
+  const [calendarReading, setCalendarReading] = useState(false);
+  const [calendarRefresh, setCalendarRefresh] = useState(0);
+  const calendarForceRefresh = useRef(false);
+  const calendarReviewData = { students, attendance, makeupLinks, savedReports, savedReportDrafts, lastReports };
+  const calendarReviewDataRef = useRef(calendarReviewData);
+  calendarReviewDataRef.current = calendarReviewData;
+  const calendarPendingCount = students.reduce((total, student) => total + (student.calendarReview?.name === student.name.trim() ? student.calendarReview.pending.length : 0), 0);
+  const confirmCalendarAction = (studentId: string, preview: CalendarActionPreview, allowReplace: boolean) => {
+    if (applyingCloudRef.current || syncConflicts.length || resolvingConflict) throw new Error('انتظر اكتمال المزامنة أو حل التعارض قبل تطبيق التعديل.');
+    const updated = commitCalendarAction(calendarReviewDataRef.current, studentId, preview, allowReplace);
+    // Update the ref synchronously too, so a repeated click cannot apply twice.
+    calendarReviewDataRef.current = { ...calendarReviewDataRef.current, ...updated };
+    setStudents(updated.students);
+    setAttendance(updated.attendance);
+    setMakeupLinks(updated.makeupLinks);
+  };
   const [openShortcutReview, setOpenShortcutReview] = useState(false);
   const [shortcutDifferences, setShortcutDifferences] = useState<ShortcutDifference[]>([]);
   const dismissedShortcutDifferences = useRef(new Set<string>());
@@ -4728,13 +4749,19 @@ function App() {
     const refresh = async () => {
       if (running || applyingCloudRef.current) return;
       running = true;
+      setCalendarReading(true);
       try {
         const now = new Date();
         const requests = students.filter(student => !student.deletedAt || student.deletedAt.year > now.getFullYear() || (student.deletedAt.year === now.getFullYear() && student.deletedAt.month > now.getMonth())).map(({ id, name }) => ({ id, name }));
-        const result = await window.electronAPI!.getCalendarSchedules!(requests);
-        if (!cancelled && !applyingCloudRef.current) setStudents(previous => applyCalendarSchedules(previous, requests, result));
-      } catch { /* The student editor offers retry and shows connection errors. */ }
-      finally { running = false; }
+        const force = calendarForceRefresh.current;
+        calendarForceRefresh.current = false;
+        const result = await window.electronAPI!.getCalendarSchedules!(requests, force, true);
+        if (!cancelled && !applyingCloudRef.current) {
+          setCalendarReadError(!result.available ? result.error || 'تعذّر قراءة التقويم. الاقتراحات السابقة محفوظة.' : requests.length && !result.reviews ? 'أعد تشغيل التطبيق لتفعيل رصد ألوان الكاليندر وتغييرات الحصص.' : '');
+          setStudents(previous => ingestCalendarReviews(applyCalendarSchedules(previous, requests, result), requests, result));
+        }
+      } catch { if (!cancelled) setCalendarReadError('تعذّر قراءة الكاليندر. تحقق من الاتصال ثم أعد المحاولة.'); }
+      finally { running = false; if (!cancelled) setCalendarReading(false); }
     };
     void refresh();
     const timer = window.setInterval(refresh, 60000);
@@ -4746,7 +4773,7 @@ function App() {
       window.removeEventListener('focus', refresh);
       window.removeEventListener('online', refresh);
     };
-  }, [students, isLoaded, initialSyncReady, isModalOpen, syncConflicts.length, resolvingConflict]);
+  }, [students, isLoaded, initialSyncReady, isModalOpen, syncConflicts.length, resolvingConflict, calendarRefresh]);
 
   // Read the shortcut file locally. Only unique, exact folder matches are linked
   // automatically, and existing links are never replaced.
@@ -4905,13 +4932,7 @@ function App() {
   }, [dayOff, getDayOfWeek]);
 
   const getScheduledCountOnDate = useCallback((student: Student, d: number, m: number = month, y: number = year) => {
-    const dow = new Date(y, m, d).getDay();
-    const count = student.days?.filter(day => day === dow).length || 0;
-    if (count === 0) return 0;
-    const startDate = student.dayStartDates?.[dow];
-    if (!startDate) return count;
-    const currentStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-    return currentStr >= startDate ? count : 0;
+    return scheduledCount(student, d, m, y);
   }, [month, year]);
 
   const isScheduledOnDate = useCallback((student: Student, d: number, m: number = month, y: number = year) => {
@@ -5123,6 +5144,7 @@ function App() {
     setWebModal(prev => ({ ...prev, isOpen: false }));
     setShowSubscriptionModal(false);
     setSavedReportViewModal(null);
+    setCalendarReviewOpen(false);
     setMonthlyCurriculumModal(null);
     setActionConfigModal(prev => ({ ...prev, isOpen: false }));
     setActionChoiceModal(prev => ({ ...prev, isOpen: false }));
@@ -8660,6 +8682,11 @@ function App() {
           );
         })()
       }
+
+      {!isModalOpen && !calendarReviewOpen && <button type="button" onClick={() => setCalendarReviewOpen(true)} className="fixed bottom-5 left-5 z-[85] flex items-center gap-2 rounded-2xl bg-white border border-blue-200 shadow-lg px-4 py-3 text-blue-800 font-arabic font-bold" aria-label={`مراجعة تغييرات الكاليندر، ${calendarPendingCount} اقتراح`}>
+        <Calendar size={20} /><span>مراجعة الكاليندر</span>{calendarPendingCount > 0 && <span className="rounded-full bg-blue-700 text-white text-xs px-2 py-1">{calendarPendingCount}</span>}{calendarReadError && <span className="text-amber-600" title={calendarReadError}>!</span>}
+      </button>}
+      {calendarReviewOpen && <CalendarReviewModal data={calendarReviewData} error={calendarReadError || (!window.electronAPI?.getCalendarSchedules ? 'افتح تطبيق الكمبيوتر بعد إعادة تشغيله لتفعيل قراءة الكاليندر.' : '')} loading={calendarReading} disabled={!!syncConflicts.length || resolvingConflict || applyingCloudRef.current} onClose={() => setCalendarReviewOpen(false)} onRefresh={() => { calendarForceRefresh.current = true; setCalendarRefresh(value => value + 1); }} onConfirm={confirmCalendarAction} />}
 
       {!isModalOpen && (shortcutReadError || shortcutDifferences.length > 0) && (
         <div role="status" aria-live="polite" dir="rtl" className="fixed bottom-5 right-5 z-[90] w-[min(24rem,calc(100vw-2.5rem))] rounded-2xl border border-amber-200 bg-white shadow-2xl overflow-hidden font-arabic">

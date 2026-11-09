@@ -4519,6 +4519,12 @@ https://is.gd/oL6gEO`;
       const canReviewCurrentRoadmapQuiz = !!currentRoadmapLatestAttempt;
 
       // Calendar Calculations
+      const scheduledCountForDate = (day, month, year) => {
+        const date = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const config = [...(student.scheduleHistory || [])].sort((a, b) => a.before.localeCompare(b.before)).find(entry => date < entry.before) || student;
+        const dow = new Date(year, month, day).getDay();
+        return config.dayStartDates?.[dow] && date < config.dayStartDates[dow] ? 0 : (config.days || []).filter(value => value === dow).length;
+      };
       const daysInMonth = new Date(effectiveYear, effectiveMonth + 1, 0).getDate();
       const firstDayIndex = new Date(effectiveYear, effectiveMonth, 1).getDay();
 
@@ -4535,11 +4541,11 @@ https://is.gd/oL6gEO`;
       for (let d = 1; d <= daysInMonthCounter; d++) {
         const dateObj = new Date(effectiveYear, effectiveMonth, d);
         const dayOfWeek = dateObj.getDay();
-        const isSched = student.days?.includes(dayOfWeek);
+        const isSched = scheduledCountForDate(d, effectiveMonth, effectiveYear) > 0;
         const attendanceKey = `${student.id}_${d}_${effectiveMonth}_${effectiveYear}`;
         const st = attendance?.[attendanceKey];
 
-        const isDoubleScheduled = student.days?.filter(day => day === dayOfWeek).length === 2;
+        const isDoubleScheduled = scheduledCountForDate(d, effectiveMonth, effectiveYear) === 2;
 
         if ([STATUS.PRESENT, STATUS.DOUBLE_CLASS].includes(st)) {
           presentCount++;
@@ -4559,8 +4565,8 @@ https://is.gd/oL6gEO`;
         const dateObj = new Date(effectiveYear, effectiveMonth, day);
         const dayOfWeek = dateObj.getDay();
 
-        const isScheduled = student.days?.includes(dayOfWeek);
-        const isDoubleScheduled = student.days?.filter(d => d === dayOfWeek).length === 2;
+        const isScheduled = scheduledCountForDate(day, effectiveMonth, effectiveYear) > 0;
+        const isDoubleScheduled = scheduledCountForDate(day, effectiveMonth, effectiveYear) === 2;
         const attendanceKey = `${student.id}_${day}_${effectiveMonth}_${effectiveYear}`;
         const status = attendance?.[attendanceKey];
         const rawReport = savedReports?.[attendanceKey];
@@ -6189,9 +6195,10 @@ https://is.gd/oL6gEO`;
                         let current = plan.startDate ? new Date(plan.startDate) : new Date();
                         
                         // Calculate expected dates for each class
-                        if (classDays.length > 0) {
-                          while (dates.length < plan.totalClasses) {
-                            if (classDays.includes(current.getDay())) {
+                        if (classDays.length > 0 || student.scheduleHistory?.length) {
+                          let checkedDays = 0;
+                          while (dates.length < plan.totalClasses && checkedDays++ < 3650) {
+                            if (scheduledCountForDate(current.getDate(), current.getMonth(), current.getFullYear()) > 0) {
                               dates.push(new Date(current));
                             }
                             current.setDate(current.getDate() + 1);

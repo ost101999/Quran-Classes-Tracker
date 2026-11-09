@@ -1,6 +1,8 @@
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const crypto = require('node:crypto');
+const identityHash = value => crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');
 
 const CAIRO = 'Africa/Cairo';
 const API = 'https://www.googleapis.com/calendar/v3/';
@@ -38,7 +40,7 @@ function currentWeek(now = new Date()) {
 }
 
 function scheduleFor(name, events, week, updatedAt) {
-    const slots = events.filter(event => event.name === name.trim())
+    const slots = events.filter(event => event.name === name.trim() && Date.parse(event.start) >= Date.parse(week.timeMin) && Date.parse(event.start) < Date.parse(week.timeMax))
         .sort((a, b) => Date.parse(a.start) - Date.parse(b.start))
         .map(({ start, timeZone }) => ({ start, timeZone }));
     const zones = [...new Set(slots.map(slot => slot.timeZone))];
@@ -100,7 +102,10 @@ function createCalendarSchedules({ fetchImpl = globalThis.fetch, readToken = () 
             return request(url, { headers: { Authorization: `Bearer ${await token(true)}` } });
         }
     }
-    async function readWeek(week) {
+    async function readWeek(week, review = false) {
+        const shiftDate = (date, days) => new Date(Date.parse(`${date}T12:00:00Z`) + days * 86400000).toISOString().slice(0, 10);
+        const timeMin = review ? localMidnight(shiftDate(week.weekStart, -7)) : week.timeMin;
+        const timeMax = review ? localMidnight(shiftDate(week.weekStart, 14)) : week.timeMax;
         const calendars = [];
         let pageToken = '';
         do {
@@ -110,43 +115,68 @@ function createCalendarSchedules({ fetchImpl = globalThis.fetch, readToken = () 
         } while (pageToken);
         if (!calendars.length) throw new Error('لا توجد تقويمات ظاهرة ومختارة لقراءة المواعيد.');
         const events = [];
+        const masters = new Map();
         const seen = new Set();
         for (const calendar of calendars) {
             pageToken = '';
             do {
                 const page = await getPage(`calendars/${encodeURIComponent(calendar.id)}/events`, {
-                    timeMin: week.timeMin, timeMax: week.timeMax, singleEvents: 'true',
+                    timeMin, timeMax, singleEvents: 'true',
                     orderBy: 'startTime', showDeleted: 'false', maxResults: '2500', ...(pageToken ? { pageToken } : {}),
                 });
                 for (const event of page.items || []) {
                     if (event.status === 'cancelled' || !event.start?.dateTime || !event.summary?.trim()) continue;
                     const start = Date.parse(event.start.dateTime);
-                    if (!Number.isFinite(start) || start < Date.parse(week.timeMin) || start >= Date.parse(week.timeMax)) continue;
+                    if (!Number.isFinite(start) || start < Date.parse(timeMin) || start >= Date.parse(timeMax)) continue;
                     // Shared copies of one occurrence should not appear twice.
                     const identity = JSON.stringify([event.iCalUID || `${calendar.id}/${event.id}`, start, event.summary.trim()]);
                     if (seen.has(identity)) continue;
                     seen.add(identity);
                     const timeZone = event.start.timeZone || page.timeZone || calendar.timeZone || CAIRO;
                     new Intl.DateTimeFormat('en-US', { timeZone }).format(new Date(start));
-                    events.push({ name: event.summary.trim(), start: new Date(start).toISOString(), timeZone });
+                    events.push({ name: event.summary.trim(), start: new Date(start).toISOString(), timeZone,
+                        ...(review ? {
+                            id: identityHash([event.iCalUID || `${calendar.id}/${event.id}`, event.recurringEventId ? event.originalStartTime?.dateTime || event.start.dateTime : 'single']),
+                            end: event.end?.dateTime || event.start.dateTime,
+                            originalStart: event.originalStartTime?.dateTime,
+                            colorId: String(event.colorId || ''), recurring: !!event.recurringEventId,
+                            seriesKey: event.recurringEventId ? `${calendar.id}/${event.recurringEventId}` : '',
+                            archive: calendar.summary?.trim() === 'ي-منتهي',
+                        } : {}),
+                    });
                 }
                 pageToken = page.nextPageToken || '';
             } while (pageToken);
+            if (review) {
+                pageToken = '';
+                do {
+                    const page = await getPage(`calendars/${encodeURIComponent(calendar.id)}/events`, {
+                        timeMin, timeMax, singleEvents: 'false', showDeleted: 'false', maxResults: '2500', ...(pageToken ? { pageToken } : {}),
+                    });
+                    for (const master of page.items || []) {
+                        if (master.recurrence && master.status !== 'cancelled') masters.set(`${calendar.id}/${master.id}`, master);
+                    }
+                    pageToken = page.nextPageToken || '';
+                } while (pageToken);
+            }
         }
         // Failures above reject the entire snapshot instead of publishing a partial schedule.
-        return { week, events, updatedAt: now().toISOString() };
+        return { week, events, masters, review, reviewTimeMax: timeMax, updatedAt: now().toISOString() };
     }
-    return async function getSchedules(students, { force = false } = {}) {
+    return async function getSchedules(students, { force = false, review = false } = {}) {
         const requests = (Array.isArray(students) ? students : []).filter(student => typeof student?.id === 'string' && typeof student?.name === 'string' && student.name.trim());
         if (!requests.length) return { available: true, schedules: {} };
         try {
             const week = currentWeek(now());
-            if (!pending && (force || !snapshot || snapshot.week.weekStart !== week.weekStart || now().getTime() - Date.parse(snapshot.updatedAt) >= 55000)) {
-                pending = readWeek(week).then(value => { snapshot = value; }).finally(() => { pending = null; });
+            if (!pending && (force || !snapshot || (review && !snapshot.review) || snapshot.week.weekStart !== week.weekStart || now().getTime() - Date.parse(snapshot.updatedAt) >= 55000)) {
+                pending = readWeek(week, review).then(value => { snapshot = value; }).finally(() => { pending = null; });
             }
             if (pending) await pending;
+            if (review && !snapshot.review) return getSchedules(students, { review: true });
             if (snapshot.week.weekStart !== currentWeek(now()).weekStart) throw new Error('بدأ أسبوع جديد أثناء التحديث. أعد المحاولة.');
-            return { available: true, schedules: Object.fromEntries(requests.map(student => [student.id, scheduleFor(student.name, snapshot.events, snapshot.week, snapshot.updatedAt)])) };
+            return { available: true, schedules: Object.fromEntries(requests.map(student => [student.id, scheduleFor(student.name, snapshot.events, snapshot.week, snapshot.updatedAt)])),
+                ...(review ? { reviews: Object.fromEntries(requests.map(student => [student.id, reviewFor(student.name, snapshot)])) } : {}),
+            };
         } catch (error) {
             snapshot = undefined;
             return { available: false, schedules: {}, error: error.message || 'تعذّرت قراءة المواعيد.' };
@@ -154,4 +184,33 @@ function createCalendarSchedules({ fetchImpl = globalThis.fetch, readToken = () 
     };
 }
 
-module.exports = { createCalendarSchedules, currentWeek, scheduleFor };
+function reviewFor(name, snapshot) {
+    const events = snapshot.events.filter(event => event.name === name.trim() && !event.archive);
+    const nextWeekOccurrence = event => Date.parse(event.originalStart || event.start) >= Date.parse(snapshot.week.timeMax) && Date.parse(event.originalStart || event.start) < Date.parse(snapshot.reviewTimeMax);
+    const seriesKeys = [...new Set(events.filter(event => event.recurring && nextWeekOccurrence(event)).map(event => event.seriesKey))];
+    const days = [];
+    const signatures = [];
+    let complete = seriesKeys.length > 0;
+    for (const key of seriesKeys) {
+        const master = snapshot.masters.get(key);
+        const rules = master?.recurrence || [];
+        const rule = rules.length === 1 && rules[0].startsWith('RRULE:') ? Object.fromEntries(rules[0].slice(6).split(';').map(part => part.split('='))) : {};
+        // Only an unbounded weekly rule is evidence of a permanent weekly plan.
+        if (rule.FREQ !== 'WEEKLY' || (rule.INTERVAL && rule.INTERVAL !== '1') || Object.keys(rule).some(k => !['FREQ', 'INTERVAL', 'BYDAY', 'WKST'].includes(k)) || (rule.BYDAY && !/^(MO|TU|WE|TH|FR|SA|SU)(,(MO|TU|WE|TH|FR|SA|SU))*$/.test(rule.BYDAY))) { complete = false; break; }
+        const expected = rule.BYDAY ? rule.BYDAY.split(',').length : 1;
+        const starts = [...new Set(events.filter(event => event.seriesKey === key).map(event => event.originalStart || event.start))]
+            .filter(start => Date.parse(start) >= Date.parse(snapshot.week.timeMax) && Date.parse(start) < Date.parse(snapshot.reviewTimeMax));
+        if (starts.length !== expected) { complete = false; break; }
+        for (const start of starts) {
+            const p = dateParts(new Date(start), CAIRO);
+            days.push(new Date(Date.UTC(p.year, p.month - 1, p.day)).getUTCDay());
+        }
+        signatures.push([identityHash(key), master.recurrence, master.start]);
+    }
+    return { name: name.trim(), fetchedAt: snapshot.updatedAt,
+        events: events.map(({ id, start, end, originalStart, timeZone, colorId, recurring }) => ({ id, start, end, ...(originalStart ? { originalStart } : {}), timeZone, colorId, recurring })),
+        ...(complete ? { weeklyDays: days.sort((a, b) => a - b), weeklySignature: identityHash(signatures.sort((a, b) => a[0].localeCompare(b[0]))) } : {}),
+    };
+}
+
+module.exports = { createCalendarSchedules, currentWeek, scheduleFor, reviewFor };
