@@ -372,3 +372,39 @@ test('getRecentApologyClasses returns last 3 student/teacher apologies and allow
     assert.equal(committed.makeupLinks[0].makeupDay, 14);
     assert.equal(committed.makeupLinks[0].originalStatus, 'x');
 });
+
+test('deleting future recurring classes in Google Calendar proposes ending enrollment starting from current month', () => {
+    const luqman = {
+        ...student(),
+        name: 'Luqman',
+        days: [2],
+        calendarReview: {
+            name: 'Luqman',
+            observed: {
+                past1: {
+                    event: { id: 'past1', start: '2026-11-03T18:30:00.000Z', end: '2026-11-03T19:30:00.000Z', timeZone: 'Europe/Stockholm', colorId: '', recurring: true },
+                    revision: 1,
+                    present: true,
+                },
+            },
+            pending: [],
+            decisions: {},
+            weeklySignature: 'prev-sig',
+        },
+    };
+    const [updated] = ingestCalendarReviews([luqman], [{ id: 's1', name: 'Luqman' }], {
+        available: true,
+        schedules: { s1: { slots: [], status: 'empty' } },
+        reviews: { s1: { name: 'Luqman', fetchedAt: now.toISOString(), events: [luqman.calendarReview.observed.past1.event] } },
+    });
+    assert.equal(updated.calendarReview.pending.length, 1);
+    assert.equal(updated.calendarReview.pending[0].kind, 'weekly');
+    assert.deepEqual(json(updated.calendarReview.pending[0].days), []);
+
+    const data = state([updated]);
+    const preview = prepareCalendarAction(data, 's1', updated.calendarReview.pending[0].id, 'weekly');
+    assert.equal(preview.requiresReplace, false);
+    const committed = commitCalendarAction(data, 's1', preview);
+    assert.deepEqual(json(committed.students[0].days), []);
+    assert.ok(committed.students[0].deletedAt);
+});

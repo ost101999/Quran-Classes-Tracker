@@ -118,7 +118,23 @@ export function ingestCalendarReviews(students: Student[], requests: { id: strin
         }
         if (!matchesWeekly) propose({ id: weeklyId, kind: 'weekly', signature: snapshot.weeklySignature, days: proposedDays, detectedAt: snapshot.fetchedAt });
         else pending = pending.filter(item => item.kind !== 'weekly');
-      } else pending = pending.filter(item => item.kind !== 'weekly');
+      } else {
+        const currentDays = student.days || [];
+        const hadCalendarSchedule = Boolean(
+          old.weeklySignature
+          || (result.schedules?.[student.id]?.slots?.length === 0 && (Object.values(old.observed).some(item => item.event.recurring) || snapshot.events.some(event => event.recurring)))
+        );
+        if (currentDays.length > 0 && !student.deletedAt && hadCalendarSchedule) {
+          const weeklyId = `weekly:ended:${[...currentDays].sort().join(',')}`;
+          pending = pending.filter(item => item.kind !== 'weekly' || item.id === weeklyId);
+          for (const key of Object.keys(decisions)) {
+            if (key.startsWith('weekly:') && key !== weeklyId) delete decisions[key];
+          }
+          propose({ id: weeklyId, kind: 'weekly', signature: 'ended', days: [], detectedAt: snapshot.fetchedAt });
+        } else {
+          pending = pending.filter(item => item.kind !== 'weekly');
+        }
+      }
       // Keep detected colors even when an external script clears/archives the event.
       // Keep outstanding questions, but bound the acknowledged observation history.
       const cutoff = Date.parse(snapshot.fetchedAt) - 120 * 86400000;
@@ -162,22 +178,40 @@ export function prepareCalendarAction(data: ReviewData, studentId: string, propo
   if (action === 'ignore') lines.push('تجاهل هذا الاقتراح دون تغيير بيانات الطالب.');
   else if (action === 'weekly') {
     const todayCairo = cairoDate(new Date(), data.dayTransitionTime);
-    const effective = options.effectiveFrom || todayCairo;
-    dateKey(studentId, effective);
-    if (effective < todayCairo) throw new Error('تاريخ بداية الجدول الجديد يجب أن يكون اليوم أو بعده لحماية سجل الحصص السابق.');
-    if (!proposal.days?.length || proposal.days.some(day => day < 0 || day > 6)) throw new Error('الأيام المقترحة غير صالحة.');
-    updatedStudent = replaceScheduleFrom(student, proposal.days, effective);
-    for (const key of new Set([...Object.keys(data.attendance), ...Object.keys(data.savedReports), ...Object.keys(data.savedReportDrafts || {})])) {
-      if (!key.startsWith(`${studentId}_`)) continue;
-      const parts = key.slice(studentId.length + 1).split('_').map(Number);
-      if (parts.length !== 3 || parts.some(part => !Number.isInteger(part))) continue;
-      const [day, month, year] = parts;
-      const date = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-      if (date < effective || scheduledCount(student, day, month, year) === scheduledCount(updatedStudent, day, month, year)) continue;
-      const status = data.attendance[key];
-      if (data.savedReports[key] || data.savedReportDrafts?.[key] || (status && ![AttendanceStatus.EXTRA_DAY, AttendanceStatus.EXTRA_DOUBLE, AttendanceStatus.EXEMPT].includes(status))) throw new Error(`توجد حصة مسجلة يوم ${date} تتأثر بتغيير الأيام. اختر تاريخ بداية بعدها أو راجع الحصة يدويًا.`);
+    if ((proposal.days?.length || 0) === 0) {
+      const [cYear, cMonthNum] = todayCairo.split('-').map(Number);
+      let dMonth = cMonthNum;
+      let dYear = cYear;
+      if (dMonth > 11) {
+        dMonth = 0;
+        dYear++;
+      }
+      updatedStudent = {
+        ...student,
+        days: [],
+        dayStartDates: {},
+        scheduleHistory: undefined,
+        deletedAt: { month: dMonth, year: dYear },
+      };
+      lines.push('حذف ما تبقى من حصص الشهر الحالي (إنهاء الاشتراك) وإخفاء الطالب ابتداءً من الشهر القادم.');
+    } else {
+      const effective = options.effectiveFrom || todayCairo;
+      dateKey(studentId, effective);
+      if (effective < todayCairo) throw new Error('تاريخ بداية الجدول الجديد يجب أن يكون اليوم أو بعده لحماية سجل الحصص السابق.');
+      if (!proposal.days?.length || proposal.days.some(day => day < 0 || day > 6)) throw new Error('الأيام المقترحة غير صالحة.');
+      updatedStudent = replaceScheduleFrom(student, proposal.days, effective);
+      for (const key of new Set([...Object.keys(data.attendance), ...Object.keys(data.savedReports), ...Object.keys(data.savedReportDrafts || {})])) {
+        if (!key.startsWith(`${studentId}_`)) continue;
+        const parts = key.slice(studentId.length + 1).split('_').map(Number);
+        if (parts.length !== 3 || parts.some(part => !Number.isInteger(part))) continue;
+        const [day, month, year] = parts;
+        const date = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        if (date < effective || scheduledCount(student, day, month, year) === scheduledCount(updatedStudent, day, month, year)) continue;
+        const status = data.attendance[key];
+        if (data.savedReports[key] || data.savedReportDrafts?.[key] || (status && ![AttendanceStatus.EXTRA_DAY, AttendanceStatus.EXTRA_DOUBLE, AttendanceStatus.EXEMPT].includes(status))) throw new Error(`توجد حصة مسجلة يوم ${date} تتأثر بتغيير الأيام. اختر تاريخ بداية بعدها أو راجع الحصة يدويًا.`);
+      }
+      lines.push(`تحديث الأيام الثابتة ابتداءً من ${effective}، مع الاحتفاظ بالجدول السابق قبل هذا التاريخ.`);
     }
-    lines.push(`تحديث الأيام الثابتة ابتداءً من ${effective}، مع الاحتفاظ بالجدول السابق قبل هذا التاريخ.`);
   } else {
     if (!proposal.event) throw new Error('بيانات الحصة غير متاحة.');
     const target = cairoDate(proposal.event.start, data.dayTransitionTime);

@@ -14,6 +14,7 @@ const ProposalCard: React.FC<{ student: Student; proposal: CalendarProposal; dat
   const targetDate = proposal.event ? cairoDate(proposal.event.start, data.dayTransitionTime) : '';
   const recentApologies = proposal.kind === 'scheduled' && targetDate ? getRecentApologyClasses(student, data, targetDate, 3) : [];
   const hasPreviousApology = proposal.reason === 'green' && recentApologies.some(item => item.date < targetDate);
+  const isEndingWeekly = proposal.kind === 'weekly' && (proposal.days?.length || 0) === 0;
   const [userEditedAction, setUserEditedAction] = useState(false);
   const [action, setAction] = useState<CalendarAction | ''>(
     proposal.kind === 'red' ? 'apology'
@@ -64,7 +65,7 @@ const ProposalCard: React.FC<{ student: Student; proposal: CalendarProposal; dat
   return <article className="rounded-2xl border border-gray-200 bg-white p-4 space-y-3" data-proposal-kind={proposal.kind}>
     <div className="flex items-start justify-between gap-3">
       <div><h3 className="font-bold text-lg text-gray-900">{student.name}</h3>
-        <p className="text-sm text-gray-600">{proposal.kind === 'red' ? 'رُصد حدث باللون الأحمر. هل هو اعتذار أم غياب؟' : proposal.kind === 'reset' ? 'تم إرجاع لون الحدث إلى الافتراضي. هل نرجع الحصة لوضعها الطبيعي؟' : proposal.kind === 'moved' ? 'تم رصد تغيير في موعد الحصة.' : proposal.kind === 'weekly' ? 'الأيام الأسبوعية المتكررة في الكاليندر مختلفة عن التطبيق.' : proposal.reason === 'green' ? 'رُصد حدث باللون الأخضر. هل نضيفه كحصة مجدولة؟' : 'رُصدت حصة غير متكررة. هل هي حصة إضافية أم تعويض؟'}</p>
+        <p className="text-sm text-gray-600">{proposal.kind === 'red' ? 'رُصد حدث باللون الأحمر. هل هو اعتذار أم غياب؟' : proposal.kind === 'reset' ? 'تم إرجاع لون الحدث إلى الافتراضي. هل نرجع الحصة لوضعها الطبيعي؟' : proposal.kind === 'moved' ? 'تم رصد تغيير في موعد الحصة.' : isEndingWeekly ? 'لم تعد هناك مواعيد مستقبلية للطالب في الكاليندر. هل تريد حذف ما تبقى (إنهاء الاشتراك)؟' : proposal.kind === 'weekly' ? 'الأيام الأسبوعية المتكررة في الكاليندر مختلفة عن التطبيق.' : proposal.reason === 'green' ? 'رُصد حدث باللون الأخضر. هل نضيفه كحصة مجدولة؟' : 'رُصدت حصة غير متكررة. هل هي حصة إضافية أم تعويض؟'}</p>
       </div>
       {proposal.kind === 'weekly' || proposal.kind === 'moved' || proposal.kind === 'reset'
         ? <ArrowLeftRight aria-hidden="true" size={20} className="shrink-0 mt-2 text-blue-600" />
@@ -75,14 +76,14 @@ const ProposalCard: React.FC<{ student: Student; proposal: CalendarProposal; dat
       <p>{proposal.from ? 'إلى: ' : 'الموعد: '}{dateLabel(proposal.event.start)}{cairoDate(proposal.event.start, data.dayTransitionTime) !== cairoDate(proposal.event.start) ? ` (يُحسب يوم ${effectiveDayLabel(proposal.event.start, data.dayTransitionTime)})` : ''}</p>
       <p className="text-xs text-gray-500 mt-1">التاريخ والوقت أعلاه بتوقيت القاهرة لتحديد خانة الحضور{data.dayTransitionTime && data.dayTransitionTime !== '00:00' ? ` (بداية اليوم: ${data.dayTransitionTime})` : ''}.</p>
     </div>}
-    {proposal.kind === 'weekly' && <div className="bg-blue-50 rounded-xl p-3 text-sm text-blue-900"><p>الأيام الحالية في التطبيق: {dayNames(student.days || []) || 'غير محددة'}</p><p>أيام جوجل كاليندر: {dayNames(proposal.days || [])}</p></div>}
+    {proposal.kind === 'weekly' && <div className="bg-blue-50 rounded-xl p-3 text-sm text-blue-900"><p>الأيام الحالية في التطبيق: {dayNames(student.days || []) || 'غير محددة'}</p><p>أيام جوجل كاليندر: {dayNames(proposal.days || []) || 'لا توجد مواعيد مستقبلية (محذوف)'}</p></div>}
     {missing && <p className="text-sm text-amber-700">هذا الحدث رُصد سابقًا ولم يظهر في آخر قراءة؛ قد يكون أُرشف أو حُذف. تحقق من الحصة قبل الموافقة.</p>}
     {proposal.event && student.calendarReview?.observed[proposal.event.id]?.event.colorId !== proposal.event.colorId && <p className="text-sm text-amber-700">لون الحدث تغيّر بعد رصد الاقتراح. احتفظنا بالملاحظة لتراجعها بنفسك.</p>}
     <label className="block text-sm font-bold text-gray-700">الإجراء المقترح
       <select aria-label={`إجراء ${student.name}`} value={action} onChange={event => { const next = event.target.value as CalendarAction; setUserEditedAction(true); setAction(next); if (next === 'makeup' && proposal.kind === 'scheduled' && !sourceDate && recentApologies[0]) setSourceDate(recentApologies[0].date); resetPreview(); }} className="block w-full mt-1 rounded-xl border border-gray-200 p-2 bg-white" disabled={disabled}>
         {proposal.kind === 'red' ? <><option value="apology">اعتذار الطالب — دائرة حمراء</option><option value="absence">غياب الطالب — يُحسب ضمن الحصص</option><option value="teacher">اعتذار المعلم — دائرة حمراء بشرطة</option></>
           : proposal.kind === 'reset' ? <option value="reset">إرجاع الحصة لوضعها الطبيعي (مسح الاعتذار أو الغياب)</option>
-            : proposal.kind === 'weekly' ? <option value="weekly">تحديث الأيام الثابتة من تاريخ محدد</option>
+            : proposal.kind === 'weekly' ? <option value="weekly">{isEndingWeekly ? 'حذف ما تبقى (إنهاء الاشتراك) بدءًا من الشهر الحالي' : 'تحديث الأيام الثابتة من تاريخ محدد'}</option>
               : proposal.kind === 'moved' ? <><option value="move">نقل هذه الحصة فقط بين اليومين</option><option value="makeup">اعتبار الموعد الجديد تعويضًا عن الحصة الأصلية</option></>
                 : <><option value="schedule">حصة مجدولة — دائرة زرقاء</option><option value="double">حصة ثانية في نفس اليوم — دائرتان مجدولتان</option><option value="makeup">تعويض عن حصة سابقة</option></>}
       </select>
@@ -96,7 +97,7 @@ const ProposalCard: React.FC<{ student: Student; proposal: CalendarProposal; dat
         </select>
       </label>
       : <label className="block text-sm">تاريخ الحصة الأصلية<input type="date" aria-label="تاريخ الحصة الأصلية" value={sourceDate} onChange={event => { setSourceDate(event.target.value); resetPreview(); }} className="block mt-1 border rounded-lg p-2" /></label>)}
-    {action === 'weekly' && <label className="block text-sm">بداية تطبيق الأيام الجديدة<input type="date" aria-label="بداية الجدول الجديد" min={cairoDate(new Date(), data.dayTransitionTime)} value={effectiveFrom} onChange={event => { setEffectiveFrom(event.target.value); resetPreview(); }} className="block mt-1 border rounded-lg p-2" /></label>}
+    {action === 'weekly' && !isEndingWeekly && <label className="block text-sm">بداية تطبيق الأيام الجديدة<input type="date" aria-label="بداية الجدول الجديد" min={cairoDate(new Date(), data.dayTransitionTime)} value={effectiveFrom} onChange={event => { setEffectiveFrom(event.target.value); resetPreview(); }} className="block mt-1 border rounded-lg p-2" /></label>}
     {(action === 'makeup' || action === 'move') && <label className="flex gap-2 items-center text-sm"><input type="checkbox" checked={doubleTarget} onChange={event => { setDoubleTarget(event.target.checked); resetPreview(); }} />الموعد الجديد حصة ثانية في نفس اليوم</label>}
     {error && <p role="alert" className="text-red-700 text-sm">{error}</p>}
     {preview && <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2">
