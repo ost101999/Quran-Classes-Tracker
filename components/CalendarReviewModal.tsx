@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { X, Calendar, RefreshCw } from 'lucide-react';
+import { X, Calendar, RefreshCw, ArrowLeftRight } from 'lucide-react';
 import type { Student, CalendarProposal } from '../types';
 import { prepareCalendarAction, type CalendarAction, type ActionOptions, type CalendarActionPreview, type ReviewData } from '../services/calendarReview';
 import { cairoDate } from '../services/studentSchedule';
@@ -42,7 +42,9 @@ const ProposalCard: React.FC<{ student: Student; proposal: CalendarProposal; dat
       <div><h3 className="font-bold text-lg text-gray-900">{student.name}</h3>
         <p className="text-sm text-gray-600">{proposal.kind === 'red' ? 'رُصد حدث باللون الأحمر. هل هو اعتذار أم غياب؟' : proposal.kind === 'moved' ? 'تم رصد تغيير في موعد الحصة.' : proposal.kind === 'weekly' ? 'الأيام الأسبوعية المتكررة في الكاليندر مختلفة عن التطبيق.' : proposal.reason === 'green' ? 'رُصد حدث باللون الأخضر. هل نضيفه كحصة مجدولة؟' : 'رُصدت حصة غير متكررة. هل هي حصة إضافية أم تعويض؟'}</p>
       </div>
-      <span aria-hidden="true" className={`shrink-0 w-5 h-5 mt-2 rounded-full ${proposal.kind === 'red' ? 'bg-red-500' : 'border-2 border-blue-400'}`} />
+      {proposal.kind === 'weekly' || proposal.kind === 'moved'
+        ? <ArrowLeftRight aria-hidden="true" size={20} className="shrink-0 mt-2 text-blue-600" />
+        : <span aria-hidden="true" className={`shrink-0 w-5 h-5 mt-2 rounded-full ${proposal.kind === 'red' ? 'bg-red-500' : 'border-2 border-blue-400'}`} />}
     </div>
     {proposal.event && <div className="bg-gray-50 rounded-xl p-3 text-sm text-gray-700">
       {proposal.from && <p>من: {dateLabel(proposal.from)}{cairoDate(proposal.from, data.dayTransitionTime) !== cairoDate(proposal.from) ? ` (يُحسب يوم ${effectiveDayLabel(proposal.from, data.dayTransitionTime)})` : ''}</p>}
