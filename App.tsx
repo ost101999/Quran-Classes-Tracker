@@ -31,6 +31,10 @@ const customStyles = `
   @keyframes filtered-row-out { from { opacity: 1; } to { opacity: 0; } }
   .filtered-row-entering { animation: filtered-row-in 420ms ease-out both; }
   .filtered-row-exiting { animation: filtered-row-out 280ms ease-in both; pointer-events: none; }
+  @keyframes completed-row-in { from { opacity: 0; } to { opacity: .5; } }
+  @keyframes completed-row-out { from { opacity: .5; } to { opacity: 0; } }
+  .completed-review-row.filtered-row-entering { animation-name: completed-row-in; }
+  .completed-review-row.filtered-row-exiting { animation-name: completed-row-out; }
   @keyframes academy-menu-in {
     from { opacity: 0; transform: translateY(-7px) scale(.97); }
     to { opacity: 1; transform: translateY(0) scale(1); }
@@ -148,14 +152,20 @@ function animateFilteredRowLayout(row: HTMLTableRowElement | null) {
 }
 
 // Keep filtered rows in the table until their exit animation has finished.
-function FilteredRow({ filtered, className = '', ...props }: React.ComponentProps<'tr'> & { filtered: boolean }) {
-  const [phase, setPhase] = useState<'visible' | 'entering' | 'exiting' | 'hidden'>(filtered ? 'hidden' : 'visible');
+function FilteredRow({ filtered, animateOnMount = false, className = '', ...props }: React.ComponentProps<'tr'> & { filtered: boolean; animateOnMount?: boolean }) {
+  const [phase, setPhase] = useState<'visible' | 'entering' | 'exiting' | 'hidden'>(filtered ? 'hidden' : animateOnMount ? 'entering' : 'visible');
   const previousFiltered = useRef(filtered);
   const rowRef = useRef<HTMLTableRowElement>(null);
 
   useLayoutEffect(() => {
     animateFilteredRowLayout(rowRef.current);
   }, [phase]);
+
+  useEffect(() => {
+    if (!animateOnMount || filtered) return;
+    const timer = window.setTimeout(() => setPhase(current => current === 'entering' ? 'visible' : current), 420);
+    return () => window.clearTimeout(timer);
+  }, [animateOnMount, filtered]);
 
   useEffect(() => {
     if (previousFiltered.current === filtered) return;
@@ -662,6 +672,7 @@ function App() {
 
   const [selectedAcademy, setSelectedAcademy] = useState<string | null>(null);
   const [pendingFilter, setPendingFilter] = useState<{ day: number; month: number; year: number } | null>(null);
+  const [completedClassesOpen, setCompletedClassesOpen] = useState(true);
   const [showMakeupLines, setShowMakeupLines] = useState<boolean>(true);
   const [showMissedCount, setShowMissedCount] = useState<boolean>(false);
   const tableScrollRef = useRef<HTMLDivElement>(null);
@@ -6263,6 +6274,12 @@ function App() {
   }, [month, year]);
 
   const activePendingDay = pendingFilter?.month === month && pendingFilter.year === year ? pendingFilter.day : null;
+  const isCompletedClass = (student: Student, dayNum: number) => {
+    if (isPendingClass(student, dayNum)) return false;
+    const key = `${student.id}_${dayNum}_${month}_${year}`;
+    const status = attendance[key];
+    return !!savedReports[key] || !!savedReportDrafts[key] || (!!status && status !== AttendanceStatus.EXEMPT);
+  };
   useEffect(() => {
     if (activePendingDay !== null || pendingStudentColumnWidth === null) return;
     const timer = window.setTimeout(() => setPendingStudentColumnWidth(null), 480);
@@ -6273,6 +6290,7 @@ function App() {
     if (activePendingDay === null && studentHeaderRef.current) {
       setPendingStudentColumnWidth(studentHeaderRef.current.getBoundingClientRect().width);
     }
+    setCompletedClassesOpen(true);
     setPendingFilter(activePendingDay === dayNum ? null : { day: dayNum, month, year });
   };
 
@@ -6326,6 +6344,9 @@ function App() {
     if (!searchQuery.trim()) return true;
     return normalizeForSearch(name).includes(normalizeForSearch(searchQuery));
   };
+  const firstCompletedAcademy = activePendingDay === null ? undefined : sortedAcademies.find(academy =>
+    (groupedStudents[academy] || []).some(student =>
+      isCompletedClass(student, activePendingDay) && searchMatches(student.name)));
 
   return (
     <div className="min-h-screen pb-20">
@@ -7042,10 +7063,10 @@ function App() {
                           backgroundColor: isToday ? 'rgba(255, 224, 93, 0.4)' : isWknd ? 'rgba(129, 255, 234, 0.1)' : 'transparent'
                         }}
                       >
-                        {remainingInfo.count > 0 && (
+                        {(remainingInfo.count > 0 || activePendingDay === dayNum) && (
                           <div
                             onClick={(e) => { e.stopPropagation(); togglePendingFilter(dayNum); }}
-                            className={`absolute -top-14 left-1/2 -translate-x-1/2 flex flex-col items-center justify-center gap-1 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-full shadow-md border border-amber-200/80 z-20 transition-all duration-300 cursor-pointer hover:scale-110 active:scale-95 ${isToday ? 'opacity-100' : 'opacity-0 group-hover/header:opacity-100 translate-y-2 group-hover/header:translate-y-0'}`}
+                            className={`absolute -top-14 left-1/2 -translate-x-1/2 flex flex-col items-center justify-center gap-1 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-full shadow-md border border-amber-200/80 z-20 transition-all duration-300 cursor-pointer hover:scale-110 active:scale-95 ${isToday || activePendingDay === dayNum ? 'opacity-100' : 'opacity-0 group-hover/header:opacity-100 translate-y-2 group-hover/header:translate-y-0'}`}
                             title={`انقر لعرض الحصص المتبقية (${toHindiDigits(remainingInfo.count)} حصص | ${toHindiDigits(remainingInfo.hours)} ساعة)`}
                           >
                             <span className="text-amber-700 text-[0.95rem] font-bold font-arabic leading-none">{toHindiDigits(remainingInfo.hours)}<span className="text-[0.6rem] text-amber-600/90 font-medium mr-0.5">س</span></span>
@@ -7093,13 +7114,35 @@ function App() {
                   <tr><td colSpan={daysInMonth + 1} className="py-12 text-center font-arabic text-xl text-gray-500">لا توجد حصص متبقية لهذا اليوم.</td></tr>
                 )}
 
-                {sortedAcademies.map(academy => {
-                  const academyStudents = groupedStudents[academy] || [];
-                  const allHiddenBySearch = academyStudents.every(s => (searchQuery.trim() !== '' && !searchMatches(s.name)) || (activePendingDay !== null && !isPendingClass(s, activePendingDay))) && (searchQuery.trim() !== '' || activePendingDay !== null);
+                {([
+                  ...sortedAcademies.map(academy => ({ academy, section: 'pending' as const })),
+                  ...(activePendingDay === null ? [] : sortedAcademies.map(academy => ({ academy, section: 'completed' as const }))),
+                ]).map(({ academy, section }) => {
+                  const academyStudents = (groupedStudents[academy] || []).filter(student => {
+                    if (activePendingDay === null || section === 'pending') return true;
+                    return isCompletedClass(student, activePendingDay);
+                  });
+                  if (section === 'completed' && academyStudents.length === 0) return null;
+                  const allHiddenBySearch = academyStudents.every(s =>
+                    (searchQuery.trim() !== '' && !searchMatches(s.name)) ||
+                    (section === 'pending' && activePendingDay !== null && !isPendingClass(s, activePendingDay))) &&
+                    (searchQuery.trim() !== '' || (section === 'pending' && activePendingDay !== null));
                   return (
-                    <React.Fragment key={academy}>
+                    <React.Fragment key={`${section}:${academy}`}>
+                      {section === 'completed' && academy === firstCompletedAcademy && (
+                        <tr>
+                          <td colSpan={daysInMonth + 1} className="px-8 pt-7 pb-3">
+                            <button type="button" aria-expanded={completedClassesOpen} onClick={() => setCompletedClassesOpen(open => !open)} className="flex w-full items-center gap-3 text-sm text-gray-400 font-arabic hover:text-gray-600 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 rounded-lg">
+                              <span className="h-px flex-1 bg-gray-200" />
+                              <span>الحصص المسجلة</span>
+                              <ChevronDown size={16} aria-hidden="true" className={`transition-transform duration-300 motion-reduce:transition-none ${completedClassesOpen ? 'rotate-180' : ''}`} />
+                              <span className="h-px flex-1 bg-gray-200" />
+                            </button>
+                          </td>
+                        </tr>
+                      )}
                       {/* Section Header */}
-                      <FilteredRow id={`academy-${academy}`} filtered={allHiddenBySearch} className="scroll-mt-40 group">
+                      <FilteredRow id={section === 'completed' ? undefined : `academy-${academy}`} animateOnMount={section === 'completed'} filtered={allHiddenBySearch || (section === 'completed' && !completedClassesOpen)} className={`scroll-mt-40 group ${section === 'completed' ? 'completed-review-row opacity-50' : ''}`}>
                         <td
                           colSpan={daysInMonth + 1}
                           className="bg-gray-50/80 p-4 text-center select-none"
@@ -7144,7 +7187,7 @@ function App() {
                         </td>
                       </FilteredRow>
 
-                      {groupedStudents[academy].map((student, sIdx) => {
+                      {academyStudents.map((student) => {
                         const totalDays = calculateTotal(student.id);
                         // For Mixed students, rate is the Hourly rate, so we divide by 2 for each 30-min unit
                         const effectiveRate = student.duration === 'خليط' ? student.rate / 2 : student.rate;
@@ -7210,12 +7253,13 @@ function App() {
                           }
                         }
 
-                        const isSearchHidden = (searchQuery.trim() !== '' && !searchMatches(student.name)) || (activePendingDay !== null && !isPendingClass(student, activePendingDay));
+                        const isSearchHidden = (searchQuery.trim() !== '' && !searchMatches(student.name)) || (section === 'completed' && !completedClassesOpen) || (section === 'pending' && activePendingDay !== null && !isPendingClass(student, activePendingDay));
                         return (
                           <FilteredRow
                             key={student.id}
                             filtered={isSearchHidden}
-                            data-student-id={student.id}
+                            animateOnMount={section === 'completed'}
+                            data-student-id={section === 'pending' && activePendingDay !== null && !isPendingClass(student, activePendingDay) ? undefined : student.id}
                             draggable={true}
                             onDragStart={(e) => handleStudentDragStart(e, student.id)}
                             onDragOver={(e) => handleStudentDragOver(e, student.id)}
@@ -7223,6 +7267,7 @@ function App() {
                             onDrop={(e) => handleStudentDrop(e, student.id)}
                             className={`
                             hover:bg-blue-100 rounded-2xl group relative cursor-move row-hover-tr
+                            ${section === 'completed' ? 'completed-review-row opacity-50' : ''}
                             ${draggedStudentId === student.id ? 'opacity-20 grayscale scale-[0.98] blur-[1px]' : ''}
                             ${activePendingDay !== null ? '' : (student.hasTopSeparator && (student.hasBottomSeparator || student.hasSeparator))
                                 ? 'shadow-[0_10px_15px_-8px_rgba(0,0,0,0.1),0_-10px_15px_-8px_rgba(0,0,0,0.1)]'
@@ -7493,7 +7538,7 @@ function App() {
                                 return (
                                   <td
                                     key={dayNum}
-                                    id={`cell-${student.id}-${dayNum}`}
+                                    id={section === 'pending' && activePendingDay !== null && !isPendingClass(student, activePendingDay) ? undefined : `cell-${student.id}-${dayNum}`}
                                     onClick={(e) => {
                                       if (longPressTriggeredRef.current) {
                                         longPressTriggeredRef.current = false;
@@ -18062,10 +18107,10 @@ const StickyHeader = React.forwardRef<HTMLDivElement, {
                         backgroundColor: isToday ? 'rgba(255, 224, 93, 0.4)' : isWknd ? 'rgba(129, 255, 234, 0.1)' : 'transparent'
                       }}
                     >
-                      {info.count > 0 && (
+                      {(info.count > 0 || activePendingDay === dayNum) && (
                         <div
                           onClick={(e) => { e.stopPropagation(); togglePendingFilter(dayNum); }}
-                          className={`absolute -top-14 left-1/2 -translate-x-1/2 flex flex-col items-center justify-center gap-1 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-full shadow-md border border-amber-200/80 z-20 transition-all duration-300 cursor-pointer hover:scale-110 active:scale-95 pointer-events-auto ${isToday ? 'opacity-100' : 'opacity-0 group-hover/header:opacity-100 translate-y-2 group-hover/header:translate-y-0'}`}
+                          className={`absolute -top-14 left-1/2 -translate-x-1/2 flex flex-col items-center justify-center gap-1 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-full shadow-md border border-amber-200/80 z-20 transition-all duration-300 cursor-pointer hover:scale-110 active:scale-95 pointer-events-auto ${isToday || activePendingDay === dayNum ? 'opacity-100' : 'opacity-0 group-hover/header:opacity-100 translate-y-2 group-hover/header:translate-y-0'}`}
                           title={`انقر لعرض الحصص المتبقية (${toHindiDigits(info.count)} حصص | ${toHindiDigits(info.hours)} ساعة)`}
                         >
                           <span className="text-amber-700 text-[0.95rem] font-bold font-arabic leading-none">{toHindiDigits(info.hours)}<span className="text-[0.6rem] text-amber-600/90 font-medium mr-0.5">س</span></span>
