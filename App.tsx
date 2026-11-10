@@ -672,7 +672,14 @@ function App() {
 
   const [selectedAcademy, setSelectedAcademy] = useState<string | null>(null);
   const [pendingFilter, setPendingFilter] = useState<{ day: number; month: number; year: number } | null>(null);
-  const [completedClassesOpen, setCompletedClassesOpen] = useState(true);
+  const [completedClassesOpen, setCompletedClassesOpen] = useState(() => {
+    try { return localStorage.getItem('quran_tracker_completed_classes_open') !== 'false'; }
+    catch { return true; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('quran_tracker_completed_classes_open', String(completedClassesOpen)); }
+    catch { /* The section remains usable if local storage is unavailable. */ }
+  }, [completedClassesOpen]);
   const [showMakeupLines, setShowMakeupLines] = useState<boolean>(true);
   const [showMissedCount, setShowMissedCount] = useState<boolean>(false);
   const tableScrollRef = useRef<HTMLDivElement>(null);
@@ -6290,7 +6297,6 @@ function App() {
     if (activePendingDay === null && studentHeaderRef.current) {
       setPendingStudentColumnWidth(studentHeaderRef.current.getBoundingClientRect().width);
     }
-    setCompletedClassesOpen(true);
     setPendingFilter(activePendingDay === dayNum ? null : { day: dayNum, month, year });
   };
 
