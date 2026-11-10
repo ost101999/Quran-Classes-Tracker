@@ -84,6 +84,7 @@ import { applyShortcutMatches, findShortcutDifferences, type ShortcutDifference 
 import { applyCalendarSchedules } from './services/calendarStudentSync';
 import { ingestCalendarReviews, commitCalendarAction, type CalendarActionPreview } from './services/calendarReview';
 import { scheduledCount } from './services/studentSchedule';
+import { buildOldRevisionRedo } from './services/oldRevisionRedo';
 import CalendarReviewModal from './components/CalendarReviewModal';
 import StudentDetailsModal from './components/StudentDetailsModal';
 import ConfirmModal from './components/ConfirmModal';
@@ -3873,11 +3874,6 @@ function App() {
     if (!isRedoModeOldRev || !smartReportModal?.studentId) return;
     const studentId = smartReportModal.studentId;
 
-    const currentReading = lastReports[studentId]?.readingOldRev;
-    const currentHomework = lastReports[studentId]?.homeworkOldRev;
-
-    if (!currentReading) return;
-
     // Sync Mode & Advanced Toggle
     if (preferredModes.homeworkOldRev !== preferredModes.readingOldRev) {
       setPreferredModes(prev => ({ ...prev, homeworkOldRev: prev.readingOldRev }));
@@ -3886,45 +3882,14 @@ function App() {
       setActiveAdvancedAyah(prev => ({ ...prev, homeworkOldRev: prev.readingOldRev }));
     }
 
-    // Build homework object based on reading values
-    let nextHomework: any = {
-      ...currentHomework,
-      mode: currentReading.mode,
-      isAdvancedAyah: currentReading.isAdvancedAyah
-    };
-
-    if (currentReading.mode === 'ayah') {
-      nextHomework.surah = currentReading.surah;
-      nextHomework.from = currentReading.fromAyah;
-      nextHomework.to = currentReading.toAyah;
-      nextHomework.fromSurah = currentReading.fromSurah || currentReading.surah;
-      nextHomework.toSurah = currentReading.toSurah || currentReading.surah;
-    } else if (currentReading.mode === 'page') {
-      nextHomework.from = currentReading.fromPage;
-      nextHomework.to = currentReading.toPage;
-    } else if (currentReading.mode === 'juz') {
-      nextHomework.from = currentReading.fromJuz;
-      nextHomework.to = currentReading.toJuz;
-    } else if (currentReading.mode === 'hizb') {
-      nextHomework.from = currentReading.fromHizb;
-      nextHomework.to = currentReading.toHizb;
-    } else if (currentReading.mode === 'surah') {
-      nextHomework.fromSurah = currentReading.fromSurah;
-      nextHomework.toSurah = currentReading.toSurah;
-    }
-
-    const isDifferent = JSON.stringify(nextHomework) !== JSON.stringify(currentHomework);
-
-    if (isDifferent) {
-      setLastReports(prev => ({
-        ...prev,
-        [studentId]: {
-          ...prev[studentId],
-          homeworkOldRev: nextHomework
-        }
-      }));
-    }
-  }, [isRedoModeOldRev, smartReportModal?.studentId, lastReports, preferredModes.readingOldRev, preferredModes.homeworkOldRev, activeAdvancedAyah.readingOldRev, activeAdvancedAyah.homeworkOldRev]);
+    setLastReports(prev => {
+      const report = prev[studentId];
+      const nextHomework = buildOldRevisionRedo(report?.readingOldRev, report?.homeworkOldRev,
+        preferredModes.readingOldRev, activeAdvancedAyah.readingOldRev, SURAHS[0], studentProgress[studentId]?.surah);
+      if (JSON.stringify(nextHomework) === JSON.stringify(report?.homeworkOldRev)) return prev;
+      return { ...prev, [studentId]: { ...report, homeworkOldRev: nextHomework as typeof report.homeworkOldRev } };
+    });
+  }, [isRedoModeOldRev, smartReportModal?.studentId, lastReports, studentProgress, preferredModes.readingOldRev, preferredModes.homeworkOldRev, activeAdvancedAyah.readingOldRev, activeAdvancedAyah.homeworkOldRev]);
 
   // Helper: Sync Reading Tilawa to Homework Tilawa (Redo Mirror)
   const syncRedoValuesTilawa = useCallback(() => {
@@ -11504,7 +11469,7 @@ function App() {
                                           }
                                         };
 
-                                        if (nextHomework) {
+                                        if (nextHomework && !isRedoModeOldRev) {
                                           newState[studentId].homeworkOldRev = {
                                             ...newState[studentId]?.homeworkOldRev,
                                             ...nextHomework
@@ -11619,7 +11584,7 @@ function App() {
                                           }
                                         };
 
-                                        if (nextHomework) {
+                                        if (nextHomework && !isRedoModeOldRev) {
                                           newState[studentId].homeworkOldRev = {
                                             ...newState[studentId]?.homeworkOldRev,
                                             ...nextHomework
@@ -11769,7 +11734,7 @@ function App() {
                                   const val = e.target.value.replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]);
 
                                   // Auto-Advance Next Homework Start Page
-                                  if (val) {
+                                  if (val && !isRedoModeOldRev) {
                                     const pageNum = parseInt(val.replace(/[٠-٩]/g, (d) => "0123456789"["٠١٢٣٤٥٦٧٨٩".indexOf(d)]));
                                     if (!isNaN(pageNum)) {
                                       const nextStartPage = pageNum + 1;
