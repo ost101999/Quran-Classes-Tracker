@@ -85,6 +85,7 @@ import { applyCalendarSchedules } from './services/calendarStudentSync';
 import { ingestCalendarReviews, commitCalendarAction, type CalendarActionPreview } from './services/calendarReview';
 import { scheduledCount } from './services/studentSchedule';
 import { buildOldRevisionRedo } from './services/oldRevisionRedo';
+import { copyNoorInputs, getNoorLessonType, normalizeNoorEndPage } from './services/noorLessons';
 import CalendarReviewModal from './components/CalendarReviewModal';
 import StudentDetailsModal from './components/StudentDetailsModal';
 import ConfirmModal from './components/ConfirmModal';
@@ -321,92 +322,6 @@ const getEnglishSurahName = (arabicName: string) => {
 const toEnglish = (str: string | number | undefined | null) => {
   const s = (str || '').toString();
   return s.replace(/[٠-٩]/g, d => "0123456789"["٠١٢٣٤٥٦٧٨٩".indexOf(d)]);
-};
-
-const getSingleLessonType = (book: 'noor' | 'taasees', p: number, lang: 'ar' | 'en') => {
-  if (book === 'noor') {
-    if (p >= 1 && p <= 13) return lang === 'ar' ? 'حركة الفتح' : 'Fatha';
-    if (p >= 14 && p <= 18) return lang === 'ar' ? 'حركة الكسر' : 'Kasra';
-    if (p >= 19 && p <= 22) return lang === 'ar' ? 'حركة الضم' : 'Damma';
-    if (p >= 23 && p <= 24) return lang === 'ar' ? 'مراجعة الحركات' : 'Harakat Review';
-    if (p >= 25 && p <= 28) return lang === 'ar' ? 'المد بالألف' : 'Madd with Alif';
-    if (p >= 29 && p <= 32) return lang === 'ar' ? 'المد بالياء' : 'Madd with Yaa';
-    if (p >= 33 && p <= 36) return lang === 'ar' ? 'المد بالواو' : 'Madd with Waw';
-    if (p >= 37 && p <= 39) return lang === 'ar' ? 'مراجعة المدود' : 'Mudood Review';
-    if (p >= 40 && p <= 50) return lang === 'ar' ? 'السكون' : 'Sukun';
-    if (p >= 51 && p <= 53) return lang === 'ar' ? 'التنوين بالفتح' : 'Tanween with Fatha';
-    if (p >= 54 && p <= 56) return lang === 'ar' ? 'التنوين بالكسر' : 'Tanween with Kasra';
-    if (p >= 57 && p <= 58) return lang === 'ar' ? 'التنوين بالضم' : 'Tanween with Damma';
-    if (p >= 59 && p <= 62) return lang === 'ar' ? 'مراجعة التنوين' : 'Tanween Review';
-    if (p >= 63 && p <= 66) return lang === 'ar' ? 'الشدة مع الفتح' : 'Shadda with Fatha';
-    if (p >= 67 && p <= 70) return lang === 'ar' ? 'الشدة مع الكسر' : 'Shadda with Kasra';
-    if (p >= 71 && p <= 75) return lang === 'ar' ? 'الشدة مع الضم' : 'Shadda with Damma';
-    if (p >= 76 && p <= 77) return lang === 'ar' ? 'الشدة مع التنوين - نهاية الكتاب' : 'Shadda with Tanween - End of Book';
-  } else {
-    // Foundation Book
-    if (p >= 1 && p <= 4) return lang === 'ar' ? 'الحروف أ ب ت ث' : 'The letters أ ب ت ث';
-    if (p >= 5 && p <= 8) return lang === 'ar' ? 'الحروف ج ح خ' : 'The letters ج ح خ';
-    if (p >= 9 && p <= 13) return lang === 'ar' ? 'الحروف د ذ' : 'The letters د ذ';
-    if (p >= 14 && p <= 18) return lang === 'ar' ? 'الحروف ر ز' : 'The letters ر ز';
-    if (p >= 19 && p <= 23) return lang === 'ar' ? 'الحروف س ش' : 'The letters س ش';
-    if (p >= 24 && p <= 29) return lang === 'ar' ? 'الحروف ص ض' : 'The letters ص ض';
-    if (p >= 30 && p <= 33) return lang === 'ar' ? 'الحروف ط ظ' : 'The letters ط ظ';
-    if (p >= 34 && p <= 38) return lang === 'ar' ? 'الحروف ع غ' : 'The letters ع غ';
-    if (p >= 39 && p <= 43) return lang === 'ar' ? 'الحروف ف ق' : 'The letters ف ق';
-    if (p >= 44 && p <= 48) return lang === 'ar' ? 'الحروف ك ل' : 'The letters ك ل';
-    if (p >= 49 && p <= 53) return lang === 'ar' ? 'الحروف م ن' : 'The letters م ن';
-    if (p >= 54 && p <= 58) return lang === 'ar' ? 'الحرف و' : 'The letter و';
-    if (p >= 59 && p <= 63) return lang === 'ar' ? 'الحرف ي - نهاية الكتاب' : 'The letter ي - End of Book';
-  }
-  return '';
-};
-
-const getNoorLessonType = (book: 'noor' | 'taasees', fromPageStr: string, toPageStr: string, lang: 'ar' | 'en') => {
-  if (!fromPageStr) return '';
-  const fromEn = fromPageStr.replace(/[٠-٩]/g, d => "0123456789"["٠١٢٣٤٥٦٧٨٩".indexOf(d)]);
-  const p1 = parseInt(fromEn);
-  if (isNaN(p1)) return '';
-
-  const type1 = getSingleLessonType(book, p1, lang);
-
-  // If no toPage, or it's cancelled/0, just return type1
-  if (!toPageStr || toPageStr.trim() === '0' || toPageStr.trim() === '٠') return type1;
-
-  const toEn = toPageStr.replace(/[٠-٩]/g, d => "0123456789"["٠١٢٣٤٥٦٧٨٩".indexOf(d)]);
-  const p2 = parseInt(toEn);
-  if (isNaN(p2) || p1 === p2) return type1;
-
-  const startP = Math.min(p1, p2);
-  const endP = Math.max(p1, p2);
-
-  const uniqueLessons: string[] = [];
-  for (let i = startP; i <= endP; i++) {
-    const type = getSingleLessonType(book, i, lang);
-    if (type && !uniqueLessons.includes(type)) {
-      uniqueLessons.push(type);
-    }
-  }
-
-  if (uniqueLessons.length === 0) return '';
-  if (uniqueLessons.length === 1) return uniqueLessons[0];
-
-  if (book === 'taasees') {
-    if (lang === 'en') {
-      const isAllLetters = uniqueLessons.every(l => l.startsWith('The letters ') || l.startsWith('The letter '));
-      if (isAllLetters) {
-        const combinedLetters = uniqueLessons.map(l => l.replace('The letters ', '').replace('The letter ', '')).join(' ');
-        return `The letters ${combinedLetters}`;
-      }
-    } else if (lang === 'ar') {
-      const isAllLetters = uniqueLessons.every(l => l.startsWith('الحروف ') || l.startsWith('الحرف '));
-      if (isAllLetters) {
-        const combinedLetters = uniqueLessons.map(l => l.replace('الحروف ', '').replace('الحرف ', '')).join(' ');
-        return `الحروف ${combinedLetters}`;
-      }
-    }
-  }
-
-  return uniqueLessons.join(' - ');
 };
 
 const getNoorBayanListeningLink = (cancelledInputs: Record<string, boolean> = {}) => {
@@ -1625,24 +1540,12 @@ function App() {
         return changed ? next : prev;
       });
 
-      // 2. Sync Visibility and Values
-      if (noorDetails.tam) {
-        if (!noorDetails.sayatim) {
-          setNoorDetails(prev => ({ ...prev, sayatim: true }));
-        } else {
-          // Sync values if visible
-          const tamLineFrom = (document.getElementById('noor-tam-from-line') as HTMLInputElement)?.value;
-          const tamLineTo = (document.getElementById('noor-tam-to-line') as HTMLInputElement)?.value;
-          const sayatimLineFromEl = document.getElementById('noor-sayatim-from-line') as HTMLInputElement;
-          const sayatimLineToEl = document.getElementById('noor-sayatim-to-line') as HTMLInputElement;
-
-          if (sayatimLineFromEl && tamLineFrom !== undefined && sayatimLineFromEl.value !== tamLineFrom) {
-            sayatimLineFromEl.value = tamLineFrom;
-          }
-          if (sayatimLineToEl && tamLineTo !== undefined && sayatimLineToEl.value !== tamLineTo) {
-            sayatimLineToEl.value = tamLineTo;
-          }
-        }
+      // 2. Sync visibility and values, including empty fields.
+      copyNoorInputs(document, ['from-page', 'to-page']);
+      if (noorDetails.tam !== noorDetails.sayatim) {
+        setNoorDetails(prev => ({ ...prev, sayatim: prev.tam }));
+      } else if (noorDetails.tam) {
+        copyNoorInputs(document, ['from-line', 'to-line']);
       }
     }
   }, [isNoorMirrorMode, noorDetails.tam, noorDetails.sayatim]);
@@ -3001,6 +2904,7 @@ function App() {
   // Effect: Reset section toggles when opening Smart Report Modal
   useEffect(() => {
     if (smartReportModal?.isOpen) {
+      setIsNoorMirrorMode(false);
       const studentId = smartReportModal.studentId;
       const isEditMode = smartReportModal.isEditMode === true;
       const lastReport = lastReports[studentId];
@@ -3680,6 +3584,20 @@ function App() {
   const hoverTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const [cancelledInputs, setCancelledInputs] = useState<Record<string, boolean>>({}); const inputLongPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    if (!isNoorMirrorMode) return;
+    setCancelledInputs(prev => {
+      const next = { ...prev };
+      let changed = false;
+      for (const part of ['from-page', 'to-page', 'from-line', 'to-line']) {
+        const source = `noor-tam-${part}`;
+        const target = `noor-sayatim-${part}`;
+        if (!!prev[source] !== !!prev[target]) { next[target] = !!prev[source]; changed = true; }
+      }
+      return changed ? next : prev;
+    });
+  }, [isNoorMirrorMode, cancelledInputs]);
 
   const handleInputPointerDown = (id: string) => {
     // Long-press to REMOVE shading only (not add)
@@ -9548,7 +9466,7 @@ function App() {
                                   }
                                 }}
                                 onChange={(e) => {
-                                  const val = e.target.value.replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]);
+                                  const val = normalizeNoorEndPage(e.target.value, (lastReports[smartReportModal.studentId]?.noor?.book || defaultNoorBook) === 'taasees' ? 'taasees' : 'noor');
                                   e.target.value = val;
                                   if (isNoorMirrorMode) {
                                     const sayatimEl = document.getElementById('noor-sayatim-to-page') as HTMLInputElement;
@@ -9652,28 +9570,7 @@ function App() {
                                   setIsNoorMirrorMode(newMode);
 
                                   if (newMode) {
-                                    const setVal = (id: string, val: string) => {
-                                      const el = document.getElementById(id) as HTMLInputElement;
-                                      if (el) el.value = val;
-                                    };
-
-                                    const tamFrom = (document.getElementById('noor-tam-from-page') as HTMLInputElement)?.value;
-                                    const tamTo = (document.getElementById('noor-tam-to-page') as HTMLInputElement)?.value;
-
-                                    if (tamFrom) setVal('noor-sayatim-from-page', tamFrom);
-                                    if (tamTo) setVal('noor-sayatim-to-page', tamTo);
-
-                                    // Handle Lines if active
-                                    if (noorDetails.tam) {
-                                      setNoorDetails(prev => ({ ...prev, sayatim: true }));
-                                      // Small timeout to allow render if sayatim details were hidden
-                                      setTimeout(() => {
-                                        const tamLineFrom = (document.getElementById('noor-tam-from-line') as HTMLInputElement)?.value;
-                                        const tamLineTo = (document.getElementById('noor-tam-to-line') as HTMLInputElement)?.value;
-                                        if (tamLineFrom) setVal('noor-sayatim-from-line', tamLineFrom);
-                                        if (tamLineTo) setVal('noor-sayatim-to-line', tamLineTo);
-                                      }, 50);
-                                    }
+                                    copyNoorInputs(document, ['from-page', 'to-page', 'from-line', 'to-line']);
                                   }
                                 }}
                                 className={`px-3 py-1 rounded-md transition-colors flex items-center gap-2 font-arabic text-sm font-bold border shadow-sm ${isNoorMirrorMode ? 'bg-amber-100 border-amber-300 text-amber-700 ring-2 ring-amber-200' : 'bg-white border-amber-200 text-amber-700 hover:bg-amber-50'}`}
@@ -9690,6 +9587,7 @@ function App() {
                               <input
                                 id="noor-sayatim-from-page"
                                 type="text"
+                                readOnly={isNoorMirrorMode}
                                 inputMode="numeric"
                                 defaultValue={toHindiDigits(lastReports[smartReportModal.studentId]?.noor?.sayatim?.fromPage || '')}
                                 onPointerDown={() => handleInputPointerDown('noor-sayatim-from-page')}
@@ -9708,6 +9606,7 @@ function App() {
                               <input
                                 id="noor-sayatim-to-page"
                                 type="text"
+                                readOnly={isNoorMirrorMode}
                                 inputMode="numeric"
                                 defaultValue={toHindiDigits(lastReports[smartReportModal.studentId]?.noor?.sayatim?.toPage || '')}
                                 onPointerDown={() => handleInputPointerDown('noor-sayatim-to-page')}
@@ -9715,7 +9614,7 @@ function App() {
                                 onPointerLeave={handleInputPointerUp}
                                 onFocus={handleFocus}
                                 onChange={(e) => {
-                                  const val = e.target.value.replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]);
+                                  const val = normalizeNoorEndPage(e.target.value, (lastReports[smartReportModal.studentId]?.noor?.book || defaultNoorBook) === 'taasees' ? 'taasees' : 'noor');
                                   e.target.value = val;
                                 }}
                                 className={`w-full p-3 border border-gray-200 rounded-xl text-center text-xl font-arabic transition-all ${cancelledInputs['noor-sayatim-to-page'] ? 'bg-gray-200 text-transparent' : 'bg-gray-50'}`}
@@ -9723,6 +9622,7 @@ function App() {
                             </div>
                             <button
                               onClick={() => setNoorDetails(prev => ({ ...prev, sayatim: !prev.sayatim }))}
+                              disabled={isNoorMirrorMode}
                               className={`p-3 rounded-xl border transition-all ${noorDetails.sayatim ? 'bg-amber-100 border-amber-300 text-amber-700' : 'bg-white border-gray-200 text-gray-400 hover:text-amber-500'}`}
                               title={noorDetails.sayatim ? "إخفاء التفاصيل" : "إضافة تفاصيل (أسطر)"}
                             >
@@ -9737,6 +9637,7 @@ function App() {
                                 <input
                                   id="noor-sayatim-from-line"
                                   type="text"
+                                  readOnly={isNoorMirrorMode}
                                   inputMode="numeric"
                                   placeholder="السطر"
                                   defaultValue={toHindiDigits(lastReports[smartReportModal.studentId]?.noor?.sayatim?.fromLine || '')}
@@ -9755,6 +9656,7 @@ function App() {
                                 <input
                                   id="noor-sayatim-to-line"
                                   type="text"
+                                  readOnly={isNoorMirrorMode}
                                   inputMode="numeric"
                                   placeholder="السطر"
                                   defaultValue={toHindiDigits(lastReports[smartReportModal.studentId]?.noor?.sayatim?.toLine || '')}
@@ -14876,7 +14778,7 @@ function App() {
 
                               if (tamContent) {
                                 const book = (lastReports[smartReportModal.studentId]?.noor?.book || defaultNoorBook);
-                                const lessonType = getNoorLessonType(book as any, tamFromPage || '', tamToPage || '', 'ar');
+                                const lessonType = getNoorLessonType(book as any, tamFromPage || '', cancelledInputs['noor-tam-to-page'] ? '' : tamToPage || '', 'ar');
                                 if (lessonType) tamContent += ` ← ( ${lessonType} )`;
                               }
 
@@ -14909,7 +14811,7 @@ function App() {
 
                               if (sayatimContent) {
                                 const book = (lastReports[smartReportModal.studentId]?.noor?.book || defaultNoorBook);
-                                const lessonType = getNoorLessonType(book as any, sayatimFromPage || '', sayatimToPage || '', 'ar');
+                                const lessonType = getNoorLessonType(book as any, sayatimFromPage || '', cancelledInputs['noor-sayatim-to-page'] ? '' : sayatimToPage || '', 'ar');
                                 if (lessonType) sayatimContent += ` ← ( ${lessonType} )`;
                               }
 
@@ -16206,7 +16108,7 @@ function App() {
 
                               if (tamContent) {
                                 const book = (lastReports[smartReportModal.studentId]?.noor?.book || defaultNoorBook);
-                                const lessonType = getNoorLessonType(book as any, tamFromPage || '', tamToPage || '', 'en');
+                                const lessonType = getNoorLessonType(book as any, tamFromPage || '', cancelledInputs['noor-tam-to-page'] ? '' : tamToPage || '', 'en');
                                 if (lessonType) tamContent += ` → ( ${lessonType} )`;
                               }
 
@@ -16252,7 +16154,7 @@ function App() {
 
                               if (sayatimContent) {
                                 const book = (lastReports[smartReportModal.studentId]?.noor?.book || defaultNoorBook);
-                                const lessonType = getNoorLessonType(book as any, sayatimFromPage || '', sayatimToPage || '', 'en');
+                                const lessonType = getNoorLessonType(book as any, sayatimFromPage || '', cancelledInputs['noor-sayatim-to-page'] ? '' : sayatimToPage || '', 'en');
                                 if (lessonType) sayatimContent += ` → ( ${lessonType} )`;
                               }
 
