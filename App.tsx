@@ -85,7 +85,7 @@ import { applyCalendarSchedules } from './services/calendarStudentSync';
 import { ingestCalendarReviews, commitCalendarAction, type CalendarActionPreview } from './services/calendarReview';
 import { scheduledCount } from './services/studentSchedule';
 import { buildOldRevisionRedo } from './services/oldRevisionRedo';
-import { copyNoorInputs, getNoorLessonType, normalizeNoorEndPage } from './services/noorLessons';
+import { copyNoorInputs, getNoorLessonType, nextNoorPages, normalizeNoorEndPage } from './services/noorLessons';
 import CalendarReviewModal from './components/CalendarReviewModal';
 import StudentDetailsModal from './components/StudentDetailsModal';
 import ConfirmModal from './components/ConfirmModal';
@@ -9466,12 +9466,25 @@ function App() {
                                   }
                                 }}
                                 onChange={(e) => {
-                                  const val = normalizeNoorEndPage(e.target.value, (lastReports[smartReportModal.studentId]?.noor?.book || defaultNoorBook) === 'taasees' ? 'taasees' : 'noor');
+                                  const book = (lastReports[smartReportModal.studentId]?.noor?.book || defaultNoorBook) === 'taasees' ? 'taasees' : 'noor';
+                                  const val = normalizeNoorEndPage(e.target.value, book);
                                   e.target.value = val;
                                   if (isNoorMirrorMode) {
                                     const sayatimEl = document.getElementById('noor-sayatim-to-page') as HTMLInputElement;
                                     if (sayatimEl) {
                                       sayatimEl.value = val;
+                                    }
+                                  } else if (book === 'noor') {
+                                    const next = nextNoorPages(val);
+                                    if (next) {
+                                      const from = document.getElementById('noor-sayatim-from-page') as HTMLInputElement | null;
+                                      const to = document.getElementById('noor-sayatim-to-page') as HTMLInputElement | null;
+                                      if (from) from.value = next.from;
+                                      if (to) to.value = next.to;
+                                      setCancelledInputs(prev => {
+                                        if (!prev['noor-sayatim-from-page'] && !prev['noor-sayatim-to-page']) return prev;
+                                        return { ...prev, 'noor-sayatim-from-page': false, 'noor-sayatim-to-page': false };
+                                      });
                                     }
                                   }
                                 }}

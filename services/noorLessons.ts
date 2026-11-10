@@ -93,6 +93,15 @@ export function normalizeNoorEndPage(value: string, book: 'noor' | 'taasees'): s
   return book === 'noor' && /^\d+$/.test(western) && Number(western) > 73 ? '٧٣' : normalized;
 }
 
+export function nextNoorPages(value: string): { from: string; to: string } | null {
+  const western = value.replace(/[٠-٩]/g, d => '0123456789'['٠١٢٣٤٥٦٧٨٩'.indexOf(d)]).trim();
+  if (!/^\d+$/.test(western)) return null;
+  const page = Number(western);
+  if (page < 1 || page > 73) return null;
+  if (page === 73) return { from: '', to: '' };
+  return { from: String(page + 1).replace(/[0-9]/g, d => '٠١٢٣٤٥٦٧٨٩'[Number(d)]), to: '٠' };
+}
+
 export function copyNoorInputs(root: Pick<Document, 'getElementById'>, parts: string[]): void {
   for (const part of parts) {
     const source = root.getElementById(`noor-tam-${part}`) as HTMLInputElement | null;
