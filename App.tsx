@@ -9474,8 +9474,8 @@ function App() {
                                     if (sayatimEl) {
                                       sayatimEl.value = val;
                                     }
-                                  } else if (book === 'noor') {
-                                    const next = nextNoorPages(val);
+                                  } else {
+                                    const next = nextNoorPages(val, book);
                                     if (next) {
                                       const from = document.getElementById('noor-sayatim-from-page') as HTMLInputElement | null;
                                       const to = document.getElementById('noor-sayatim-to-page') as HTMLInputElement | null;

@@ -52,3 +52,10 @@ test('continuation starts on the following page and stops at the end of Noor', (
   assert.equal(nextNoorPages('٠'), null);
   assert.equal(nextNoorPages(''), null);
 });
+
+test('Foundation Book continuation advances and stops at its last page', () => {
+  assert.deepEqual(JSON.parse(JSON.stringify(nextNoorPages('١١', 'taasees'))), { from: '١٢', to: '٠' });
+  assert.deepEqual(JSON.parse(JSON.stringify(nextNoorPages('٦٢', 'taasees'))), { from: '٦٣', to: '٠' });
+  assert.deepEqual(JSON.parse(JSON.stringify(nextNoorPages('٦٣', 'taasees'))), { from: '', to: '' });
+  assert.equal(nextNoorPages('٦٤', 'taasees'), null);
+});
