@@ -89,6 +89,7 @@ import { copyNoorInputs, getNoorLessonType, nextNoorPages, normalizeNoorEndPage 
 import CalendarReviewModal from './components/CalendarReviewModal';
 import StudentDetailsModal from './components/StudentDetailsModal';
 import ConfirmModal from './components/ConfirmModal';
+import UpdateBanner from './components/UpdateBanner';
 import AcademyDetailsModal from './components/AcademyDetailsModal';
 import AcademyEditModal from './components/AcademyEditModal';
 import SettingsModal from './components/SettingsModal';
@@ -8070,6 +8071,8 @@ function App() {
           </div>
         </div>
       )}
+
+      <UpdateBanner />
 
       <ConfirmModal
         isOpen={confirmConfig.isOpen}

@@ -30,3 +30,6 @@ dist_electron/
 
 # Local application backups
 quran_tracker_backup_*.json
+
+# Written at build time
+project-meta.json

@@ -11,6 +11,7 @@ const { createFirebaseClient } = require('./firebase-client');
 const { createSelectiveSync, cloudProjection, get } = require('./selective-sync');
 const { readMatches } = require('./shortcut-links');
 const { createCalendarSchedules } = require('./calendar-schedules');
+const { registerAppUpdates } = require('./app-update');
 const getCalendarSchedules = createCalendarSchedules();
 ipcMain.handle('get-calendar-schedules', (_event, students, force, review, dayTransitionTime) => getCalendarSchedules(students, { force: force === true, review: review === true, dayTransitionTime }));
 const chromeTabBridge = createChromeTabBridge({ onFocus: focusChromeWindow });
@@ -1412,6 +1413,7 @@ function registerLocalFileProtocol() {
 }
 
 app.whenReady().then(() => {
+    registerAppUpdates({ app, ipcMain, shell, dialog, getMainWindow: () => mainWindow });
     chromeTabBridge.start();
     registerLocalFileProtocol();
     createWindow();

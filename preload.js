@@ -28,4 +28,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     offSyncStatus: () => ipcRenderer.removeAllListeners('sync-status'),
     onCloudSyncSuccess: (callback) => ipcRenderer.on('cloud-sync-success', (_event, timestamp) => callback(timestamp)),
     offCloudSyncSuccess: () => ipcRenderer.removeAllListeners('cloud-sync-success'),
+    checkForUpdates: () => ipcRenderer.invoke('app-update:check'),
+    startUpdate: () => ipcRenderer.invoke('app-update:start'),
 });
