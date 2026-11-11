@@ -36,3 +36,4 @@ const UpdateBanner: React.FC = () => {
 };
 
 export default UpdateBanner;
+

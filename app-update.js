@@ -133,3 +133,4 @@ function registerAppUpdates({ app, ipcMain, shell, dialog, getMainWindow }) {
 }
 
 module.exports = { registerAppUpdates };
+

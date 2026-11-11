@@ -38,3 +38,4 @@ const result = spawnSync(
     { cwd: __dirname, stdio: 'inherit', shell: false }
 );
 process.exit(result.status ?? 1);
+

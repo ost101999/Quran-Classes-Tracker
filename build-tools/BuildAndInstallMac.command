@@ -54,3 +54,4 @@ fi
 
 env -u ELECTRON_RUN_AS_NODE open "$installed_app"
 echo "Installed and opened: $installed_app"
+
