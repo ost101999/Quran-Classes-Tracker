@@ -929,7 +929,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                             {reading && reading.id !== match.id && <><p className="mt-2 font-bold text-gray-600">كتاب القراءة</p><p className="mt-1 break-all" dir="auto">{reading.path}</p></>}
                           </details>
                         </div>
-                        <p className="text-base text-gray-600">{match.exact ? 'مجلد مطابق' : 'يحتاج مراجعة'}</p>
+                        <p className={match.exact ? 'text-base text-red-400' : 'text-base text-gray-600'}>{match.exact ? 'تفصيل' : 'يحتاج مراجعة'}</p>
                         <div className="space-y-1 text-base">
                           {[true, false].map(available => {
                             const group = statuses.filter(status => status.available === available);
