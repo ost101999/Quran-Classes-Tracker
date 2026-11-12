@@ -89,7 +89,7 @@ const UpdateBanner: React.FC = () => {
             )}
             <button type="button" aria-label="التحقق من تحديثات البرنامج" aria-expanded={open} title="تحديثات البرنامج" onClick={() => { setOpen(true); setStartError(false); void check(); }} className="relative flex h-11 w-11 items-center justify-center rounded-2xl border border-gray-200 bg-white text-gray-600 shadow-lg transition hover:bg-gray-50 hover:text-indigo-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500">
                 {checking ? <LoaderCircle size={20} className="animate-spin motion-reduce:animate-none" /> : <Bell size={20} />}
-                {info?.status === 'available' && <span className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white shadow-[0_0_8px_2px_rgba(239,68,68,0.65)]" />}
+                {info?.status === 'available' && <span aria-hidden="true" className="update-indicator" />}
             </button>
         </div>
     );

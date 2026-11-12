@@ -97,3 +97,36 @@
   .monthly-stats-overlay, .monthly-stats-dialog { animation-duration: 1ms; }
   .monthly-stats-details { transition-duration: 1ms; transition-delay: 0ms !important; }
 }
+
+/* Soft, feathered halo around the update indicator. */
+.update-indicator {
+  position: absolute;
+  z-index: 0;
+  top: 8px;
+  right: 8px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #e45d64;
+  box-shadow: 0 0 0 1.5px #fff, 0 0 5px rgba(228, 93, 100, .45);
+}
+
+.update-indicator::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: -12px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(231, 78, 88, .55) 0%, rgba(231, 78, 88, .25) 32%, rgba(231, 78, 88, 0) 70%);
+  pointer-events: none;
+  animation: update-indicator-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes update-indicator-pulse {
+  0%, 100% { transform: scale(.65); opacity: .45; }
+  50% { transform: scale(1.15); opacity: .9; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .update-indicator::after { animation: none; opacity: .5; }
+}
