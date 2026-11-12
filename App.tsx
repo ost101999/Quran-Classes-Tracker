@@ -8703,7 +8703,7 @@ function App() {
                         </button>
                       </div>
                     )}
-                    {index === 1 && <div className="flex justify-end px-3 text-center text-xs text-gray-400"><div className="grid w-28 grid-cols-2 gap-4"><span>عام</span><span>الشهر</span></div></div>}
+                    {index === 1 && <div className="mt-1 flex justify-end px-3 text-center text-xs text-gray-400"><div className="grid w-28 grid-cols-2 gap-4"><span>عام</span><span>الشهر</span></div></div>}
                     <button type="button"
                       onPointerDown={() => { if (category.id !== 'rescheduled') return; rescheduleHeldRef.current = false; reschedulePressRef.current = setTimeout(() => { rescheduleHeldRef.current = true; void copyDays(category, true); }, 600); }}
                       onPointerUp={() => { if (reschedulePressRef.current) clearTimeout(reschedulePressRef.current); reschedulePressRef.current = null; }}
@@ -8715,7 +8715,7 @@ function App() {
                       title={category.id === 'rescheduled' ? undefined : 'نسخ الأيام بالعربي والإنجليزي'}>
                       <span>{category.id === 'rescheduled' ? 'نسخ ' : ''}{missedClassesMenu.academyName && category.id === 'studentApology' ? 'اعتذارات الطلبة' : missedClassesMenu.academyName && category.id === 'studentAbsence' ? 'غياب الطلبة' : category.label}</span>
                       {category.id === 'rescheduled' && <span role="tooltip" className="pointer-events-none absolute top-full left-2 right-2 z-10 rounded-lg border border-gray-200/60 bg-white/75 backdrop-blur-sm px-3 py-2 text-center text-sm leading-relaxed text-gray-600 shadow-sm opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus:opacity-100">ينسخ اعتذارات الطالب والمعلم للشهر المعروض. اضغط مطولًا لنسخ الشهر المعروض والسابق.</span>}
-                      {category.id !== 'rescheduled' && <span className="grid grid-cols-2 gap-4 w-28 shrink-0 text-center text-sm font-normal text-blue-600 whitespace-nowrap"><span title="من جميع الحصص المسجلة حتى اليوم"><span dir="ltr" className="inline-flex"><span>{breakdown.allRecorded ? toHindiDigits(Math.round(breakdown.allCategoryCounts[category.id] / breakdown.allRecorded * 1000) / 10) : '—'}</span>{breakdown.allRecorded > 0 && <span>٪</span>}</span></span><span title="من الحصص المقررة في الشهر المعروض"><span dir="ltr" className="inline-flex"><span>{percent === null ? '—' : toHindiDigits(percent)}</span>{percent !== null && <span>٪</span>}</span></span></span>}
+                      {category.id !== 'rescheduled' && <span className="grid grid-cols-2 gap-4 w-28 shrink-0 text-center text-sm font-normal text-blue-600 whitespace-nowrap"><span title="من جميع الحصص المسجلة حتى اليوم"><span dir="ltr" className="inline-flex">{breakdown.allRecorded > 0 && <span>٪</span>}<span>{breakdown.allRecorded ? toHindiDigits(Math.round(breakdown.allCategoryCounts[category.id] / breakdown.allRecorded * 1000) / 10) : '—'}</span></span></span><span title="من الحصص المقررة في الشهر المعروض"><span dir="ltr" className="inline-flex">{percent !== null && <span>٪</span>}<span>{percent === null ? '—' : toHindiDigits(percent)}</span></span></span></span>}
                     </button>
                   </React.Fragment>
                 );
