@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getSyncConflicts: () => ipcRenderer.invoke('get-sync-conflicts'),
     resolveSyncConflict: (path, choice, etag) => ipcRenderer.invoke('resolve-sync-conflict', path, choice, etag),
     loadData: () => ipcRenderer.invoke('load-data'),
+    getWhatsAppTargets: (students) => ipcRenderer.invoke('get-whatsapp-targets', students),
     getShortcutLinks: (students) => ipcRenderer.invoke('get-shortcut-links', students),
     getCalendarSchedules: (students, force = false, review = false, dayTransitionTime = '00:00') => ipcRenderer.invoke('get-calendar-schedules', students, force, review, dayTransitionTime),
     saveZoom: (zoomFactor) => ipcRenderer.invoke('save-zoom', zoomFactor),

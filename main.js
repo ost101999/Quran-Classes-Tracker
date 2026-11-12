@@ -10,6 +10,7 @@ const { sanitizeKeys } = require('./firebase-patch');
 const { createFirebaseClient } = require('./firebase-client');
 const { createSelectiveSync, cloudProjection, get } = require('./selective-sync');
 const { readMatches } = require('./shortcut-links');
+const { readTargets } = require('./whatsapp-integration');
 const { createCalendarSchedules } = require('./calendar-schedules');
 const { registerAppUpdates } = require('./app-update');
 const getCalendarSchedules = createCalendarSchedules();
@@ -20,6 +21,8 @@ ipcMain.handle('get-shortcut-links', (_event, students) => {
     const requests = Array.isArray(students) ? students.filter(s => s && typeof s.id === 'string' && typeof s.name === 'string') : [];
     return readMatches(requests);
 });
+
+ipcMain.handle('get-whatsapp-targets', (_event, students) => process.platform === 'darwin' && Array.isArray(students) ? readTargets(students.filter(s => s && typeof s.id === 'string' && typeof s.name === 'string')) : { available: false, matches: {} });
 
 // Helper for waiting
 const waitForTimeout = (ms) => new Promise(resolve => setTimeout(resolve, ms));
@@ -1142,20 +1145,28 @@ async function sendWhatsAppMessage(targetName, message) {
 
 // --- WhatsApp IPC Handler ---
 ipcMain.handle('send-whatsapp-auto', async (event, data) => {
-    console.log('===========================================');
-    console.log('WhatsApp IPC Handler Called!');
-    console.log('Data received:', JSON.stringify(data));
-    console.log('===========================================');
-
+    if (process.platform === 'darwin') {
+        const { targetName, message } = data || {};
+        if (typeof targetName !== 'string' || typeof message !== 'string' || !targetName.trim() || !message.trim()) return { success: false, error: 'بيانات الإرسال غير مكتملة.' };
+        const helper = path.join(app.getPath('home'), 'MyAutoScripts', '5- My Programs', '1- Google Calender Magic Opener', 'Support Files', 'whatsapp_mac.py');
+        return await new Promise(resolve => {
+            const child = spawn('/usr/bin/python3', [helper], { stdio: ['pipe', 'pipe', 'pipe'] });
+            let out = '', settled = false;
+            const finish = result => { if (!settled) { settled = true; resolve(result); } };
+            child.stdout.on('data', chunk => { out += chunk; });
+            child.on('error', () => finish({ success: false, error: 'تعذر تشغيل خدمة واتساب.' }));
+            child.on('close', () => { try { const result = JSON.parse(out); finish({ success: !!result.ok, error: result.error }); } catch { finish({ success: false, error: 'تعذر التأكد من الإرسال. راجع المحادثة قبل إعادة المحاولة.' }); } });
+            child.stdin.on('error', () => {});
+            child.stdin.end(JSON.stringify({ target: targetName, text: message }) + '\n');
+        });
+    }
     try {
         const { targetName, message } = data || {};
         if (!targetName) {
             console.error('No targetName provided!');
             return { success: false, error: 'No target name' };
         }
-        console.log('Calling sendWhatsAppMessage...');
         const result = await sendWhatsAppMessage(targetName, message);
-        console.log('sendWhatsAppMessage result:', result);
         return result;
     } catch (error) {
         console.error('IPC Handler Error:', error);

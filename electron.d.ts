@@ -7,6 +7,7 @@ declare global {
             getSyncConflicts?: () => Promise<any[]>;
             resolveSyncConflict?: (path: string, choice: 'local' | 'remote', etag: string) => Promise<{ success: boolean; changed?: boolean }>;
             loadData: () => Promise<any>;
+            getWhatsAppTargets?: (students: { id: string; name: string }[]) => Promise<{ available: boolean; matches: Record<string, string> }>;
             getShortcutLinks?: (students: { id: string; name: string }[]) => Promise<ShortcutLinksResult>;
             getCalendarSchedules?: (students: { id: string; name: string }[], force?: boolean, review?: boolean, dayTransitionTime?: string) => Promise<import('./types').CalendarSchedulesResult>;
             saveZoom?: (zoomFactor: number) => Promise<{ success: boolean; error?: string }>;

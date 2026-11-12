@@ -717,7 +717,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                 <div className="flex items-center gap-4">
                   <label className="text-lg font-medium text-gray-400 flex items-center gap-2 whitespace-nowrap font-neirizi w-32">
                     <Phone size={18} className="text-gray-300" />
-                    رقم واتساب / اسم المجموعة
+                    رقم أو معرّف واتساب
                   </label>
                   <div className="relative flex-1">
                     <input

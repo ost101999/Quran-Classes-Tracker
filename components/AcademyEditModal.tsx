@@ -228,7 +228,7 @@ const AcademyEditModal: React.FC<Props> = ({ academyName, academyRate, onClose, 
 
                     {/* WhatsApp for Academy */}
                     <div className="space-y-2">
-                        <label className="text-lg font-medium text-gray-400 block pr-1">رقم واتساب / اسم المجموعة (الافتراضي)</label>
+                        <label className="text-lg font-medium text-gray-400 block pr-1">رقم أو معرّف واتساب (الافتراضي)</label>
                         <div className="relative">
                             <input
                                 type="text"

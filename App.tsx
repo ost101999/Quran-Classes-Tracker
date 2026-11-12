@@ -2382,9 +2382,11 @@ function App() {
 
   const [toast, setToast] = useState<{ message: string; show: boolean }>({ message: '', show: false });
 
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const showToast = (msg: string) => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
     setToast({ message: msg, show: true });
-    setTimeout(() => setToast(prev => ({ ...prev, show: false })), 2500);
+    toastTimer.current = setTimeout(() => setToast(prev => ({ ...prev, show: false })), 4500);
   };
 
   const handleOpenLink = (url: string, title: string = '') => {
@@ -4748,6 +4750,33 @@ function App() {
       window.removeEventListener('online', refresh);
     };
   }, [students, isLoaded, initialSyncReady, isModalOpen, syncConflicts.length, resolvingConflict, calendarRefresh, dayTransitionTime]);
+
+  // Import only unambiguous exact matches; never guess a recipient.
+  const importedWhatsAppStudents = useRef(new Set<string>());
+  useEffect(() => {
+    if (!isLoaded || !initialSyncReady || isModalOpen || syncConflicts.length || resolvingConflict || !window.electronAPI?.getWhatsAppTargets) return;
+    const requests = students.map(({ id, name }) => ({ id, name }));
+    if (!requests.some(student => !importedWhatsAppStudents.current.has(student.id))) return;
+    let cancelled = false;
+    window.electronAPI.getWhatsAppTargets(requests).then(result => {
+      if (cancelled || !result.available || applyingCloudRef.current) return;
+      const names = new Map(requests.map(student => [student.id, student.name]));
+      const pending = new Set(requests.filter(student => !importedWhatsAppStudents.current.has(student.id)).map(student => student.id));
+      requests.forEach(student => importedWhatsAppStudents.current.add(student.id));
+      setStudents(previous => {
+        let changed = false;
+        const updated = previous.map(student => {
+          if (!pending.has(student.id) || names.get(student.id) !== student.name) return student;
+          const target = result.matches[student.id];
+          if (!target || student.whatsappNumber === target) return student;
+          changed = true;
+          return { ...student, whatsappNumber: target };
+        });
+        return changed ? updated : previous;
+      });
+    }).catch(error => console.error('Could not read WhatsApp identifiers:', error));
+    return () => { cancelled = true; };
+  }, [students, isLoaded, initialSyncReady, isModalOpen, syncConflicts.length, resolvingConflict]);
 
   // Read the shortcut file locally. Only unique, exact folder matches are linked
   // automatically, and existing links are never replaced.
@@ -8207,7 +8236,7 @@ function App() {
                   if (result?.success) {
                     showToast('تم إرسال التقرير الشهري عبر واتساب ✅');
                   } else {
-                    showToast('حدث خطأ في الإرسال ❌');
+                    showToast(result?.error || 'حدث خطأ في الإرسال ❌');
                   }
                 }).catch(() => {
                   showToast('حدث خطأ في الإرسال ❌');
@@ -8828,7 +8857,7 @@ function App() {
 
       {/* Toast Notification */}
       <div className={`fixed bottom-32 right-1/2 translate-x-1/2 z-[200] transition-all duration-300 pointer-events-none ${toast.show ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-        <div className="bg-gray-800/90 backdrop-blur-md text-white px-6 py-3 rounded-2xl shadow-2xl border border-white/10 flex items-center gap-3">
+        <div className="bg-slate-900/95 backdrop-blur-xl text-white px-6 py-3 rounded-2xl shadow-2xl shadow-violet-900/20 border border-violet-300/20 flex items-center gap-3">
           <span className="font-arabic text-xl font-bold">{toast.message}</span>
         </div>
       </div>
@@ -15154,9 +15183,8 @@ function App() {
                                   ensureTajweedAssignmentForLesson(_tajweedStudentId, selectedTajweedLessonId, 'ar');
                                   showToast('تم الإرسال عبر واتساب ✅');
                                   setSearchQuery('');
-                                  new Notification('تم الإرسال ✅', { body: `تم إرسال تقرير ${studentName} عبر واتساب بنجاح` });
                                 } else {
-                                  showToast('حدث خطأ في الإرسال ❌');
+                                  showToast(result.error || 'حدث خطأ في الإرسال ❌');
                                   console.error('WhatsApp error:', result.error);
                                 }
                               }).catch((err: any) => {
@@ -15303,9 +15331,8 @@ function App() {
                                   });
                                   showToast('تم الإرسال عبر واتساب ✅');
                                   setSearchQuery('');
-                                  new Notification('تم الإرسال ✅', { body: `تم إرسال تقرير ${studentName} عبر واتساب بنجاح` });
                                 } else {
-                                  showToast('حدث خطأ في الإرسال ❌');
+                                  showToast(result.error || 'حدث خطأ في الإرسال ❌');
                                   console.error('WhatsApp error:', result.error);
                                 }
                               }).catch((err: any) => {
@@ -16138,9 +16165,8 @@ function App() {
 
                                 showToast('تم الإرسال عبر واتساب ✅');
                                 setSearchQuery('');
-                                new Notification('تم الإرسال ✅', { body: `تم إرسال تقرير ${studentName} عبر واتساب بنجاح` });
                               } else {
-                                showToast('حدث خطأ في الإرسال ❌');
+                                showToast(result.error || 'حدث خطأ في الإرسال ❌');
                                 console.error('WhatsApp error:', result.error);
                               }
                             }).catch((err: any) => {
@@ -16455,13 +16481,12 @@ function App() {
                                       audioLink: audioLinkText.trim()
                                     });
                                     showToast('Sent via WhatsApp ✅');
-                                    new Notification('Sent ✅', { body: `Report for ${studentName} sent via WhatsApp` });
                                     setSearchQuery('');
                                     if (mergeWithQuran) {
                                       new Notification('Merge Reminder 📖', { body: `Report for ${studentName} merged with Quran` });
                                     }
                                   } else {
-                                    showToast('Failed to send ❌');
+                                    showToast(result.error || 'Failed to send ❌');
                                     console.error('WhatsApp error:', result.error);
                                   }
                                 }).catch((err: any) => {
@@ -17685,9 +17710,8 @@ function App() {
                                 ensureTajweedAssignmentForLesson(_engStudentId, enReportTajweedLessonId, 'en');
 
                                 showToast('Sent via WhatsApp ✅');
-                                new Notification('Sent ✅', { body: `Report for ${studentName} sent via WhatsApp` });
                               } else {
-                                showToast('Failed to send ❌');
+                                showToast(result.error || 'Failed to send ❌');
                                 console.error('WhatsApp error:', result.error);
                               }
                             }).catch((err: any) => {
