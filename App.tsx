@@ -6065,6 +6065,8 @@ function App() {
     // Only completed, recorded outcomes contribute to commitment, including past months.
     const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
     const outcomes: { date: string; missed: boolean; count: number; status: AttendanceStatus; name: string }[] = [];
+    const allCategoryCounts: Record<string, number> = { studentApology: 0, studentAbsence: 0, teacherApology: 0 };
+    let allRecorded = 0;
     for (const student of reportStudents) {
       const prefix = `${student.id}_`;
       for (const [key, status] of Object.entries(attendance)) {
@@ -6075,6 +6077,10 @@ function App() {
         const date = `${y}-${String(m + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
         if (date > today) continue;
         const missed = status === AttendanceStatus.ABSENCE_RED || status === AttendanceStatus.PAID_ABSENCE || status === AttendanceStatus.PAID_ABSENCE_DOUBLE;
+        const categoryId = status === AttendanceStatus.ABSENCE_RED ? 'studentApology' : status === AttendanceStatus.PAID_ABSENCE || status === AttendanceStatus.PAID_ABSENCE_DOUBLE ? 'studentAbsence' : status === AttendanceStatus.UNEXCUSED_ABSENCE ? 'teacherApology' : null;
+        const outcomeCount = status === AttendanceStatus.DOUBLE_CLASS || status === AttendanceStatus.PAID_ABSENCE_DOUBLE ? 2 : categoryId ? Math.max(1, getScheduledCountOnDate(student, day, m, y)) : 1;
+        if (categoryId) allCategoryCounts[categoryId] += outcomeCount;
+        if (categoryId || status === AttendanceStatus.PRESENT || status === AttendanceStatus.DOUBLE_CLASS) allRecorded += outcomeCount;
         if (!missed && status !== AttendanceStatus.PRESENT && status !== AttendanceStatus.DOUBLE_CLASS) continue;
         const count = status === AttendanceStatus.DOUBLE_CLASS || status === AttendanceStatus.PAID_ABSENCE_DOUBLE ? 2 :
           missed ? Math.max(1, getScheduledCountOnDate(student, day, m, y)) : 1;
@@ -6094,7 +6100,7 @@ function App() {
       return { total, attended, selected, percent: total ? Math.round(attended / total * 1000) / 10 : null };
     };
     const recent = summarize(10), overall = summarize(Infinity);
-    return { categories, scheduled, recentCommitment: recent.percent, commitment: overall.percent, recent, overall, hasRecordedFallback, hasScheduledDays };
+    return { categories, scheduled, recentCommitment: recent.percent, commitment: overall.percent, recent, overall, allCategoryCounts, allRecorded, hasRecordedFallback, hasScheduledDays };
   };
 
   useEffect(() => {
@@ -8708,7 +8714,7 @@ function App() {
                       title={category.id === 'rescheduled' ? undefined : 'نسخ الأيام بالعربي والإنجليزي'}>
                       <span>{category.id === 'rescheduled' ? 'نسخ ' : ''}{missedClassesMenu.academyName && category.id === 'studentApology' ? 'اعتذارات الطلبة' : missedClassesMenu.academyName && category.id === 'studentAbsence' ? 'غياب الطلبة' : category.label}</span>
                       {category.id === 'rescheduled' && <span role="tooltip" className="pointer-events-none absolute top-full left-2 right-2 z-10 rounded-lg border border-gray-200/60 bg-white/75 backdrop-blur-sm px-3 py-2 text-center text-sm leading-relaxed text-gray-600 shadow-sm opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus:opacity-100">ينسخ اعتذارات الطالب والمعلم للشهر المعروض. اضغط مطولًا لنسخ الشهر المعروض والسابق.</span>}
-                      {category.id !== 'rescheduled' && <span className="font-normal text-blue-600" dir="ltr">{percent === null ? '—' : `${toHindiDigits(percent)}%`}</span>}
+                      {category.id !== 'rescheduled' && <span className="grid grid-cols-2 gap-4 w-28 shrink-0 text-center text-sm font-normal text-blue-600 whitespace-nowrap"><span title="من جميع الحصص المسجلة حتى اليوم"><span dir="ltr" className="inline-flex"><span>{breakdown.allRecorded ? toHindiDigits(Math.round(breakdown.allCategoryCounts[category.id] / breakdown.allRecorded * 1000) / 10) : '—'}</span>{breakdown.allRecorded > 0 && <span>٪</span>}</span></span><span title="من الحصص المقررة في الشهر المعروض"><span dir="ltr" className="inline-flex"><span>{percent === null ? '—' : toHindiDigits(percent)}</span>{percent !== null && <span>٪</span>}</span></span></span>}
                     </button>
                   </React.Fragment>
                 );
