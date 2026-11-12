@@ -41,6 +41,13 @@ const toWesternDigits = (str: string): string => {
   return str.toString().replace(/[٠-٩]/g, (d) => "٠١٢٣٤٥٦٧٨٩".indexOf(d).toString());
 };
 
+const arabicCalendarDate = (value: string): string => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return toHindiDigits(value);
+  return new Intl.DateTimeFormat('ar-EG', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
+    .format(new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]))));
+};
+
 // Helper to check if a string is a valid URL
 const isValidUrl = (url: string): boolean => {
   if (!url || url.length < 3) return false;
@@ -107,6 +114,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
   const [disableReport, setDisableReport] = useState(student?.disableReport ?? false);
   const [whatsappNumber, setWhatsappNumber] = useState(student?.whatsappNumber || '');
   const [whatsappSource, setWhatsappSource] = useState('');
+  const [whatsappSourceAvailable, setWhatsappSourceAvailable] = useState<boolean | null>(null);
   const [zoomLink, setZoomLink] = useState(student?.zoomLink || '');
   const [quranLink, setQuranLink] = useState(student?.quranLink || '');
   const [quranLinkError, setQuranLinkError] = useState(false);
@@ -125,6 +133,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
   const [shortcutApplied, setShortcutApplied] = useState(false);
   useEffect(() => {
     setWhatsappSource('');
+    setWhatsappSourceAvailable(null);
     if (!student || name !== student.name || !window.electronAPI?.getWhatsAppTargets) return;
     let cancelled = false;
     const refresh = async () => {
@@ -132,8 +141,8 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
       const requests = (students || []).filter(item => !item.deletedAt || item.deletedAt.year > now.getFullYear() || (item.deletedAt.year === now.getFullYear() && item.deletedAt.month > now.getMonth())).map(({ id, name }) => ({ id, name }));
       try {
         const result = await window.electronAPI!.getWhatsAppTargets!(requests);
-        if (!cancelled) setWhatsappSource(result.available ? result.matches[student.id] || '' : '');
-      } catch { if (!cancelled) setWhatsappSource(''); }
+        if (!cancelled) { setWhatsappSourceAvailable(result.available); setWhatsappSource(result.available ? result.matches[student.id] || '' : ''); }
+      } catch { if (!cancelled) { setWhatsappSourceAvailable(false); setWhatsappSource(''); } }
     };
     void refresh();
     const timer = window.setInterval(refresh, 60000);
@@ -887,6 +896,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                   {!window.electronAPI?.getShortcutLinks && <p className="text-sm text-gray-500">الربط التلقائي متاح من تطبيق الكمبيوتر.</p>}
                   {shortcutAvailable === false && <p className="text-sm text-red-600">تعذرت قراءة ملف الاختصارات من iCloud.</p>}
                   {shortcutAvailable === true && primaryShortcutMatches.length === 0 && <p className="text-sm text-amber-700">لم نجد اختصارًا لملف مصحف أو قراءة موجود مباشرة داخل مجلد مطابق لاسم الطالب. راجع الاسم والمسار المحفوظ في الاختصارات.</p>}
+                  {primaryShortcutMatches.length !== 1 && <p className={whatsappSource ? 'text-base text-emerald-700' : 'text-base text-amber-700'}>معرّف واتساب: {whatsappSource ? 'متاح' : whatsappSourceAvailable === false ? 'تعذّر التحقق' : 'غير متاح'}</p>}
                   {shortcutAvailable === true && primaryShortcutMatches.length === 0 && folderHint && <p className="text-sm text-amber-700">وجدنا ملفًا باسم الطالب داخل مجلد «{folderHint}»، لكن اسم المجلد مختلف. راجع الاسم والمسار؛ لم يتم الربط تلقائيًا.</p>}
                   {primaryShortcutMatches.length > 1 && <p className="text-sm text-amber-700">يوجد أكثر من ملف مطابق داخل المجلد، لذلك لم نختَر ملفًا تلقائيًا. راجع الاختصارات.</p>}
                   {primaryShortcutMatches.length === 1 && primaryShortcutMatches.map(match => {
@@ -897,16 +907,26 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                     const missingReading = missingReadingMatches.filter(item => item.folderId === match.folderId && !acknowledgedMissingReadingIds.includes(item.id));
                     const readingDifferent = !!(readingLink && reading?.readingLink && !linksEquivalent(readingLink, reading.readingLink, 'quran'));
                     const readingAvailable = !!(reading?.readingLink && !reading.readingConflict && !reading.readingLinkInvalid);
+                    const whatsappDifferent = !!(whatsappNumber && whatsappSource && !whatsappTargetsEquivalent(whatsappNumber, whatsappSource));
+                    const statuses = [
+                      { label: isGoogleMeetLink(match.zoomLink) ? 'Google Meet' : 'زوم', available: !!match.zoomLink && !zoomDifferent && !match.zoomConflict, text: match.zoomConflict || zoomDifferent ? 'مختلف' : match.zoomLink ? 'متاح' : 'غير متاح' },
+                      { label: 'المصحف', available: !!match.quranLink && !quranDifferent, text: quranDifferent ? 'مختلف' : match.quranLink ? 'متاح' : 'غير متاح' },
+                      { label: 'كتاب القراءة', available: readingAvailable && !readingDifferent, text: readingDifferent ? 'مختلف' : readingAvailable ? 'متاح' : 'غير متاح' },
+                      { label: 'معرّف واتساب', available: !!whatsappSource && !whatsappDifferent, text: whatsappDifferent ? 'مختلف' : whatsappSource ? 'متاح' : whatsappSourceAvailable === false ? 'تعذّر التحقق' : 'غير متاح' },
+                    ];
                     return (
                       <div key={match.id} className="rounded-xl bg-white border border-gray-200 p-4 space-y-2">
                         <p className="text-sm text-gray-600">{match.isReading ? 'كتاب القراءة' : 'المصحف'}</p>
                         <p className="text-base font-bold text-gray-800 break-all" dir="auto">{match.path}</p>
-                        <p className="text-base text-gray-600 flex flex-wrap gap-x-2 gap-y-1">
-                          <span>{match.exact ? 'مجلد مطابق' : 'يحتاج مراجعة'}</span>
-                          <span className={match.zoomLink && !zoomDifferent && !match.zoomConflict ? 'text-emerald-700' : 'text-amber-700'}>{isGoogleMeetLink(match.zoomLink) ? 'Google Meet' : 'زوم'}: {zoomDifferent ? 'مختلف' : match.zoomLink ? 'متاح' : 'غير متاح'}</span>
-                          <span className={match.quranLink && !quranDifferent ? 'text-emerald-700' : 'text-amber-700'}>المصحف: {quranDifferent ? 'مختلف' : match.quranLink ? 'متاح' : 'غير متاح'}</span>
-                          <span className={readingAvailable && !readingDifferent ? 'text-emerald-700' : 'text-amber-700'}>كتاب القراءة: {readingDifferent ? 'مختلف' : readingAvailable ? 'متاح' : 'غير متاح'}</span>
-                        </p>
+                        <p className="text-base text-gray-600">{match.exact ? 'مجلد مطابق' : 'يحتاج مراجعة'}</p>
+                        <div className="space-y-1 text-base">
+                          {[true, false].map(available => {
+                            const group = statuses.filter(status => status.available === available);
+                            return group.length > 0 && <div key={String(available)} className={`flex flex-wrap gap-x-4 gap-y-1 ${available ? 'text-emerald-700' : 'text-amber-700'}`}>
+                              {group.map(status => <span key={status.label}>{status.label}: {status.text}</span>)}
+                            </div>;
+                          })}
+                        </div>
                         {(zoomDifferent || quranDifferent) && <p className="text-base text-amber-700">{zoomDifferent && quranDifferent ? 'رابطا الحصة والمصحف مختلفان' : zoomDifferent ? 'رابط الحصة مختلف' : 'رابط المصحف مختلف'} عن المحفوظ.</p>}
                         {reading && reading.id !== match.id && <p className="text-sm text-gray-600 break-all" dir="auto">كتاب القراءة: {reading.path}</p>}
                         {readingDifferent && <p className="text-base text-amber-700">رابط كتاب القراءة مختلف عن المحفوظ.</p>}
@@ -1024,15 +1044,14 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                   dir="ltr"
                   rows={5}
                 />
-                <div className="flex items-start justify-between gap-3 text-sm">
+                <div className="flex items-start justify-between gap-3 text-base">
                   <p id="student-schedule-status" role="status" className={scheduleError ? 'text-amber-700' : 'text-emerald-700'}>
                     {scheduleLoading ? 'جاري قراءة مواعيد الأسبوع الحالي…' : scheduleError || (isCurrentSchedule(calendarSchedule, name)
-                      ? `${calendarSchedule!.status === 'empty' ? 'لا توجد مواعيد بهذا الاسم هذا الأسبوع' : 'تم التحديث من التقويم'} · ${calendarSchedule!.weekStart} — ${calendarSchedule!.weekEnd}`
+                      ? `${calendarSchedule!.status === 'empty' ? 'لا توجد مواعيد بهذا الاسم هذا الأسبوع' : 'تم التحديث من التقويم'} · ${arabicCalendarDate(calendarSchedule!.weekStart)} — ${arabicCalendarDate(calendarSchedule!.weekEnd)}`
                       : 'من السبت إلى الجمعة بتوقيت القاهرة، وتُعرض الحصص بتوقيت الطالب.')}
                   </p>
                   <button type="button" disabled={scheduleLoading || !name.trim()} onClick={() => setScheduleRefresh(value => value + 1)} className="shrink-0 text-emerald-700 font-bold disabled:opacity-40">تحديث الآن</button>
                 </div>
-                <p className="text-xs text-gray-500">يتحدث تلقائيًا كل دقيقة أثناء تشغيل التطبيق، ويصل إلى واجهة الطالب بعد المزامنة.</p>
               </div>
 
               {/* Student Age Group */}
