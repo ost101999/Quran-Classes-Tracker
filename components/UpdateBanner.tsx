@@ -71,7 +71,7 @@ const UpdateBanner: React.FC = () => {
     };
 
     return (
-        <div ref={containerRef} className="relative z-50 w-fit" dir="rtl">
+        <div ref={containerRef} className="relative z-40 w-fit" dir="rtl">
             {open && (
                 <div className="absolute top-full left-0 mt-3 w-72 rounded-2xl border border-gray-100 bg-white p-4 shadow-2xl" role="status" aria-live="polite">
                     <button type="button" onClick={() => setOpen(false)} aria-label="إغلاق" className="absolute left-3 top-3 rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700"><X size={16} /></button>
