@@ -892,7 +892,6 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                     لا يحتاج اختصارات
                   </label>
                   {shortcutNotRequired ? <p className="text-sm text-gray-500">الربط التلقائي وتنبيهاته متوقفان لهذا الطالب.</p> : <>
-                  <p className="text-base text-gray-600">اختر ملف الطالب المطابق لتحديث الروابط، سواء كان مصحفًا أو كتاب قراءة.</p>
                   {!window.electronAPI?.getShortcutLinks && <p className="text-sm text-gray-500">الربط التلقائي متاح من تطبيق الكمبيوتر.</p>}
                   {shortcutAvailable === false && <p className="text-sm text-red-600">تعذرت قراءة ملف الاختصارات من iCloud.</p>}
                   {shortcutAvailable === true && primaryShortcutMatches.length === 0 && <p className="text-sm text-amber-700">لم نجد اختصارًا لملف مصحف أو قراءة موجود مباشرة داخل مجلد مطابق لاسم الطالب. راجع الاسم والمسار المحفوظ في الاختصارات.</p>}
@@ -917,13 +916,20 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                     return (
                       <div key={match.id} className="rounded-xl bg-white border border-gray-200 p-4 space-y-2">
                         <p className="text-sm text-gray-600">{match.isReading ? 'كتاب القراءة' : 'المصحف'}</p>
-                        <p className="text-base font-bold text-gray-800 break-all" dir="auto">{match.path}</p>
+                        <div className="rounded-lg bg-emerald-50 border border-emerald-100 px-4 py-3">
+                          <p className="text-sm font-bold text-emerald-800">ملف الطالب</p>
+                          <p className="mt-1 text-base font-bold text-gray-800 break-words" dir="auto">{match.path.split(/[\\/]/).filter(Boolean).pop()}</p>
+                          <details className="mt-2 text-sm text-gray-500">
+                            <summary className="cursor-pointer text-emerald-700">عرض مسار الملف</summary>
+                            <p className="mt-1 break-all" dir="auto">{match.path}</p>
+                          </details>
+                        </div>
                         <p className="text-base text-gray-600">{match.exact ? 'مجلد مطابق' : 'يحتاج مراجعة'}</p>
                         <div className="space-y-1 text-base">
                           {[true, false].map(available => {
                             const group = statuses.filter(status => status.available === available);
-                            return group.length > 0 && <div key={String(available)} className={`flex flex-wrap gap-x-4 gap-y-1 ${available ? 'text-emerald-700' : 'text-amber-700'}`}>
-                              {group.map(status => <span key={status.label}>{status.label}: {status.text}</span>)}
+                            return group.length > 0 && <div key={String(available)} className={`space-y-1 ${available ? 'text-emerald-700' : 'text-amber-700'}`}>
+                              {group.map(status => <p key={status.label}>{status.label}: {status.text}</p>)}
                             </div>;
                           })}
                         </div>
@@ -1005,7 +1011,6 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                   onChange={e => { setQuranLink(e.target.value); setQuranLinkError(false); }}
                   aria-invalid={quranLinkError}
                   aria-describedby={quranLinkError ? 'quran-link-error' : undefined}
-                  placeholder="https://drive.google.com/file/d/.../view"
                   className="w-full px-4 py-2.5 bg-gray-50 border-2 border-gray-100 rounded-xl focus:outline-none focus:border-[#ffe05d] focus:bg-white transition-all text-sm font-english text-left"
                   dir="ltr"
                 />
@@ -1021,7 +1026,6 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                   id="reading-link" type="url" value={readingLink}
                   onChange={e => { setReadingLink(e.target.value); setReadingLinkError(false); }}
                   aria-invalid={readingLinkError} aria-describedby={readingLinkError ? 'reading-link-error' : undefined}
-                  placeholder="https://drive.google.com/file/d/.../view"
                   className="w-full px-4 py-2.5 bg-gray-50 border-2 border-gray-100 rounded-xl focus:outline-none focus:border-[#ffe05d] focus:bg-white transition-all text-sm font-english text-left" dir="ltr"
                 />
                 {readingLinkError && <p id="reading-link-error" className="text-sm text-red-600" role="alert">أدخل رابط ملف صالحًا من Google Drive.</p>}
