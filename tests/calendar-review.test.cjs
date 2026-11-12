@@ -355,7 +355,7 @@ test('weekly proposal re-prompts if student days in app or calendar days change 
 
 test('returning event color to default after confirming red or green proposes resetting the recorded status', () => {
     // 1. Event is colored Red ('11') -> teacher confirms student apology ('r')
-    const redEvent = occurrence({ id: 'luqman-1', colorId: '11', recurring: true });
+    const redEvent = occurrence({ id: 'luqman-1', start: new Date(now.getTime() + 86400000).toISOString(), end: new Date(now.getTime() + 88200000).toISOString(), colorId: '11', recurring: true });
     let students = ingest([student()], [redEvent]);
     let data = state(students);
     const key = attendanceKey('s1', cairoDate(redEvent.start));
@@ -375,6 +375,20 @@ test('returning event color to default after confirming red or green proposes re
     committed = commitCalendarAction(data, 's1', preview);
     assert.equal(committed.attendance[key], undefined);
     assert.equal(committed.students[0].calendarReview.pending.length, 0);
+});
+
+test('reset is ignored when the color returns after the class starts, including old invalid suggestions', () => {
+    const event = occurrence({ id: 'past-reset', start: '2030-01-02T10:00:00Z', end: '2030-01-02T11:00:00Z', colorId: '11', recurring: true });
+    let students = ingest([student()], [event], { fetchedAt: '2030-01-02T09:00:00Z' });
+    const data = state(students);
+    const committed = commitCalendarAction(data, 's1', prepareCalendarAction(data, 's1', students[0].calendarReview.pending[0].id, 'apology'));
+    const normal = { ...event, colorId: '' };
+    students = ingest(committed.students, [normal], { fetchedAt: '2030-01-02T10:00:00Z' });
+    assert.equal(students[0].calendarReview.pending.length, 0);
+    const invalid = { id: 'past-reset:reset:2', kind: 'reset', event: normal, detectedAt: '2030-01-02T10:01:00Z' };
+    students[0].calendarReview.pending.push(invalid);
+    students = ingest(students, [normal], { fetchedAt: '2030-01-02T11:00:00Z' });
+    assert.equal(students[0].calendarReview.pending.length, 0);
 });
 
 test('getRecentApologyClasses returns last 3 student/teacher apologies and allows 1-click makeup confirmation', () => {

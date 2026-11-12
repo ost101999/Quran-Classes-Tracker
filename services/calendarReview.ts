@@ -65,6 +65,10 @@ export function ingestCalendarReviews(students: Student[], requests: { id: strin
     let pending = old.pending.filter(item => item.kind !== 'moved' || !item.from || !item.event ||
       !Number.isFinite(Date.parse(item.from)) || !Number.isFinite(Date.parse(item.event.start)) ||
       cairoDate(item.from, dayTransitionTime) !== cairoDate(item.event.start, dayTransitionTime));
+    // Remove reset suggestions that were detected only after the class started.
+    pending = pending.filter(item => item.kind !== 'reset' || !item.event ||
+      !Number.isFinite(Date.parse(item.detectedAt)) || !Number.isFinite(Date.parse(item.event.start)) ||
+      Date.parse(item.detectedAt) < Date.parse(item.event.start));
     const decisions = { ...old.decisions };
     const propose = (proposal: CalendarProposal) => {
       if (!decisions[proposal.id] && !pending.some(item => item.id === proposal.id)) pending.push(proposal);
@@ -98,7 +102,8 @@ export function ingestCalendarReviews(students: Student[], requests: { id: strin
             .filter(([key, val]) => key.startsWith(`${event.id}:`) && ['apology', 'absence', 'teacher', 'schedule', 'double', 'reset'].includes(val.action))
             .map(([key, val]) => ({ rev: Number(key.split(':').pop()) || 0, action: val.action }))
             .sort((a, b) => b.rev - a.rev)[0];
-          if (latestColorDecision && latestColorDecision.action !== 'reset' && revision > latestColorDecision.rev) {
+          if (latestColorDecision && latestColorDecision.action !== 'reset' && revision > latestColorDecision.rev &&
+              Date.parse(snapshot.fetchedAt) < Date.parse(event.start)) {
             pending = pending.filter(item => item.event?.id !== event.id || item.kind === 'moved' || item.id === `${event.id}:reset:${revision}`);
             propose({ ...base, id: `${event.id}:reset:${revision}`, kind: 'reset' });
           }
