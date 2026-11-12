@@ -15,6 +15,14 @@ const toHindiDigits = (num: number | string) => {
     return num.toString().replace(/\d/g, (d) => "٠١٢٣٤٥٦٧٨٩"[parseInt(d)]);
 };
 
+// Map English keyboard keys to their positions on the standard Arabic layout.
+const arabicKeys: Record<string, string> = {
+    q: 'ض', w: 'ص', e: 'ث', r: 'ق', t: 'ف', y: 'غ', u: 'ع', i: 'ه', o: 'خ', p: 'ح',
+    a: 'ش', s: 'س', d: 'ي', f: 'ب', g: 'ل', h: 'ا', j: 'ت', k: 'ن', l: 'م',
+    z: 'ئ', x: 'ء', c: 'ؤ', v: 'ر', b: 'لا', n: 'ى', m: 'ة',
+    '[': 'ج', ']': 'د', ';': 'ك', "'": 'ط', ',': 'و', '.': 'ز', '/': 'ظ', '`': 'ذ'
+};
+
 const SearchableSurahSelect: React.FC<SearchableSurahSelectProps> = ({
     value,
     defaultValue,
@@ -215,6 +223,18 @@ const SearchableSurahSelect: React.FC<SearchableSurahSelectProps> = ({
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
         ignoreScrollRef.current = false;
+        const arabicKey = !e.ctrlKey && !e.metaKey && !e.altKey && !e.nativeEvent.isComposing
+            ? arabicKeys[e.key.toLowerCase()] : undefined;
+        if (arabicKey) {
+            e.preventDefault();
+            const input = e.currentTarget as HTMLInputElement;
+            const start = input.selectionStart ?? query.length;
+            const end = input.selectionEnd ?? start;
+            setQuery(query.slice(0, start) + arabicKey + query.slice(end));
+            setIsOpen(true);
+            requestAnimationFrame(() => input.setSelectionRange(start + arabicKey.length, start + arabicKey.length));
+            return;
+        }
         if (e.key === 'ArrowDown') {
             e.preventDefault();
             if (!isOpen) {
