@@ -39,7 +39,9 @@ function targetsFromIni(text, students) {
 }
 function readTargets(students) {
     try {
-        const file = path.join(os.homedir(), 'Library', 'Mobile Documents', 'iCloud~dk~simonbs~Scriptable', 'Documents', 'MyShortcuts.ini');
+        const file = process.platform === 'darwin'
+            ? path.join(os.homedir(), 'Library', 'Mobile Documents', 'iCloud~dk~simonbs~Scriptable', 'Documents', 'MyShortcuts.ini')
+            : path.join(os.homedir(), 'iCloudDrive', 'iCloud~dk~simonbs~Scriptable', 'MyShortcuts.ini');
         const data = fs.readFileSync(file);
         const text = data[0] === 0xff && data[1] === 0xfe ? data.toString('utf16le') : data.toString('utf8');
         return { available: true, matches: targetsFromIni(text, students) };

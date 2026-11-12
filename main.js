@@ -22,7 +22,7 @@ ipcMain.handle('get-shortcut-links', (_event, students) => {
     return readMatches(requests);
 });
 
-ipcMain.handle('get-whatsapp-targets', (_event, students) => process.platform === 'darwin' && Array.isArray(students) ? readTargets(students.filter(s => s && typeof s.id === 'string' && typeof s.name === 'string')) : { available: false, matches: {} });
+ipcMain.handle('get-whatsapp-targets', (_event, students) => Array.isArray(students) ? readTargets(students.filter(s => s && typeof s.id === 'string' && typeof s.name === 'string')) : { available: false, matches: {} });
 
 // Helper for waiting
 const waitForTimeout = (ms) => new Promise(resolve => setTimeout(resolve, ms));

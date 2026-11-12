@@ -3,6 +3,7 @@ import { X, Trash2, Clock, Link, Check, Phone, ChevronDown, ChevronLeft } from '
 import { Student, StudyPlan, CalendarSchedule } from '../types';
 import { DAYS_OF_WEEK } from '../constants';
 import { linksEquivalent } from '../services/shortcutStudentSync';
+import { whatsappTargetsEquivalent } from '../services/whatsappStudentSync';
 import { isCurrentSchedule } from '../services/calendarStudentSync';
 import { cairoDate, replaceScheduleFrom } from '../services/studentSchedule';
 
@@ -105,6 +106,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
   const [color, setColor] = useState(student?.color || '');
   const [disableReport, setDisableReport] = useState(student?.disableReport ?? false);
   const [whatsappNumber, setWhatsappNumber] = useState(student?.whatsappNumber || '');
+  const [whatsappSource, setWhatsappSource] = useState('');
   const [zoomLink, setZoomLink] = useState(student?.zoomLink || '');
   const [quranLink, setQuranLink] = useState(student?.quranLink || '');
   const [quranLinkError, setQuranLinkError] = useState(false);
@@ -121,6 +123,22 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
   const [shortcutAvailable, setShortcutAvailable] = useState<boolean | null>(null);
   const [shortcutCollapsed, setShortcutCollapsed] = useState(false);
   const [shortcutApplied, setShortcutApplied] = useState(false);
+  useEffect(() => {
+    setWhatsappSource('');
+    if (!student || name !== student.name || !window.electronAPI?.getWhatsAppTargets) return;
+    let cancelled = false;
+    const refresh = async () => {
+      const now = new Date();
+      const requests = (students || []).filter(item => !item.deletedAt || item.deletedAt.year > now.getFullYear() || (item.deletedAt.year === now.getFullYear() && item.deletedAt.month > now.getMonth())).map(({ id, name }) => ({ id, name }));
+      try {
+        const result = await window.electronAPI!.getWhatsAppTargets!(requests);
+        if (!cancelled) setWhatsappSource(result.available ? result.matches[student.id] || '' : '');
+      } catch { if (!cancelled) setWhatsappSource(''); }
+    };
+    void refresh();
+    const timer = window.setInterval(refresh, 60000);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, [student, students, name]);
   const [scheduleMessage, setScheduleMessage] = useState(student?.scheduleMessage || '');
   const [calendarSchedule, setCalendarSchedule] = useState<CalendarSchedule | undefined>(student?.calendarSchedule);
   const [scheduleLoading, setScheduleLoading] = useState(false);
@@ -728,10 +746,10 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                       dir="ltr"
                       placeholder=""
                     />
-                    {whatsappNumber.length > 2 && (
+                    {student && name === student.name && whatsappSource && whatsappTargetsEquivalent(whatsappNumber, student.whatsappNumber || '') && whatsappTargetsEquivalent(whatsappNumber, whatsappSource) && (
                       <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5 animate-in fade-in zoom-in slide-in-from-right-2 duration-300">
-                        <div className="bg-green-100 text-green-600 rounded-full p-1 shadow-sm border border-green-200">
-                          <Check size={12} strokeWidth={4} />
+                        <div className="bg-green-100 text-green-600 rounded-full p-1 shadow-sm border border-green-200" title="مرتبط بـ MagicOpen وتتم متابعته" aria-label="مرتبط بـ MagicOpen وتتم متابعته">
+                          <Link size={12} strokeWidth={2.5} />
                         </div>
                       </div>
                     )}

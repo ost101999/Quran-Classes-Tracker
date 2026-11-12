@@ -81,6 +81,7 @@ import {
 import { MONTHS, DAYS_OF_WEEK, SURAHS, SURAH_AYAH_COUNTS } from './constants';
 import StudentModal from './components/StudentModal';
 import { applyShortcutMatches, findShortcutDifferences, type ShortcutDifference } from './services/shortcutStudentSync';
+import { applyWhatsAppMatches, whatsappDifferences } from './services/whatsappStudentSync';
 import { applyCalendarSchedules } from './services/calendarStudentSync';
 import { ingestCalendarReviews, commitCalendarAction, type CalendarActionPreview } from './services/calendarReview';
 import { scheduledCount } from './services/studentSchedule';
@@ -2316,6 +2317,8 @@ function App() {
   };
   const [openShortcutReview, setOpenShortcutReview] = useState(false);
   const [shortcutDifferences, setShortcutDifferences] = useState<ShortcutDifference[]>([]);
+  const [whatsappChanges, setWhatsappChanges] = useState<ReturnType<typeof whatsappDifferences>>([]);
+  const dismissedWhatsappChanges = useRef(new Set<string>());
   const dismissedShortcutDifferences = useRef(new Set<string>());
   const [shortcutReadError, setShortcutReadError] = useState(false);
   const dismissedShortcutReadError = useRef(false);
@@ -4751,31 +4754,27 @@ function App() {
     };
   }, [students, isLoaded, initialSyncReady, isModalOpen, syncConflicts.length, resolvingConflict, calendarRefresh, dayTransitionTime]);
 
-  // Import only unambiguous exact matches; never guess a recipient.
-  const importedWhatsAppStudents = useRef(new Set<string>());
+  // Recheck MagicOpen regularly and never replace a saved recipient without review.
   useEffect(() => {
     if (!isLoaded || !initialSyncReady || isModalOpen || syncConflicts.length || resolvingConflict || !window.electronAPI?.getWhatsAppTargets) return;
-    const requests = students.map(({ id, name }) => ({ id, name }));
-    if (!requests.some(student => !importedWhatsAppStudents.current.has(student.id))) return;
     let cancelled = false;
-    window.electronAPI.getWhatsAppTargets(requests).then(result => {
-      if (cancelled || !result.available || applyingCloudRef.current) return;
-      const names = new Map(requests.map(student => [student.id, student.name]));
-      const pending = new Set(requests.filter(student => !importedWhatsAppStudents.current.has(student.id)).map(student => student.id));
-      requests.forEach(student => importedWhatsAppStudents.current.add(student.id));
-      setStudents(previous => {
-        let changed = false;
-        const updated = previous.map(student => {
-          if (!pending.has(student.id) || names.get(student.id) !== student.name) return student;
-          const target = result.matches[student.id];
-          if (!target || student.whatsappNumber === target) return student;
-          changed = true;
-          return { ...student, whatsappNumber: target };
-        });
-        return changed ? updated : previous;
-      });
-    }).catch(error => console.error('Could not read WhatsApp identifiers:', error));
-    return () => { cancelled = true; };
+    const refresh = async () => {
+      try {
+        const now = new Date();
+        const active = students.filter(student => !student.deletedAt || student.deletedAt.year > now.getFullYear() || (student.deletedAt.year === now.getFullYear() && student.deletedAt.month > now.getMonth()));
+        const requests = active.map(({ id, name }) => ({ id, name }));
+        const result = await window.electronAPI!.getWhatsAppTargets!(requests);
+        if (cancelled || !result.available || applyingCloudRef.current) return;
+        const changes = whatsappDifferences(active, result.matches);
+        const keys = new Set(changes.map(change => change.key));
+        dismissedWhatsappChanges.current.forEach(key => { if (!keys.has(key)) dismissedWhatsappChanges.current.delete(key); });
+        setWhatsappChanges(changes.filter(change => !dismissedWhatsappChanges.current.has(change.key)));
+        setStudents(previous => applyWhatsAppMatches(previous, requests, result.matches));
+      } catch (error) { console.error('Could not read WhatsApp identifiers:', error); }
+    };
+    void refresh();
+    const timer = window.setInterval(refresh, 60000);
+    return () => { cancelled = true; window.clearInterval(timer); };
   }, [students, isLoaded, initialSyncReady, isModalOpen, syncConflicts.length, resolvingConflict]);
 
   // Read the shortcut file locally. Only unique, exact folder matches are linked
@@ -8821,13 +8820,35 @@ function App() {
       </button>}
       {calendarReviewOpen && <CalendarReviewModal data={calendarReviewData} error={calendarReadError || (!window.electronAPI?.getCalendarSchedules ? 'افتح تطبيق الكمبيوتر بعد إعادة تشغيله لتفعيل قراءة الكاليندر.' : '')} loading={calendarReading} disabled={!!syncConflicts.length || resolvingConflict || applyingCloudRef.current} onClose={() => setCalendarReviewOpen(false)} onRefresh={() => { calendarForceRefresh.current = true; setCalendarRefresh(value => value + 1); }} onConfirm={confirmCalendarAction} />}
 
-      {!isModalOpen && (shortcutReadError || shortcutDifferences.length > 0) && (
+      {!isModalOpen && (shortcutReadError || shortcutDifferences.length > 0 || whatsappChanges.length > 0) && (
         <div role="status" aria-live="polite" dir="rtl" className="fixed bottom-5 right-5 z-[90] w-[min(24rem,calc(100vw-2.5rem))] rounded-2xl border border-amber-200 bg-white shadow-2xl overflow-hidden font-arabic">
           <div className="flex items-center gap-2 bg-amber-50 px-4 py-3 text-amber-900 font-bold text-lg">
             <Bell size={19} /> تنبيهات الاختصارات
           </div>
           <div className="max-h-64 overflow-y-auto divide-y divide-gray-100">
             {shortcutReadError && <div className="p-4 flex items-start gap-3"><p className="flex-1 text-sm text-amber-700">تعذرت قراءة ملف الاختصارات. تأكد من توفر ملف iCloud ثم حاول مجددًا.</p><button type="button" aria-label="إغلاق تنبيه ملف الاختصارات" className="p-1 text-gray-400 hover:text-gray-700" onClick={() => { dismissedShortcutReadError.current = true; setShortcutReadError(false); }}><X size={18} /></button></div>}
+            {whatsappChanges.map(change => <div key={change.key} className="p-4 flex items-start gap-3">
+              <div className="flex-1 min-w-0">
+                <p className="text-gray-800 font-bold break-words">{change.studentName}</p>
+                <p className="text-sm text-amber-700">معرّف واتساب مختلف عن MagicOpen. المعرف المحفوظ لم يتغير.</p>
+                <p className="text-sm text-gray-600 break-all">المحفوظ: <span dir="ltr">{change.current}</span></p>
+                <p className="text-sm text-gray-600 break-all">MagicOpen: <span dir="ltr">{change.target}</span></p>
+                <button type="button" className="mt-2 text-sm font-bold text-amber-800 underline" onClick={async () => {
+                  if (applyingCloudRef.current || syncConflicts.length || resolvingConflict) return;
+                  const now = new Date();
+                  const requests = students.filter(student => !student.deletedAt || student.deletedAt.year > now.getFullYear() || (student.deletedAt.year === now.getFullYear() && student.deletedAt.month > now.getMonth())).map(({ id, name }) => ({ id, name }));
+                  let latest;
+                  try { latest = await window.electronAPI?.getWhatsAppTargets?.(requests); } catch { /* Review must use a fresh source. */ }
+                  if (!latest?.available || latest.matches[change.studentId] !== change.target || applyingCloudRef.current) {
+                    showToast('تغيّر مصدر الواتساب أو تعذرت قراءته؛ انتظر التحديث وراجع المعرّف.');
+                    return;
+                  }
+                  setStudents(previous => previous.map(student => student.id === change.studentId && student.name === change.studentName && student.whatsappNumber?.trim() === change.current ? { ...student, whatsappNumber: change.target } : student));
+                  setWhatsappChanges(previous => previous.filter(item => item.key !== change.key));
+                }}>استخدام معرّف MagicOpen</button>
+              </div>
+              <button type="button" aria-label={`إغلاق تنبيه واتساب ${change.studentName}`} className="p-1 text-gray-400 hover:text-gray-700" onClick={() => { dismissedWhatsappChanges.current.add(change.key); setWhatsappChanges(previous => previous.filter(item => item.key !== change.key)); }}><X size={18} /></button>
+            </div>)}
             {shortcutDifferences.map(difference => (
               <div key={difference.key} className="p-4 flex items-start gap-3">
                 <div className="flex-1 min-w-0">
