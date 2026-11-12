@@ -41,6 +41,28 @@ const result = spawnSync(
 // Keep the new Windows installer only after a successful build produced it.
 const args = process.argv.slice(2);
 const buildingWindows = args.includes('--win') || (process.platform === 'win32' && !args.includes('--mac') && !args.includes('--linux'));
+const buildingMac = args.includes('--mac') || (process.platform === 'darwin' && !args.includes('--win') && !args.includes('--linux'));
+if (result.status === 0 && buildingMac) {
+    const outputDir = path.resolve(__dirname, pkg.build?.directories?.output || 'dist');
+    const prefix = `${pkg.build?.productName || pkg.name}-`;
+    const currentPrefix = `${prefix}${version}-`;
+    if (fs.existsSync(outputDir)) {
+        const entries = fs.readdirSync(outputDir, { withFileTypes: true });
+        const hasCurrentDmg = entries.some(entry => entry.isFile() && entry.name.startsWith(currentPrefix) && entry.name.endsWith('.dmg'));
+        if (hasCurrentDmg) {
+            for (const entry of entries) {
+                if (entry.isFile() && entry.name.startsWith(prefix) && entry.name.endsWith('.dmg') && !entry.name.startsWith(currentPrefix)) {
+                    try {
+                        fs.unlinkSync(path.join(outputDir, entry.name));
+                        console.log(`[Build] Removed old disk image: ${entry.name}`);
+                    } catch (error) {
+                        console.warn(`[Build] Could not remove old disk image ${entry.name}: ${error.message}`);
+                    }
+                }
+            }
+        }
+    }
+}
 if (result.status === 0 && buildingWindows) {
     const outputDir = path.resolve(__dirname, pkg.build?.directories?.output || 'dist');
     const prefix = `${pkg.build?.productName || pkg.name} Setup `;
