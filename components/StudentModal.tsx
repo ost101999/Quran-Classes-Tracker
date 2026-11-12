@@ -906,6 +906,9 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                     const missingReading = missingReadingMatches.filter(item => item.folderId === match.folderId && !acknowledgedMissingReadingIds.includes(item.id));
                     const readingDifferent = !!(readingLink && reading?.readingLink && !linksEquivalent(readingLink, reading.readingLink, 'quran'));
                     const readingAvailable = !!(reading?.readingLink && !reading.readingConflict && !reading.readingLinkInvalid);
+                    const folderName = match.path.split(/[\\/]/).filter(Boolean).slice(-2, -1)[0] || '';
+                    const folderNumber = folderName.match(/^[0-9٠-٩۰-۹]+/)?.[0] || '';
+                    const englishFolderNumber = folderNumber.replace(/[٠-٩۰-۹]/g, digit => String(digit.charCodeAt(0) - (digit.charCodeAt(0) >= 0x6f0 ? 0x6f0 : 0x660)));
                     const whatsappDifferent = !!(whatsappNumber && whatsappSource && !whatsappTargetsEquivalent(whatsappNumber, whatsappSource));
                     const statuses = [
                       { label: isGoogleMeetLink(match.zoomLink) ? 'Google Meet' : 'زوم', available: !!match.zoomLink && !zoomDifferent && !match.zoomConflict, text: match.zoomConflict || zoomDifferent ? 'مختلف' : match.zoomLink ? 'متاح' : 'غير متاح' },
@@ -916,9 +919,9 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                     return (
                       <div key={match.id} className="rounded-xl bg-white border border-gray-200 p-4 space-y-2">
                         <p className="text-sm text-gray-600">{match.isReading ? 'كتاب القراءة' : 'المصحف'}</p>
-                        <div className="rounded-lg bg-emerald-50 border border-emerald-100 px-4 py-3">
-                          <p className="text-sm font-bold text-emerald-800">مجلد الطالب</p>
-                          <p className="mt-1 text-base font-bold text-gray-800 break-words" dir="auto">{(match.path.split(/[\\/]/).filter(Boolean).slice(-2, -1)[0] || '').replace(/^\d+/, toHindiDigits)}</p>
+                        <div className="py-1">
+                          <p className="text-sm font-medium text-gray-500">مجلد الطالب</p>
+                          <p className="mt-1 text-lg font-bold text-gray-800 break-words" dir="auto"><bdi className="font-english" dir="ltr">{englishFolderNumber}</bdi>{folderName.slice(folderNumber.length)}</p>
                           <details className="mt-2 text-sm text-gray-500">
                             <summary className="cursor-pointer text-emerald-700">عرض مسارات الملفات</summary>
                             <p className="mt-2 font-bold text-gray-600">{match.isReading ? 'كتاب القراءة' : 'المصحف'}</p>
