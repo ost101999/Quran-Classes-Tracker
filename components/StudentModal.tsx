@@ -917,11 +917,13 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                       <div key={match.id} className="rounded-xl bg-white border border-gray-200 p-4 space-y-2">
                         <p className="text-sm text-gray-600">{match.isReading ? 'كتاب القراءة' : 'المصحف'}</p>
                         <div className="rounded-lg bg-emerald-50 border border-emerald-100 px-4 py-3">
-                          <p className="text-sm font-bold text-emerald-800">ملف الطالب</p>
-                          <p className="mt-1 text-base font-bold text-gray-800 break-words" dir="auto">{match.path.split(/[\\/]/).filter(Boolean).pop()}</p>
+                          <p className="text-sm font-bold text-emerald-800">مجلد الطالب</p>
+                          <p className="mt-1 text-base font-bold text-gray-800 break-words" dir="auto">{toHindiDigits(match.path.split(/[\\/]/).filter(Boolean).slice(-2, -1)[0] || '')}</p>
                           <details className="mt-2 text-sm text-gray-500">
-                            <summary className="cursor-pointer text-emerald-700">عرض مسار الملف</summary>
+                            <summary className="cursor-pointer text-emerald-700">عرض مسارات الملفات</summary>
+                            <p className="mt-2 font-bold text-gray-600">{match.isReading ? 'كتاب القراءة' : 'المصحف'}</p>
                             <p className="mt-1 break-all" dir="auto">{match.path}</p>
+                            {reading && reading.id !== match.id && <><p className="mt-2 font-bold text-gray-600">كتاب القراءة</p><p className="mt-1 break-all" dir="auto">{reading.path}</p></>}
                           </details>
                         </div>
                         <p className="text-base text-gray-600">{match.exact ? 'مجلد مطابق' : 'يحتاج مراجعة'}</p>
@@ -934,7 +936,6 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                           })}
                         </div>
                         {(zoomDifferent || quranDifferent) && <p className="text-base text-amber-700">{zoomDifferent && quranDifferent ? 'رابطا الحصة والمصحف مختلفان' : zoomDifferent ? 'رابط الحصة مختلف' : 'رابط المصحف مختلف'} عن المحفوظ.</p>}
-                        {reading && reading.id !== match.id && <p className="text-sm text-gray-600 break-all" dir="auto">كتاب القراءة: {reading.path}</p>}
                         {readingDifferent && <p className="text-base text-amber-700">رابط كتاب القراءة مختلف عن المحفوظ.</p>}
                         {readingDifferent && <p className="text-xs text-gray-500 break-all" dir="ltr">Drive: {reading?.readingLink}</p>}
                         {readingCandidates.length > 1 && <p className="text-base text-amber-700">يوجد أكثر من كتاب قراءة في المجلد؛ راجع الاختصارات قبل الربط.</p>}
