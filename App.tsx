@@ -6035,6 +6035,7 @@ function App() {
       { id: 'teacherApology', label: 'اعتذار المعلم', statuses: [AttendanceStatus.UNEXCUSED_ABSENCE], days: [] as { day: number; studentId: string; studentName: string }[], count: 0 },
     ];
     let scheduled = 0;
+    let studentRateScheduled = 0;
     let hasRecordedFallback = false;
     let hasScheduledDays = false;
     const reportDays = new Date(reportYear, reportMonth + 1, 0).getDate();
@@ -6042,10 +6043,16 @@ function App() {
       const holidays = academyRates[student.academy]?.holidays || [];
       let studentScheduled = 0;
       let studentRecorded = 0;
+      let teacherScheduled = 0;
+      let teacherRecorded = 0;
       for (let day = 1; day <= reportDays; day++) {
         const status = attendance[`${student.id}_${day}_${reportMonth}_${reportYear}`];
         const scheduledCount = getScheduledCountOnDate(student, day, reportMonth, reportYear);
         if (!holidays.includes(new Date(reportYear, reportMonth, day).getDay()) && status !== AttendanceStatus.EXEMPT) studentScheduled += scheduledCount;
+        if (status === AttendanceStatus.UNEXCUSED_ABSENCE) {
+          if (!holidays.includes(new Date(reportYear, reportMonth, day).getDay())) teacherScheduled += scheduledCount;
+          teacherRecorded += Math.max(1, scheduledCount);
+        }
         const category = categories.find(item => item.statuses.includes(status));
         if (category) {
           category.days.push({ day, studentId: student.id, studentName: student.name });
@@ -6060,6 +6067,7 @@ function App() {
       if (studentScheduled) hasScheduledDays = true;
       else if (studentRecorded) hasRecordedFallback = true;
       scheduled += studentScheduled || studentRecorded;
+      studentRateScheduled += studentScheduled ? Math.max(0, studentScheduled - teacherScheduled) : Math.max(0, studentRecorded - teacherRecorded);
     }
     categories[0].days = [...categories[1].days, ...categories[3].days];
     // Only completed, recorded outcomes contribute to commitment, including past months.
@@ -6100,7 +6108,7 @@ function App() {
       return { total, attended, selected, percent: total ? Math.round(attended / total * 1000) / 10 : null };
     };
     const recent = summarize(10), overall = summarize(Infinity);
-    return { categories, scheduled, recentCommitment: recent.percent, commitment: overall.percent, recent, overall, allCategoryCounts, allRecorded, hasRecordedFallback, hasScheduledDays };
+    return { categories, scheduled, studentRateScheduled, recentCommitment: recent.percent, commitment: overall.percent, recent, overall, allCategoryCounts, allRecorded, hasRecordedFallback, hasScheduledDays };
   };
 
   useEffect(() => {
@@ -8688,7 +8696,8 @@ function App() {
               </div>
               <p className="px-3 py-2 text-center text-lg font-normal text-red-500">{toHindiDigits(breakdown.scheduled)} {breakdown.hasRecordedFallback ? (breakdown.hasScheduledDays ? 'حصة مقررة أو مسجلة' : 'حصة مسجلة') : 'حصة مقررة'} في الشهر</p>
               {breakdown.categories.map((category, index) => {
-                const percent = breakdown.scheduled ? Math.round(category.count / breakdown.scheduled * 1000) / 10 : null;
+                const monthDenominator = category.id === 'teacherApology' ? breakdown.scheduled : breakdown.studentRateScheduled;
+                const percent = monthDenominator ? Math.round(category.count / monthDenominator * 1000) / 10 : null;
                 return (
                   <React.Fragment key={category.id}>
                     {index === 1 && (
@@ -8716,7 +8725,8 @@ function App() {
                       <span>{category.id === 'rescheduled' ? 'نسخ ' : ''}{missedClassesMenu.academyName && category.id === 'studentApology' ? 'اعتذارات الطلبة' : missedClassesMenu.academyName && category.id === 'studentAbsence' ? 'غياب الطلبة' : category.label}</span>
                       {category.id === 'rescheduled' && <span role="tooltip" className="pointer-events-none absolute top-full left-2 right-2 z-10 rounded-lg border border-gray-200/60 bg-white/75 backdrop-blur-sm px-3 py-2 text-center text-sm leading-relaxed text-gray-600 shadow-sm opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus:opacity-100">ينسخ اعتذارات الطالب والمعلم للشهر المعروض. اضغط مطولًا لنسخ الشهر المعروض والسابق.</span>}
                       {category.id !== 'rescheduled' && <span className="grid grid-cols-2 gap-4 w-28 shrink-0 text-center text-lg font-normal text-blue-600 whitespace-nowrap">{[true, false].map(isGeneral => {
-                        const value = isGeneral ? (breakdown.allRecorded ? Math.round(breakdown.allCategoryCounts[category.id] / breakdown.allRecorded * 1000) / 10 : null) : percent;
+                        const denominator = category.id === 'teacherApology' ? breakdown.allRecorded : breakdown.allRecorded - breakdown.allCategoryCounts.teacherApology;
+                        const value = isGeneral ? (denominator ? Math.round(breakdown.allCategoryCounts[category.id] / denominator * 1000) / 10 : null) : percent;
                         const description = category.id === 'studentApology' ? 'نسبة الحصص التي اعتذر عنها الطالب' : category.id === 'studentAbsence' ? 'نسبة الحصص التي غاب عنها الطالب' : 'نسبة الحصص التي اعتذر عنها المعلم';
                         return <span key={String(isGeneral)} className="group/ratio"><span dir="ltr" className="inline-flex items-center">{value !== null && <span className="text-xs">٪</span>}<span>{value === null ? '—' : toHindiDigits(value)}</span></span><span role="tooltip" className="pointer-events-none absolute bottom-full left-2 right-2 z-10 rounded-lg border border-gray-200/60 bg-white/75 backdrop-blur-sm px-3 py-2 text-center text-sm leading-relaxed text-gray-600 shadow-sm whitespace-normal opacity-0 transition-opacity duration-150 group-hover/ratio:opacity-100">{description} {isGeneral ? 'من جميع الحصص المسجلة.' : 'من حصص الشهر المعروض.'}</span></span>;
                       })}</span>}
