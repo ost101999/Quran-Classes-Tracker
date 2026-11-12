@@ -125,7 +125,8 @@ export default function CalendarReviewModal({ data, error, loading, disabled, on
     closeRef.current?.focus();
     return () => previous?.focus();
   }, []);
-  const entries = data.students.flatMap(student => student.calendarReview?.name === student.name?.trim() ? (student.calendarReview.pending || []).map(proposal => ({ student, proposal })) : []);
+  const entries = data.students.flatMap(student => student.calendarReview?.name === student.name?.trim() ? (student.calendarReview.pending || []).map(proposal => ({ student, proposal })) : [])
+    .sort((a, b) => (Date.parse(b.proposal.detectedAt) || 0) - (Date.parse(a.proposal.detectedAt) || 0));
   const visible = entries.filter(({ student }) => student.name.toLowerCase().includes(search.toLowerCase()));
   return <div className="fixed inset-0 z-[150] bg-black/45 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose} onKeyDown={event => { event.stopPropagation(); if (event.key === 'Escape') onClose(); }}>
     <section role="dialog" aria-modal="true" aria-labelledby="calendar-review-title" dir="rtl" className="w-full max-w-2xl max-h-[90vh] flex flex-col bg-gray-50 rounded-3xl shadow-2xl font-arabic overflow-hidden" onClick={event => event.stopPropagation()}>
