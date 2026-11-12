@@ -6621,7 +6621,7 @@ function App() {
 
       {/* 🛠️ Utility Bar: Settings & Stats */}
       <div className="flex items-start py-4" dir="ltr">
-        <div className="flex-shrink-0 ml-11">
+        <div className="flex flex-shrink-0 items-center gap-2 ml-11">
           <div className="flex gap-2 bg-slate-100 p-1 rounded-2xl border border-slate-200 shadow-inner">
             <div className="relative">
               <button
@@ -6649,6 +6649,7 @@ function App() {
               <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" /></svg>
             </button>
           </div>
+          <UpdateBanner />
         </div>
 
         <div className="flex-1 flex justify-start px-12" dir="rtl">
@@ -8071,8 +8072,6 @@ function App() {
           </div>
         </div>
       )}
-
-      <UpdateBanner />
 
       <ConfirmModal
         isOpen={confirmConfig.isOpen}
