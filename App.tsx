@@ -2573,6 +2573,8 @@ function App() {
   const [isEditReportShortcutPressed, setIsEditReportShortcutPressed] = useState(false);
   const [hoveredCellKey, setHoveredCellKey] = useState<string | null>(null);
   const longPressTimerRef = React.useRef<NodeJS.Timeout | null>(null);
+  const reschedulePressRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rescheduleHeldRef = React.useRef(false);
   const longPressTriggeredRef = React.useRef<boolean>(false);
   const [selectedStudentsForCombinedReport, setSelectedStudentsForCombinedReport] = useState<Student[] | null>(null);
 
@@ -6060,9 +6062,39 @@ function App() {
       scheduled += studentScheduled || studentRecorded;
     }
     categories[0].days = [...categories[1].days, ...categories[3].days];
-    const studentMissed = categories[1].count + categories[2].count;
-    const commitment = scheduled ? Math.max(0, Math.round((scheduled - studentMissed) / scheduled * 1000) / 10) : null;
-    return { categories, scheduled, commitment, hasRecordedFallback, hasScheduledDays };
+    // Only completed, recorded outcomes contribute to commitment, including past months.
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+    const outcomes: { date: string; missed: boolean; count: number; status: AttendanceStatus; name: string }[] = [];
+    for (const student of reportStudents) {
+      const prefix = `${student.id}_`;
+      for (const [key, status] of Object.entries(attendance)) {
+        if (!key.startsWith(prefix)) continue;
+        const parts = key.slice(prefix.length).split('_').map(Number);
+        if (parts.length !== 3 || parts.some(n => !Number.isInteger(n))) continue;
+        const [day, m, y] = parts;
+        const date = `${y}-${String(m + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        if (date > today) continue;
+        const missed = status === AttendanceStatus.ABSENCE_RED || status === AttendanceStatus.PAID_ABSENCE || status === AttendanceStatus.PAID_ABSENCE_DOUBLE;
+        if (!missed && status !== AttendanceStatus.PRESENT && status !== AttendanceStatus.DOUBLE_CLASS) continue;
+        const count = status === AttendanceStatus.DOUBLE_CLASS || status === AttendanceStatus.PAID_ABSENCE_DOUBLE ? 2 :
+          missed ? Math.max(1, getScheduledCountOnDate(student, day, m, y)) : 1;
+        outcomes.push({ date, missed, count, status, name: student.name });
+      }
+    }
+    outcomes.sort((a, b) => b.date.localeCompare(a.date));
+    const summarize = (limit: number) => {
+      let total = 0, attended = 0; const selected: typeof outcomes = [];
+      for (const outcome of outcomes) {
+        const count = Math.min(outcome.count, limit - total);
+        total += count;
+        selected.push({ ...outcome, count });
+        if (!outcome.missed) attended += count;
+        if (total >= limit) break;
+      }
+      return { total, attended, selected, percent: total ? Math.round(attended / total * 1000) / 10 : null };
+    };
+    const recent = summarize(10), overall = summarize(Infinity);
+    return { categories, scheduled, recentCommitment: recent.percent, commitment: overall.percent, recent, overall, hasRecordedFallback, hasScheduledDays };
   };
 
   useEffect(() => {
@@ -8550,16 +8582,39 @@ function App() {
           const { reportMonth, reportYear } = missedClassesMenu;
           const breakdown = getAbsenceBreakdown(reportMonth, reportYear, missedClassesMenu.studentId, missedClassesMenu.academyName);
           if (!breakdown) return null;
-          const copyDays = async (category: typeof breakdown.categories[number]) => {
-            if (!category.days.length) {
+          const copyCommitment = async (recent: boolean) => {
+            const summary = recent ? breakdown.recent : breakdown.overall;
+            const title = recent ? 'الالتزام مؤخرًا' : 'الالتزام العام';
+            const englishTitle = recent ? 'Recent commitment' : 'Overall commitment';
+            const missed = summary.selected.filter(item => item.missed);
+            const lines = (language: 'ar' | 'en') => missed.map(item => {
+              const label = item.status === AttendanceStatus.ABSENCE_RED ? (language === 'ar' ? 'اعتذار الطالب' : 'Student apology') : (language === 'ar' ? 'غياب الطالب' : 'Student absence');
+              return `• ${item.date} — ${item.name}: ${label}${item.count > 1 ? ` (${item.count})` : ''}`;
+            }).join('\n') || (language === 'ar' ? 'لا توجد' : 'None');
+            const percent = summary.percent === null ? '—' : `${summary.percent}%`;
+            const text = `*${title}*\nالنسبة: ${percent}\nالحضور: ${summary.attended} من ${summary.total} حصة مسجلة${recent ? ' (بناءً على آخر ١٠ حصص)' : ''}.\nاعتذارات وغيابات الطالب:\n${lines('ar')}\n\n*${englishTitle}*\nRate: ${percent}\nAttended: ${summary.attended} of ${summary.total} recorded classes${recent ? ' (based on the last 10 classes)' : ''}.\nStudent apologies and absences:\n${lines('en')}`;
+            try {
+              if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(text);
+              else {
+                const textarea = document.createElement('textarea'); textarea.value = text; textarea.style.position = 'fixed'; textarea.style.opacity = '0'; document.body.appendChild(textarea); textarea.select();
+                try { if (!document.execCommand('copy')) throw new Error('Copy failed'); } finally { textarea.remove(); }
+              }
+              showToast('تم نسخ تقرير الالتزام بالعربي والإنجليزي');
+            } catch { showToast('تعذر نسخ التقرير'); }
+          };
+          const copyDays = async (category: typeof breakdown.categories[number], includePrevious = false) => {
+            const previousDate = new Date(reportYear, reportMonth - 1, 1);
+            const previous = includePrevious ? getAbsenceBreakdown(previousDate.getMonth(), previousDate.getFullYear(), missedClassesMenu.studentId, missedClassesMenu.academyName)?.categories.find(item => item.id === category.id)?.days || [] : [];
+            const allDays = [ ...previous.map(item => ({ ...item, month: previousDate.getMonth(), year: previousDate.getFullYear() })), ...category.days.map(item => ({ ...item, month: reportMonth, year: reportYear })) ];
+            if (!allDays.length) {
               showToast('لا توجد أيام لهذه الحالة');
               return;
             }
-            const sortedDays = [...category.days].sort((a, b) => a.day - b.day);
-            const formatDays = (days: typeof sortedDays, language: 'ar' | 'en', separator = '\r\n\r\n') => days.map(({ day }) => {
-              const date = new Date(reportYear, reportMonth, day);
+            const sortedDays = allDays.sort((a, b) => a.year - b.year || a.month - b.month || a.day - b.day);
+            const formatDays = (days: typeof sortedDays, language: 'ar' | 'en', separator = '\r\n\r\n') => days.map(({ day, month: itemMonth, year: itemYear }) => {
+              const date = new Date(itemYear, itemMonth, day);
               const dateLabel = language === 'ar'
-                ? `${DAYS_OF_WEEK[date.getDay()].name} ${day}/${reportMonth + 1}`
+                ? `${DAYS_OF_WEEK[date.getDay()].name} ${day}/${itemMonth + 1}/${itemYear}`
                 : date.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'short' });
               return `• ${dateLabel}`;
             }).join(separator);
@@ -8631,16 +8686,28 @@ function App() {
                 return (
                   <React.Fragment key={category.id}>
                     {index === 1 && (
-                      <div className="flex items-center justify-between gap-3 px-3 py-2.5 text-lg font-normal text-gray-500 opacity-60">
-                        <span>{missedClassesMenu.academyName ? 'التزام الطلبة' : 'التزام الطالب'}</span>
-                        <span dir="ltr">{breakdown.commitment === null ? '—' : `${toHindiDigits(breakdown.commitment)}%`}</span>
+                      <div className="relative flex justify-center gap-5 px-2 py-2.5 text-base font-normal text-gray-500">
+                        <button type="button" onClick={() => copyCommitment(true)} aria-label="نسخ تقرير الالتزام مؤخرًا" className="group flex items-center gap-1 whitespace-nowrap outline-none">
+                          <span>الالتزام مؤخرًا</span><span dir="ltr" className="inline-flex items-center">{breakdown.recentCommitment === null ? '—' : <><span className="text-xs">٪</span><span>{toHindiDigits(breakdown.recentCommitment)}</span></>}</span>
+                          <span role="tooltip" className="pointer-events-none absolute bottom-full left-2 right-2 z-10 rounded-lg border border-gray-200/60 bg-white/75 backdrop-blur-sm px-3 py-2 text-center text-sm leading-relaxed text-gray-600 shadow-sm whitespace-normal opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus:opacity-100">نسبة الحضور في آخر ١٠ حصص.</span>
+                        </button>
+                        <button type="button" onClick={() => copyCommitment(false)} aria-label="نسخ تقرير الالتزام العام" className="group flex items-center gap-1 whitespace-nowrap outline-none">
+                          <span>الالتزام العام</span><span dir="ltr" className="inline-flex items-center">{breakdown.commitment === null ? '—' : <><span className="text-xs">٪</span><span>{toHindiDigits(breakdown.commitment)}</span></>}</span>
+                          <span role="tooltip" className="pointer-events-none absolute bottom-full left-2 right-2 z-10 rounded-lg border border-gray-200/60 bg-white/75 backdrop-blur-sm px-3 py-2 text-center text-sm leading-relaxed text-gray-600 shadow-sm whitespace-normal opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus:opacity-100">نسبة الحضور في جميع الحصص المسجلة.</span>
+                        </button>
                       </div>
                     )}
                     <button type="button"
-                      onClick={() => copyDays(category)}
-                      className={`w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-lg font-normal transition-colors ${category.id === 'rescheduled' ? 'justify-center text-center bg-blue-50/70 text-blue-700 hover:bg-blue-100' : 'justify-between text-right text-gray-700 hover:bg-blue-50'}`}
-                      title="نسخ الأيام بالعربي والإنجليزي">
-                      <span>{missedClassesMenu.academyName && category.id === 'studentApology' ? 'اعتذارات الطلبة' : missedClassesMenu.academyName && category.id === 'studentAbsence' ? 'غياب الطلبة' : category.label}</span>
+                      onPointerDown={() => { if (category.id !== 'rescheduled') return; rescheduleHeldRef.current = false; reschedulePressRef.current = setTimeout(() => { rescheduleHeldRef.current = true; void copyDays(category, true); }, 600); }}
+                      onPointerUp={() => { if (reschedulePressRef.current) clearTimeout(reschedulePressRef.current); reschedulePressRef.current = null; }}
+                      onPointerLeave={() => { if (reschedulePressRef.current) clearTimeout(reschedulePressRef.current); reschedulePressRef.current = null; }}
+                      onPointerCancel={() => { if (reschedulePressRef.current) clearTimeout(reschedulePressRef.current); reschedulePressRef.current = null; }}
+                      onContextMenu={event => { if (category.id === 'rescheduled') event.preventDefault(); }}
+                      onClick={() => { if (category.id === 'rescheduled' && rescheduleHeldRef.current) { rescheduleHeldRef.current = false; return; } void copyDays(category); }}
+                      className={`group relative w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-lg font-normal transition-colors ${category.id === 'rescheduled' ? 'justify-center text-center bg-blue-50/70 text-blue-700 hover:bg-blue-100' : 'justify-between text-right text-gray-700 hover:bg-blue-50'}`}
+                      title={category.id === 'rescheduled' ? undefined : 'نسخ الأيام بالعربي والإنجليزي'}>
+                      <span>{category.id === 'rescheduled' ? 'نسخ ' : ''}{missedClassesMenu.academyName && category.id === 'studentApology' ? 'اعتذارات الطلبة' : missedClassesMenu.academyName && category.id === 'studentAbsence' ? 'غياب الطلبة' : category.label}</span>
+                      {category.id === 'rescheduled' && <span role="tooltip" className="pointer-events-none absolute top-full left-2 right-2 z-10 rounded-lg border border-gray-200/60 bg-white/75 backdrop-blur-sm px-3 py-2 text-center text-sm leading-relaxed text-gray-600 shadow-sm opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus:opacity-100">ينسخ اعتذارات الطالب والمعلم للشهر المعروض. اضغط مطولًا لنسخ الشهر المعروض والسابق.</span>}
                       {category.id !== 'rescheduled' && <span className="font-normal text-blue-600" dir="ltr">{percent === null ? '—' : `${toHindiDigits(percent)}%`}</span>}
                     </button>
                   </React.Fragment>
