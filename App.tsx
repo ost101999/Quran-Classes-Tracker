@@ -8703,6 +8703,7 @@ function App() {
                         </button>
                       </div>
                     )}
+                    {index === 1 && <div className="flex justify-end px-3 text-center text-xs text-gray-400"><div className="grid w-28 grid-cols-2 gap-4"><span>عام</span><span>الشهر</span></div></div>}
                     <button type="button"
                       onPointerDown={() => { if (category.id !== 'rescheduled') return; rescheduleHeldRef.current = false; reschedulePressRef.current = setTimeout(() => { rescheduleHeldRef.current = true; void copyDays(category, true); }, 600); }}
                       onPointerUp={() => { if (reschedulePressRef.current) clearTimeout(reschedulePressRef.current); reschedulePressRef.current = null; }}
