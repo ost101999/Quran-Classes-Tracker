@@ -8712,11 +8712,11 @@ function App() {
                     {index === 1 && (
                       <div className="relative flex justify-center gap-5 px-2 py-2.5 text-base font-normal text-gray-500">
                         <button type="button" onClick={() => copyCommitment(true)} aria-label="نسخ تقرير الالتزام مؤخرًا" className="group flex items-center gap-1 whitespace-nowrap outline-none">
-                          <span>الالتزام مؤخرًا</span><span dir="ltr" className="inline-flex items-center">{breakdown.recentCommitment === null ? '—' : <><span className="text-xs">٪</span><span>{toHindiDigits(breakdown.recentCommitment)}</span></>}</span>
+                          <span>{missedClassesMenu.academyName ? 'التزام الطلبة مؤخرًا' : 'الالتزام مؤخرًا'}</span><span dir="ltr" className="inline-flex items-center">{breakdown.recentCommitment === null ? '—' : <><span className="text-xs">٪</span><span>{toHindiDigits(breakdown.recentCommitment)}</span></>}</span>
                           <span role="tooltip" className="pointer-events-none absolute bottom-full left-2 right-2 z-10 rounded-lg border border-gray-200/60 bg-white/75 backdrop-blur-sm px-3 py-2 text-center text-sm leading-relaxed text-gray-600 shadow-sm whitespace-normal opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus:opacity-100">نسبة الحضور في آخر ١٠ حصص.</span>
                         </button>
                         <button type="button" onClick={() => copyCommitment(false)} aria-label="نسخ تقرير الالتزام العام" className="group flex items-center gap-1 whitespace-nowrap outline-none">
-                          <span>الالتزام العام</span><span dir="ltr" className="inline-flex items-center">{breakdown.commitment === null ? '—' : <><span className="text-xs">٪</span><span>{toHindiDigits(breakdown.commitment)}</span></>}</span>
+                          <span>{missedClassesMenu.academyName ? 'التزام الطلبة العام' : 'الالتزام العام'}</span><span dir="ltr" className="inline-flex items-center">{breakdown.commitment === null ? '—' : <><span className="text-xs">٪</span><span>{toHindiDigits(breakdown.commitment)}</span></>}</span>
                           <span role="tooltip" className="pointer-events-none absolute bottom-full left-2 right-2 z-10 rounded-lg border border-gray-200/60 bg-white/75 backdrop-blur-sm px-3 py-2 text-center text-sm leading-relaxed text-gray-600 shadow-sm whitespace-normal opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus:opacity-100">نسبة الحضور في جميع الحصص المسجلة.</span>
                         </button>
                       </div>
