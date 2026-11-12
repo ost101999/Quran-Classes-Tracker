@@ -918,7 +918,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                         <p className="text-sm text-gray-600">{match.isReading ? 'كتاب القراءة' : 'المصحف'}</p>
                         <div className="rounded-lg bg-emerald-50 border border-emerald-100 px-4 py-3">
                           <p className="text-sm font-bold text-emerald-800">مجلد الطالب</p>
-                          <p className="mt-1 text-base font-bold text-gray-800 break-words" dir="auto">{toHindiDigits(match.path.split(/[\\/]/).filter(Boolean).slice(-2, -1)[0] || '')}</p>
+                          <p className="mt-1 text-base font-bold text-gray-800 break-words" dir="auto">{(match.path.split(/[\\/]/).filter(Boolean).slice(-2, -1)[0] || '').replace(/^\d+/, toHindiDigits)}</p>
                           <details className="mt-2 text-sm text-gray-500">
                             <summary className="cursor-pointer text-emerald-700">عرض مسارات الملفات</summary>
                             <p className="mt-2 font-bold text-gray-600">{match.isReading ? 'كتاب القراءة' : 'المصحف'}</p>
