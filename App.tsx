@@ -6882,7 +6882,7 @@ function App() {
               </div>
 
               {/* Quick Links for Session durations */}
-              <div className="flex gap-4 bg-white/50 p-1 rounded-2xl border border-slate-100 shadow-sm ml-auto relative z-[60]">
+              <div className="flex gap-4 bg-white/50 p-1 rounded-2xl border border-slate-100 shadow-sm ml-auto relative z-40">
                 <button
                   onClick={() => {
                     setActionChoiceModal({
