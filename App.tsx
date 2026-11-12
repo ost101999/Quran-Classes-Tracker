@@ -101,7 +101,7 @@ import SimpleInputModal from './components/SimpleInputModal';
 import WebModal from './components/WebModal';
 import MultiStudentDetailsModal from './components/MultiStudentDetailsModal';
 import SearchableSurahSelect from './components/SearchableSurahSelect';
-import { quranPartRange } from './services/quranParts';
+import { quranPartRange, quranPartForVerse } from './services/quranParts';
 import TajweedBankModal from './components/TajweedBankModal';
 import TajweedAssignModal from './components/TajweedAssignModal';
 import TajweedGradingModal from './components/TajweedGradingModal';
@@ -3559,6 +3559,23 @@ function App() {
   const [pickerJuz, setPickerJuz] = useState('');
   const [pickerHizb, setPickerHizb] = useState('');
   const [pickerError, setPickerError] = useState('');
+  const openPartPicker = (field: NonNullable<typeof partPicker>['field']) => {
+    const report = smartReportModal?.studentId ? lastReports[smartReportModal.studentId]?.[field] : undefined;
+    const isHomework = field.startsWith('homework');
+    const ayahText = String(isHomework ? (report as any)?.from ?? '' : (report as any)?.fromAyah ?? '').replace(/[٠-٩]/g, d => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)));
+    const surahName = (report as any)?.surah || (report as any)?.fromSurah;
+    const prediction = report?.mode === 'ayah' && ayahText ? quranPartForVerse(SURAHS.indexOf(surahName) + 1, Number(ayahText), SURAH_AYAH_COUNTS) : null;
+    let hizb = prediction?.hizb ? String(prediction.hizb) : '';
+    if (prediction) {
+      const range = quranPartRange('juz', prediction.juz, SURAH_AYAH_COUNTS);
+      const endAyah = String(isHomework ? (report as any)?.to ?? '' : (report as any)?.toAyah ?? '').replace(/[٠-٩]/g, d => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)));
+      if (range && range.startSurah === SURAHS.indexOf(surahName) + 1 && range.startAyah === Number(ayahText) && SURAHS.indexOf((report as any)?.toSurah) + 1 === range.endSurah && Number(endAyah) === range.endAyah) hizb = '';
+    }
+    setPickerJuz(prediction ? String(prediction.juz) : '');
+    setPickerHizb(hizb);
+    setPickerError('');
+    setPartPicker({ field, kind: 'juz' });
+  };
   useEffect(() => { if (!smartReportModal?.isOpen) setPartPicker(null); }, [smartReportModal?.isOpen, smartReportModal?.studentId]);
   const applyPart = (number: number, kind: 'juz' | 'hizb') => {
     if (!partPicker || !smartReportModal?.studentId) return;
@@ -9221,7 +9238,7 @@ function App() {
                     }}>
                       <div className="grid grid-cols-2 gap-3">
                         <label className="text-sm font-bold text-gray-700">رقم الجزء<input autoFocus type="text" inputMode="numeric" value={toHindiDigits(pickerJuz)} onChange={event => { setPickerJuz(event.target.value.replace(/[٠-٩]/g, d => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d))).replace(/[^0-9]/g, '')); setPickerHizb(''); setPickerError(''); }} className="mt-1 w-full rounded-lg border border-gray-200 p-2 text-center text-lg" placeholder="١ – ٣٠" /></label>
-                        <label className="text-sm font-bold text-gray-700">رقم الحزب <span className="font-normal text-gray-400">(اختياري)</span><input type="text" inputMode="numeric" value={toHindiDigits(pickerHizb)} onChange={event => { setPickerHizb(event.target.value.replace(/[٠-٩]/g, d => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d))).replace(/[^0-9]/g, '')); setPickerError(''); }} className="mt-1 w-full rounded-lg border border-gray-200 p-2 text-center text-lg" placeholder="رقم الحزب" /></label>
+                        <label className="text-sm font-bold text-gray-700">رقم الحزب <span className="font-normal text-gray-400">(اختياري)</span><input type="text" inputMode="numeric" value={toHindiDigits(pickerHizb)} onChange={event => { const digits = event.target.value.replace(/[٠-٩]/g, d => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d))).replace(/[^0-9]/g, ''); setPickerHizb(digits ? String(Math.min(2, Math.max(1, Number(digits)))) : ''); setPickerError(''); }} className="mt-1 w-full rounded-lg border border-gray-200 p-2 text-center text-lg" placeholder="رقم الحزب" /></label>
                       </div>
                       {Number(pickerJuz) >= 1 && Number(pickerJuz) <= 30 && <div className="mt-3 flex gap-2 text-sm">{[1, 2].map(number => <button key={number} type="button" onClick={() => { setPickerHizb(String(number)); setPickerError(''); }} className={`flex-1 rounded-lg p-2 ${pickerHizb === String(number) ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-600'}`}>الحزب {toHindiDigits(number)}</button>)}</div>}
                       {pickerError && <p role="alert" className="mt-2 text-sm text-red-600">{pickerError}</p>}
@@ -10561,7 +10578,7 @@ function App() {
                         <div className={`flex gap-1 p-1 bg-gray-100 rounded-lg ${!sectionToggles.readingRev ? 'hidden' : ''}`}>
                           <button
                             id="quran-rev-mode-ayah"
-                            onClickCapture={event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); event.stopPropagation(); setPickerJuz(''); setPickerHizb(''); setPickerError(''); setPartPicker({ field: 'readingRev', kind: 'juz' }); } }}
+                            onClickCapture={event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); event.stopPropagation(); openPartPicker('readingRev'); } }}
                             onClick={() => {
                               setPreferredModes(prev => ({ ...prev, readingRev: 'ayah', homeworkRev: 'ayah' }));
                               setLastReports(prev => {
@@ -10583,7 +10600,7 @@ function App() {
                           </button>
                           <button
                             id="quran-rev-mode-page"
-                            onClickCapture={event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); event.stopPropagation(); setPickerJuz(''); setPickerHizb(''); setPickerError(''); setPartPicker({ field: 'readingRev', kind: 'juz' }); } }}
+                            onClickCapture={event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); event.stopPropagation(); openPartPicker('readingRev'); } }}
                             onClick={() => {
                               setPreferredModes(prev => ({ ...prev, readingRev: 'page', homeworkRev: 'page' }));
                               setLastReports(prev => {
@@ -10605,7 +10622,7 @@ function App() {
                           </button>
                           <button
                             id="quran-rev-mode-juz"
-                            onClickCapture={event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); event.stopPropagation(); setPickerJuz(''); setPickerHizb(''); setPickerError(''); setPartPicker({ field: 'readingRev', kind: 'juz' }); } }}
+                            onClickCapture={event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); event.stopPropagation(); openPartPicker('readingRev'); } }}
                             onClick={() => {
                               setPreferredModes(prev => ({ ...prev, readingRev: 'juz', homeworkRev: 'juz' }));
                               setLastReports(prev => {
@@ -10627,7 +10644,7 @@ function App() {
                           </button>
                           <button
                             id="quran-rev-mode-hizb"
-                            onClickCapture={event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); event.stopPropagation(); setPickerJuz(''); setPickerHizb(''); setPickerError(''); setPartPicker({ field: 'readingRev', kind: 'juz' }); } }}
+                            onClickCapture={event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); event.stopPropagation(); openPartPicker('readingRev'); } }}
                             onClick={() => {
                               setPreferredModes(prev => ({ ...prev, readingRev: 'hizb', homeworkRev: 'hizb' }));
                               setLastReports(prev => {
@@ -11290,7 +11307,7 @@ function App() {
                         <div className={`flex gap-1 p-1 bg-gray-100 rounded-lg ${!sectionToggles.readingOldRev ? 'hidden' : ''}`}>
                           <button
                             id="quran-oldrev-mode-ayah"
-                            onClickCapture={event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); event.stopPropagation(); setPickerJuz(''); setPickerHizb(''); setPickerError(''); setPartPicker({ field: 'readingOldRev', kind: 'juz' }); } }}
+                            onClickCapture={event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); event.stopPropagation(); openPartPicker('readingOldRev'); } }}
                             onClick={() => {
                               setPreferredModes(prev => ({ ...prev, readingOldRev: 'ayah', homeworkOldRev: 'ayah' }));
                               setLastReports(prev => {
@@ -11312,7 +11329,7 @@ function App() {
                           </button>
                           <button
                             id="quran-oldrev-mode-page"
-                            onClickCapture={event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); event.stopPropagation(); setPickerJuz(''); setPickerHizb(''); setPickerError(''); setPartPicker({ field: 'readingOldRev', kind: 'juz' }); } }}
+                            onClickCapture={event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); event.stopPropagation(); openPartPicker('readingOldRev'); } }}
                             onClick={() => {
                               setPreferredModes(prev => ({ ...prev, readingOldRev: 'page', homeworkOldRev: 'page' }));
                               setLastReports(prev => {
@@ -11334,7 +11351,7 @@ function App() {
                           </button>
                           <button
                             id="quran-oldrev-mode-juz"
-                            onClickCapture={event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); event.stopPropagation(); setPickerJuz(''); setPickerHizb(''); setPickerError(''); setPartPicker({ field: 'readingOldRev', kind: 'juz' }); } }}
+                            onClickCapture={event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); event.stopPropagation(); openPartPicker('readingOldRev'); } }}
                             onClick={() => {
                               setPreferredModes(prev => ({ ...prev, readingOldRev: 'juz', homeworkOldRev: 'juz' }));
                               setLastReports(prev => {
@@ -11356,7 +11373,7 @@ function App() {
                           </button>
                           <button
                             id="quran-oldrev-mode-hizb"
-                            onClickCapture={event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); event.stopPropagation(); setPickerJuz(''); setPickerHizb(''); setPickerError(''); setPartPicker({ field: 'readingOldRev', kind: 'juz' }); } }}
+                            onClickCapture={event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); event.stopPropagation(); openPartPicker('readingOldRev'); } }}
                             onClick={() => {
                               setPreferredModes(prev => ({ ...prev, readingOldRev: 'hizb', homeworkOldRev: 'hizb' }));
                               setLastReports(prev => {
@@ -12018,7 +12035,7 @@ function App() {
                         <div className={`flex gap-1 p-1 bg-gray-100 rounded-lg ${!sectionToggles.readingTilawa ? 'hidden' : ''}`}>
                           <button
                             id="quran-tilawa-mode-ayah"
-                            onClickCapture={event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); event.stopPropagation(); setPickerJuz(''); setPickerHizb(''); setPickerError(''); setPartPicker({ field: 'readingTilawa', kind: 'juz' }); } }}
+                            onClickCapture={event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); event.stopPropagation(); openPartPicker('readingTilawa'); } }}
                             onClick={() => {
                               setPreferredModes(prev => ({ ...prev, readingTilawa: 'ayah', homeworkTilawa: 'ayah' }));
                               setLastReports(prev => {
@@ -12040,7 +12057,7 @@ function App() {
                           </button>
                           <button
                             id="quran-tilawa-mode-page"
-                            onClickCapture={event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); event.stopPropagation(); setPickerJuz(''); setPickerHizb(''); setPickerError(''); setPartPicker({ field: 'readingTilawa', kind: 'juz' }); } }}
+                            onClickCapture={event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); event.stopPropagation(); openPartPicker('readingTilawa'); } }}
                             onClick={() => {
                               setPreferredModes(prev => ({ ...prev, readingTilawa: 'page', homeworkTilawa: 'page' }));
                               setLastReports(prev => {
@@ -12062,7 +12079,7 @@ function App() {
                           </button>
                           <button
                             id="quran-tilawa-mode-juz"
-                            onClickCapture={event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); event.stopPropagation(); setPickerJuz(''); setPickerHizb(''); setPickerError(''); setPartPicker({ field: 'readingTilawa', kind: 'juz' }); } }}
+                            onClickCapture={event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); event.stopPropagation(); openPartPicker('readingTilawa'); } }}
                             onClick={() => {
                               setPreferredModes(prev => ({ ...prev, readingTilawa: 'juz', homeworkTilawa: 'juz' }));
                               setLastReports(prev => {
@@ -12084,7 +12101,7 @@ function App() {
                           </button>
                           <button
                             id="quran-tilawa-mode-hizb"
-                            onClickCapture={event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); event.stopPropagation(); setPickerJuz(''); setPickerHizb(''); setPickerError(''); setPartPicker({ field: 'readingTilawa', kind: 'juz' }); } }}
+                            onClickCapture={event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); event.stopPropagation(); openPartPicker('readingTilawa'); } }}
                             onClick={() => {
                               setPreferredModes(prev => ({ ...prev, readingTilawa: 'hizb', homeworkTilawa: 'hizb' }));
                               setLastReports(prev => {
@@ -13345,7 +13362,7 @@ function App() {
                         <div className={`flex gap-1 p-1 bg-gray-100 rounded-lg ${!sectionToggles.homeworkRev ? 'hidden' : ''}`}>
                           <button
                             id="hw-rev-mode-ayah"
-                            onClickCapture={event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); event.stopPropagation(); setPickerJuz(''); setPickerHizb(''); setPickerError(''); setPartPicker({ field: 'homeworkRev', kind: 'juz' }); } }}
+                            onClickCapture={event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); event.stopPropagation(); openPartPicker('homeworkRev'); } }}
                             onClick={() => {
                               setPreferredModes(prev => ({ ...prev, homeworkRev: 'ayah' }));
                               setLastReports(prev => {
@@ -13360,7 +13377,7 @@ function App() {
                           </button>
                           <button
                             id="hw-rev-mode-page"
-                            onClickCapture={event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); event.stopPropagation(); setPickerJuz(''); setPickerHizb(''); setPickerError(''); setPartPicker({ field: 'homeworkRev', kind: 'juz' }); } }}
+                            onClickCapture={event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); event.stopPropagation(); openPartPicker('homeworkRev'); } }}
                             onClick={() => {
                               setPreferredModes(prev => ({ ...prev, homeworkRev: 'page' }));
                               setLastReports(prev => {
@@ -13375,7 +13392,7 @@ function App() {
                           </button>
                           <button
                             id="hw-rev-mode-juz"
-                            onClickCapture={event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); event.stopPropagation(); setPickerJuz(''); setPickerHizb(''); setPickerError(''); setPartPicker({ field: 'homeworkRev', kind: 'juz' }); } }}
+                            onClickCapture={event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); event.stopPropagation(); openPartPicker('homeworkRev'); } }}
                             onClick={() => {
                               setPreferredModes(prev => ({ ...prev, homeworkRev: 'juz' }));
                               setLastReports(prev => {
@@ -13390,7 +13407,7 @@ function App() {
                           </button>
                           <button
                             id="hw-rev-mode-hizb"
-                            onClickCapture={event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); event.stopPropagation(); setPickerJuz(''); setPickerHizb(''); setPickerError(''); setPartPicker({ field: 'homeworkRev', kind: 'juz' }); } }}
+                            onClickCapture={event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); event.stopPropagation(); openPartPicker('homeworkRev'); } }}
                             onClick={() => {
                               setPreferredModes(prev => ({ ...prev, homeworkRev: 'hizb' }));
                               setLastReports(prev => {
@@ -13770,7 +13787,7 @@ function App() {
                         <div className={`flex gap-1 p-1 bg-gray-100 rounded-lg ${!sectionToggles.homeworkOldRev ? 'hidden' : ''}`}>
                           <button
                             id="hw-oldrev-mode-ayah"
-                            onClickCapture={event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); event.stopPropagation(); setPickerJuz(''); setPickerHizb(''); setPickerError(''); setPartPicker({ field: 'homeworkOldRev', kind: 'juz' }); } }}
+                            onClickCapture={event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); event.stopPropagation(); openPartPicker('homeworkOldRev'); } }}
                             onClick={() => {
                               setPreferredModes(prev => ({ ...prev, homeworkOldRev: 'ayah' }));
                               setLastReports(prev => {
@@ -13785,7 +13802,7 @@ function App() {
                           </button>
                           <button
                             id="hw-oldrev-mode-page"
-                            onClickCapture={event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); event.stopPropagation(); setPickerJuz(''); setPickerHizb(''); setPickerError(''); setPartPicker({ field: 'homeworkOldRev', kind: 'juz' }); } }}
+                            onClickCapture={event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); event.stopPropagation(); openPartPicker('homeworkOldRev'); } }}
                             onClick={() => {
                               setPreferredModes(prev => ({ ...prev, homeworkOldRev: 'page' }));
                               setLastReports(prev => {
@@ -13800,7 +13817,7 @@ function App() {
                           </button>
                           <button
                             id="hw-oldrev-mode-juz"
-                            onClickCapture={event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); event.stopPropagation(); setPickerJuz(''); setPickerHizb(''); setPickerError(''); setPartPicker({ field: 'homeworkOldRev', kind: 'juz' }); } }}
+                            onClickCapture={event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); event.stopPropagation(); openPartPicker('homeworkOldRev'); } }}
                             onClick={() => {
                               setPreferredModes(prev => ({ ...prev, homeworkOldRev: 'juz' }));
                               setLastReports(prev => {
@@ -13815,7 +13832,7 @@ function App() {
                           </button>
                           <button
                             id="hw-oldrev-mode-hizb"
-                            onClickCapture={event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); event.stopPropagation(); setPickerJuz(''); setPickerHizb(''); setPickerError(''); setPartPicker({ field: 'homeworkOldRev', kind: 'juz' }); } }}
+                            onClickCapture={event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); event.stopPropagation(); openPartPicker('homeworkOldRev'); } }}
                             onClick={() => {
                               setPreferredModes(prev => ({ ...prev, homeworkOldRev: 'hizb' }));
                               setLastReports(prev => {
@@ -14195,7 +14212,7 @@ function App() {
                         <div className={`flex gap-1 p-1 bg-gray-100 rounded-lg ${!sectionToggles.homeworkTilawa ? 'hidden' : ''}`}>
                           <button
                             id="hw-tilawa-mode-ayah"
-                            onClickCapture={event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); event.stopPropagation(); setPickerJuz(''); setPickerHizb(''); setPickerError(''); setPartPicker({ field: 'homeworkTilawa', kind: 'juz' }); } }}
+                            onClickCapture={event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); event.stopPropagation(); openPartPicker('homeworkTilawa'); } }}
                             onClick={() => {
                               setPreferredModes(prev => ({ ...prev, homeworkTilawa: 'ayah' }));
                               setLastReports(prev => {
@@ -14210,7 +14227,7 @@ function App() {
                           </button>
                           <button
                             id="hw-tilawa-mode-page"
-                            onClickCapture={event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); event.stopPropagation(); setPickerJuz(''); setPickerHizb(''); setPickerError(''); setPartPicker({ field: 'homeworkTilawa', kind: 'juz' }); } }}
+                            onClickCapture={event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); event.stopPropagation(); openPartPicker('homeworkTilawa'); } }}
                             onClick={() => {
                               setPreferredModes(prev => ({ ...prev, homeworkTilawa: 'page' }));
                               setLastReports(prev => {
@@ -14225,7 +14242,7 @@ function App() {
                           </button>
                           <button
                             id="hw-tilawa-mode-juz"
-                            onClickCapture={event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); event.stopPropagation(); setPickerJuz(''); setPickerHizb(''); setPickerError(''); setPartPicker({ field: 'homeworkTilawa', kind: 'juz' }); } }}
+                            onClickCapture={event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); event.stopPropagation(); openPartPicker('homeworkTilawa'); } }}
                             onClick={() => {
                               setPreferredModes(prev => ({ ...prev, homeworkTilawa: 'juz' }));
                               setLastReports(prev => {
@@ -14240,7 +14257,7 @@ function App() {
                           </button>
                           <button
                             id="hw-tilawa-mode-hizb"
-                            onClickCapture={event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); event.stopPropagation(); setPickerJuz(''); setPickerHizb(''); setPickerError(''); setPartPicker({ field: 'homeworkTilawa', kind: 'juz' }); } }}
+                            onClickCapture={event => { if (event.ctrlKey || event.metaKey) { event.preventDefault(); event.stopPropagation(); openPartPicker('homeworkTilawa'); } }}
                             onClick={() => {
                               setPreferredModes(prev => ({ ...prev, homeworkTilawa: 'hizb' }));
                               setLastReports(prev => {

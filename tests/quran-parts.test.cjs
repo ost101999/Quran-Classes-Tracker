@@ -8,7 +8,7 @@ function load(file) {
   new Function('module', 'exports', 'require', code)(mod, mod.exports, require);
   return mod.exports;
 }
-const { quranPartRange } = load('services/quranParts.ts');
+const { quranPartRange, quranPartForVerse } = load('services/quranParts.ts');
 const { SURAH_AYAH_COUNTS } = load('constants.ts');
 test('juz and hizb ranges include the verse before the next boundary', () => {
   assert.deepEqual(quranPartRange('juz', 1, SURAH_AYAH_COUNTS), { startSurah: 1, startAyah: 1, endSurah: 2, endAyah: 141 });
@@ -20,4 +20,10 @@ test('juz and hizb ranges include the verse before the next boundary', () => {
     assert.ok(range.startAyah >= 1 && range.startAyah <= SURAH_AYAH_COUNTS[range.startSurah - 1]);
     assert.ok(range.endAyah >= 1 && range.endAyah <= SURAH_AYAH_COUNTS[range.endSurah - 1]);
   }
+});
+test('predicts the juz and its local hizb from an ayah', () => {
+  assert.deepEqual(quranPartForVerse(2, 74, SURAH_AYAH_COUNTS), { juz: 1, hizb: 1 });
+  assert.deepEqual(quranPartForVerse(2, 75, SURAH_AYAH_COUNTS), { juz: 1, hizb: 2 });
+  assert.deepEqual(quranPartForVerse(2, 142, SURAH_AYAH_COUNTS), { juz: 2, hizb: 1 });
+  assert.equal(quranPartForVerse(2, 287, SURAH_AYAH_COUNTS), null);
 });

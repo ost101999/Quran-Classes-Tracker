@@ -10,3 +10,9 @@ export function quranPartRange(kind: 'juz' | 'hizb', number: number, counts: num
   const endAyah = next && next[1] > 1 ? next[1] - 1 : counts[endSurah - 1];
   return { startSurah: surah, startAyah: ayah, endSurah, endAyah };
 }
+export function quranPartForVerse(surah: number, ayah: number, counts: number[]) {
+  if (!Number.isInteger(surah) || !Number.isInteger(ayah) || surah < 1 || surah > counts.length || ayah < 1 || ayah > counts[surah - 1]) return null;
+  let index = 0;
+  hizbStarts.forEach(([s, a], i) => { if (s < surah || (s === surah && a <= ayah)) index = i; });
+  return { juz: Math.floor(index / 2) + 1, hizb: index % 2 + 1 };
+}
