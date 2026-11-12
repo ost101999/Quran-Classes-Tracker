@@ -47,6 +47,7 @@ const SearchableSurahSelect: React.FC<SearchableSurahSelectProps> = ({
     const listRef = useRef<HTMLUListElement>(null);
     const itemRefs = useRef<Map<string, HTMLLIElement | null>>(new Map());
     const ignoreScrollRef = useRef(false);
+    const selectionEditedRef = useRef(false);
 
     // Sync internal value
     useEffect(() => {
@@ -69,6 +70,7 @@ const SearchableSurahSelect: React.FC<SearchableSurahSelectProps> = ({
     }, [internalValue, isOpen, formatDisplay]);
 
     const handleSelect = React.useCallback((surah: string) => {
+        isOpenRef.current = false;
         setInternalValue(surah);
         onChange(surah);
         setIsOpen(false);
@@ -119,6 +121,14 @@ const SearchableSurahSelect: React.FC<SearchableSurahSelectProps> = ({
 
     const commitSelection = React.useCallback(() => {
         if (isOpenRef.current) {
+            // Merely passing through the field must keep its existing selection.
+            if (!selectionEditedRef.current) {
+                isOpenRef.current = false;
+                setIsOpen(false);
+                setQuery(formatDisplay(internalValueRef.current));
+                return;
+            }
+            isOpenRef.current = false;
             const currentFiltered = filteredSurahsRef.current;
             const currentIndex = highlightedIndexRef.current;
             if (currentFiltered[currentIndex]) {
@@ -208,6 +218,8 @@ const SearchableSurahSelect: React.FC<SearchableSurahSelectProps> = ({
     }, [query]);
 
     const handleInputFocus = () => {
+        selectionEditedRef.current = false;
+        isOpenRef.current = true;
         setIsOpen(true);
         setQuery(formatDisplay(internalValue));
         setTimeout(() => inputRef.current?.select(), 0);
@@ -215,6 +227,8 @@ const SearchableSurahSelect: React.FC<SearchableSurahSelectProps> = ({
 
     const handleInputClick = () => {
         if (!isOpen) {
+            selectionEditedRef.current = false;
+            isOpenRef.current = true;
             setIsOpen(true);
             setQuery(formatDisplay(internalValue));
         }
@@ -227,6 +241,7 @@ const SearchableSurahSelect: React.FC<SearchableSurahSelectProps> = ({
             ? arabicKeys[e.key.toLowerCase()] : undefined;
         if (arabicKey) {
             e.preventDefault();
+            selectionEditedRef.current = true;
             const input = e.currentTarget as HTMLInputElement;
             const start = input.selectionStart ?? query.length;
             const end = input.selectionEnd ?? start;
@@ -237,14 +252,18 @@ const SearchableSurahSelect: React.FC<SearchableSurahSelectProps> = ({
         }
         if (e.key === 'ArrowDown') {
             e.preventDefault();
+            selectionEditedRef.current = true;
             if (!isOpen) {
+                isOpenRef.current = true;
                 setIsOpen(true);
             } else {
                 setHighlightedIndex(prev => Math.min(prev + 1, filteredSurahs.length - 1));
             }
         } else if (e.key === 'ArrowUp') {
             e.preventDefault();
+            selectionEditedRef.current = true;
             if (!isOpen) {
+                isOpenRef.current = true;
                 setIsOpen(true);
             } else {
                 setHighlightedIndex(prev => Math.max(prev - 1, 0));
@@ -253,6 +272,7 @@ const SearchableSurahSelect: React.FC<SearchableSurahSelectProps> = ({
             e.preventDefault();
             commitSelection();
         } else if (e.key === 'Escape') {
+            isOpenRef.current = false;
             setIsOpen(false);
             setQuery(formatDisplay(internalValue));
             inputRef.current?.blur();
@@ -278,7 +298,7 @@ const SearchableSurahSelect: React.FC<SearchableSurahSelectProps> = ({
                     id={id ? `${id}-input` : undefined}
                     type="text"
                     value={query}
-                    onChange={(e) => { setQuery(e.target.value); setIsOpen(true); }}
+                    onChange={(e) => { selectionEditedRef.current = true; setQuery(e.target.value); setIsOpen(true); }}
                     onFocus={handleInputFocus}
                     onBlur={handleBlur}
                     onClick={handleInputClick}
