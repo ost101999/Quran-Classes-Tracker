@@ -37,5 +37,26 @@ const result = spawnSync(
     [require.resolve('electron-builder/out/cli/cli.js'), `--config.extraMetadata.version=${version}`, ...process.argv.slice(2)],
     { cwd: __dirname, stdio: 'inherit', shell: false }
 );
+
+// Keep the new Windows installer only after a successful build produced it.
+const args = process.argv.slice(2);
+const buildingWindows = args.includes('--win') || (process.platform === 'win32' && !args.includes('--mac') && !args.includes('--linux'));
+if (result.status === 0 && buildingWindows) {
+    const outputDir = path.resolve(__dirname, pkg.build?.directories?.output || 'dist');
+    const prefix = `${pkg.build?.productName || pkg.name} Setup `;
+    const currentInstaller = `${prefix}${version}.exe`;
+    if (fs.existsSync(path.join(outputDir, currentInstaller))) {
+        for (const entry of fs.readdirSync(outputDir, { withFileTypes: true })) {
+            if (entry.isFile() && entry.name.startsWith(prefix) && entry.name.endsWith('.exe') && entry.name !== currentInstaller) {
+                try {
+                    fs.unlinkSync(path.join(outputDir, entry.name));
+                    console.log(`[Build] Removed old installer: ${entry.name}`);
+                } catch (error) {
+                    console.warn(`[Build] Could not remove old installer ${entry.name}: ${error.message}`);
+                }
+            }
+        }
+    }
+}
 process.exit(result.status ?? 1);
 
