@@ -7,6 +7,7 @@ const BRANCH = 'main';
 const TOOLS_DIR = 'build-tools';
 const MAC_SCRIPT = 'BuildAndInstallMac.command';
 const WIN_SCRIPT = 'Build.ps1';
+const WIN_LAUNCHER = 'UpdateWindows.cmd';
 
 function isVersionNewer(candidate, current) {
     const parts = value => String(value).replace(/^v/i, '').split(/[.-]/).map(part => Number.parseInt(part, 10) || 0);
@@ -123,10 +124,10 @@ function registerAppUpdates({ app, ipcMain, shell, dialog, getMainWindow }) {
         if (process.platform === 'darwin') {
             spawn('open', [script], { detached: true, stdio: 'ignore' }).unref();
         } else {
-            spawn('powershell.exe', ['-ExecutionPolicy', 'Bypass', '-NoExit', '-File', script], {
-                detached: true,
-                stdio: 'ignore'
-            }).unref();
+            const launcher = path.join(path.dirname(script), WIN_LAUNCHER);
+            if (!fs.existsSync(launcher)) return { started: false };
+            const error = await shell.openPath(launcher);
+            if (error) return { started: false };
         }
         return { started: true };
     });
