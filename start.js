@@ -2,7 +2,7 @@ const { spawn } = require('child_process');
 const waitOn = require('wait-on');
 
 // Parse --port argument
-let port = 3000;
+let port = 5173;
 const portArgIndex = process.argv.indexOf('--port');
 if (portArgIndex !== -1 && process.argv.length > portArgIndex + 1) {
   port = parseInt(process.argv[portArgIndex + 1], 10);
