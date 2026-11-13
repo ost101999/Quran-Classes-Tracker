@@ -6290,6 +6290,17 @@ function App() {
   }, [month, year]);
 
   const activePendingDay = pendingFilter?.month === month && pendingFilter.year === year ? pendingFilter.day : null;
+  const noPendingClasses = activePendingDay !== null && getRemainingClasses(activePendingDay) === 0;
+  const [showNoPendingClasses, setShowNoPendingClasses] = useState(false);
+  useEffect(() => {
+    if (!noPendingClasses) {
+      setShowNoPendingClasses(false);
+      return;
+    }
+    const delay = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 500;
+    const timer = window.setTimeout(() => setShowNoPendingClasses(true), delay);
+    return () => window.clearTimeout(timer);
+  }, [noPendingClasses, activePendingDay, month, year]);
   const isCompletedClass = (student: Student, dayNum: number) => {
     if (isPendingClass(student, dayNum)) return false;
     const key = `${student.id}_${dayNum}_${month}_${year}`;
@@ -7157,8 +7168,8 @@ function App() {
                   </tr>
                 )}
 
-                {activePendingDay !== null && getRemainingClasses(activePendingDay) === 0 && (
-                  <tr><td colSpan={daysInMonth + 1} className="py-12 text-center font-arabic text-xl text-gray-500">لا توجد حصص متبقية لهذا اليوم.</td></tr>
+                {noPendingClasses && showNoPendingClasses && (
+                  <tr className="filtered-row-entering"><td colSpan={daysInMonth + 1} className="py-12 text-center font-arabic text-xl text-gray-500">لا توجد حصص متبقية لهذا اليوم.</td></tr>
                 )}
 
                 {([
