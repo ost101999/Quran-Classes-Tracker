@@ -75,13 +75,13 @@ const UpdateBanner: React.FC = () => {
             {open && (
                 <div className="absolute top-full left-0 mt-3 w-72 rounded-2xl border border-gray-100 bg-white p-4 shadow-2xl" role="status" aria-live="polite">
                     <button type="button" onClick={() => setOpen(false)} aria-label="إغلاق" className="absolute left-3 top-3 rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700"><X size={16} /></button>
-                    <h3 className="pl-6 text-sm font-bold text-gray-800">تحديثات البرنامج</h3>
-                    <p className="mt-2 text-xs leading-5 text-gray-500">
-                        {checking ? 'جارٍ البحث عن تحديثات...' : info?.status === 'available' ? `تحديث جديد متاح${info.latest ? ` (v${info.latest})` : ''}` : info?.status === 'up-to-date' ? 'البرنامج محدّث لآخر إصدار.' : 'تعذّر التحقق من التحديثات. حاول مرة أخرى.'}
+                    <h3 className="pl-6 text-lg font-bold text-gray-800">تحديثات البرنامج</h3>
+                    <p className="mt-2 text-sm leading-6 text-gray-500">
+                        {checking ? 'جارٍ البحث عن تحديثات...' : info?.status === 'available' ? <>تحديث جديد متاح {info.latest && <bdi dir="ltr" style={{ fontFamily: 'AcmeWeb, Acme, sans-serif' }}>(v{info.latest})</bdi>}</> : info?.status === 'up-to-date' ? 'البرنامج محدّث لآخر إصدار.' : 'تعذّر التحقق من التحديثات. حاول مرة أخرى.'}
                     </p>
-                    {startError && <p className="mt-2 text-xs text-red-600">تعذّر تشغيل أداة التحديث. تأكد من مجلد المشروع وحاول مرة أخرى.</p>}
+                    {startError && <p className="mt-2 text-sm text-red-600">تعذّر تشغيل أداة التحديث. تأكد من مجلد المشروع وحاول مرة أخرى.</p>}
                     {info?.status === 'available' && !checking && (
-                        <button type="button" disabled={starting} onClick={() => void startUpdate()} className="mt-3 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-bold text-white hover:bg-indigo-700 disabled:opacity-50">
+                        <button type="button" disabled={starting} onClick={() => void startUpdate()} className="mt-3 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-50">
                             {starting ? 'جارٍ التشغيل...' : 'تحديث'}
                         </button>
                     )}
