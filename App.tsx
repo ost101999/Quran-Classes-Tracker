@@ -85,6 +85,7 @@ import { applyWhatsAppMatches, whatsappDifferences } from './services/whatsappSt
 import { applyCalendarSchedules } from './services/calendarStudentSync';
 import { ingestCalendarReviews, commitCalendarAction, type CalendarActionPreview } from './services/calendarReview';
 import { scheduledCount } from './services/studentSchedule';
+import { sortPendingStudentsByCalendar } from './services/pendingCalendarSort';
 import { buildOldRevisionRedo } from './services/oldRevisionRedo';
 import { copyNoorInputs, getNoorLessonType, nextNoorPages, normalizeNoorEndPage } from './services/noorLessons';
 import CalendarReviewModal from './components/CalendarReviewModal';
@@ -591,6 +592,14 @@ function App() {
 
   const [selectedAcademy, setSelectedAcademy] = useState<string | null>(null);
   const [pendingFilter, setPendingFilter] = useState<{ day: number; month: number; year: number } | null>(null);
+  const [pendingCalendarSort, setPendingCalendarSort] = useState<boolean>(() => {
+    try { return localStorage.getItem('quran_tracker_pending_calendar_sort') === 'true'; }
+    catch { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('quran_tracker_pending_calendar_sort', String(pendingCalendarSort)); }
+    catch { /* Keeps toggle usable if local storage is unavailable. */ }
+  }, [pendingCalendarSort]);
   const [completedClassesOpen, setCompletedClassesOpen] = useState(() => {
     try { return localStorage.getItem('quran_tracker_completed_classes_open') !== 'false'; }
     catch { return true; }
@@ -6297,6 +6306,13 @@ function App() {
     setPendingFilter(activePendingDay === dayNum ? null : { day: dayNum, month, year });
   };
 
+  const isCalendarSortedPending = activePendingDay !== null && pendingCalendarSort;
+  const calendarSortedPending = useMemo(() => {
+    if (activePendingDay === null || !pendingCalendarSort) return null;
+    const allStudents = sortedAcademies.flatMap(academy => groupedStudents[academy] || []);
+    return sortPendingStudentsByCalendar(allStudents, activePendingDay, month, year, dayTransitionTime);
+  }, [activePendingDay, pendingCalendarSort, sortedAcademies, groupedStudents, month, year, dayTransitionTime]);
+
   // Fixed widths for sticky columns
   const COL_PAY_WIDTH = "100px";
   const COL_COUNT_WIDTH = "100px";
@@ -7048,7 +7064,30 @@ function App() {
                     `,
                       backgroundBlendMode: 'overlay'
                     }}
-                  >الطالب</th>
+                  >
+                    الطالب
+                    {activePendingDay !== null && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setPendingCalendarSort(prev => !prev);
+                        }}
+                        aria-pressed={pendingCalendarSort}
+                        aria-label={pendingCalendarSort ? 'إلغاء الترتيب حسب Google Calendar' : 'ترتيب الحصص حسب توقيت Google Calendar'}
+                        title={pendingCalendarSort ? 'مرتّب حسب توقيت Google Calendar (انقر للإلغاء)' : 'ترتيب الحصص حسب توقيت Google Calendar'}
+                        className="group/dot absolute left-4 top-1/2 -translate-y-1/2 flex items-center justify-center w-5 h-5 rounded-full transition-transform duration-200 hover:scale-125 active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#ffe05d]"
+                      >
+                        <span
+                          className={`rounded-full transition-all duration-300 ${
+                            pendingCalendarSort
+                              ? 'w-2.5 h-2.5 bg-[#ffe05d] shadow-[0_0_8px_rgba(255,224,93,0.9)]'
+                              : 'w-2 h-2 bg-white/35 group-hover/dot:bg-white/85'
+                          }`}
+                        />
+                      </button>
+                    )}
+                  </th>
 
                   {/* Date Columns */}
                   {Array.from({ length: daysInMonth }).map((_, i) => {
@@ -7119,10 +7158,13 @@ function App() {
                 )}
 
                 {([
-                  ...sortedAcademies.map(academy => ({ academy, section: 'pending' as const })),
-                  ...(activePendingDay === null ? [] : sortedAcademies.map(academy => ({ academy, section: 'completed' as const }))),
-                ]).map(({ academy, section }) => {
-                  const academyStudents = (groupedStudents[academy] || []).filter(student => {
+                  ...(isCalendarSortedPending && calendarSortedPending
+                    ? [{ academy: '__calendar__', section: 'pending' as const, flatStudents: calendarSortedPending.sortedStudents }]
+                    : sortedAcademies.map(academy => ({ academy, section: 'pending' as const, flatStudents: null as Student[] | null }))),
+                  ...(activePendingDay === null ? [] : sortedAcademies.map(academy => ({ academy, section: 'completed' as const, flatStudents: null as Student[] | null }))),
+                ]).map(({ academy, section, flatStudents }) => {
+                  const isFlatCalendarSection = flatStudents !== null;
+                  const academyStudents = (isFlatCalendarSection ? flatStudents : (groupedStudents[academy] || [])).filter(student => {
                     if (activePendingDay === null || section === 'pending') return true;
                     return isCompletedClass(student, activePendingDay);
                   });
@@ -7146,6 +7188,15 @@ function App() {
                         </tr>
                       )}
                       {/* Section Header */}
+                      {isFlatCalendarSection ? (
+                        <FilteredRow filtered={allHiddenBySearch} className="scroll-mt-40">
+                          <td colSpan={daysInMonth + 1} className="bg-gray-50/80 p-4 text-center select-none">
+                            <div className="relative inline-flex items-center gap-3 px-6 py-2 rounded-full shadow-sm border border-gray-100 bg-white text-2xl text-gray-800 font-arabic select-none">
+                              <span>الترتيب حسب الموعد</span>
+                            </div>
+                          </td>
+                        </FilteredRow>
+                      ) : (
                       <FilteredRow id={section === 'completed' ? undefined : `academy-${academy}`} animateOnMount={section === 'completed'} filtered={allHiddenBySearch || (section === 'completed' && !completedClassesOpen)} className={`scroll-mt-40 group ${section === 'completed' ? 'completed-review-row opacity-50' : ''}`}>
                         <td
                           colSpan={daysInMonth + 1}
@@ -7190,6 +7241,7 @@ function App() {
                           </div>
                         </td>
                       </FilteredRow>
+                      )}
 
                       {academyStudents.map((student) => {
                         const totalDays = calculateTotal(student.id);
@@ -7264,7 +7316,7 @@ function App() {
                             filtered={isSearchHidden}
                             animateOnMount={section === 'completed'}
                             data-student-id={section === 'pending' && activePendingDay !== null && !isPendingClass(student, activePendingDay) ? undefined : student.id}
-                            draggable={true}
+                            draggable={!isFlatCalendarSection}
                             onDragStart={(e) => handleStudentDragStart(e, student.id)}
                             onDragOver={(e) => handleStudentDragOver(e, student.id)}
                             onDragEnd={() => { setDraggedStudentId(null); setStudentDragOverId(null); stopAutoScroll(); }}
@@ -9056,6 +9108,8 @@ function App() {
         getRemainingClasses={getRemainingClasses}
         getRemainingClassesInfo={getRemainingClassesInfo}
         togglePendingFilter={togglePendingFilter}
+        pendingCalendarSort={pendingCalendarSort}
+        onTogglePendingCalendarSort={() => setPendingCalendarSort(prev => !prev)}
       />
 
       {/* Smart Report Modal */}
@@ -18170,7 +18224,9 @@ const StickyHeader = React.forwardRef<HTMLDivElement, {
   getRemainingClasses: (dayNum: number) => number;
   getRemainingClassesInfo?: (dayNum: number) => { count: number; totalMinutes: number; hours: number };
   togglePendingFilter: (dayNum: number) => void;
-}>(({ show, isTableLoading, studentWidth, tableWidth, month, year, daysInMonth, dayOff, today, activePendingDay, toHindiDigits, getDayOfWeek, getRemainingClasses, getRemainingClassesInfo, togglePendingFilter }, ref) => {
+  pendingCalendarSort: boolean;
+  onTogglePendingCalendarSort: () => void;
+}>(({ show, isTableLoading, studentWidth, tableWidth, month, year, daysInMonth, dayOff, today, activePendingDay, toHindiDigits, getDayOfWeek, getRemainingClasses, getRemainingClassesInfo, togglePendingFilter, pendingCalendarSort, onTogglePendingCalendarSort }, ref) => {
   const isWeekend = (day: number) => getDayOfWeek(day) === dayOff;
   const isTodayColumn = (dayNum: number) => {
     return month === today.month && year === today.year && dayNum === today.day;
@@ -18204,7 +18260,30 @@ const StickyHeader = React.forwardRef<HTMLDivElement, {
                     `,
                     backgroundBlendMode: 'overlay',
                   }}
-                >الطالب</th>
+                >
+                  الطالب
+                  {activePendingDay !== null && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onTogglePendingCalendarSort();
+                      }}
+                      aria-pressed={pendingCalendarSort}
+                      aria-label={pendingCalendarSort ? 'إلغاء الترتيب حسب Google Calendar' : 'ترتيب الحصص حسب توقيت Google Calendar'}
+                      title={pendingCalendarSort ? 'مرتّب حسب توقيت Google Calendar (انقر للإلغاء)' : 'ترتيب الحصص حسب توقيت Google Calendar'}
+                      className="group/dot pointer-events-auto absolute left-4 top-1/2 -translate-y-1/2 flex items-center justify-center w-5 h-5 rounded-full transition-transform duration-200 hover:scale-125 active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#ffe05d]"
+                    >
+                      <span
+                        className={`rounded-full transition-all duration-300 ${
+                          pendingCalendarSort
+                            ? 'w-2.5 h-2.5 bg-[#ffe05d] shadow-[0_0_8px_rgba(255,224,93,0.9)]'
+                            : 'w-2 h-2 bg-white/35 group-hover/dot:bg-white/85'
+                        }`}
+                      />
+                    </button>
+                  )}
+                </th>
                 {Array.from({ length: daysInMonth }).map((_, i) => {
                   const dayNum = i + 1;
                   const isWknd = isWeekend(dayNum);
