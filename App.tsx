@@ -9704,7 +9704,7 @@ function App() {
                                 onPointerLeave={handleInputPointerUp}
                                 onFocus={handleFocus}
                                 onChange={(e) => {
-                                  const val = e.target.value.replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]);
+                                  const val = e.target.value.replace(/[^0-9٠-٩]/g, '').replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]);
                                   e.target.value = val;
                                   if (isNoorMirrorMode) {
                                     const sayatimEl = document.getElementById('noor-sayatim-from-page') as HTMLInputElement;
@@ -9738,7 +9738,7 @@ function App() {
                                 }}
                                 onChange={(e) => {
                                   const book = (lastReports[smartReportModal.studentId]?.noor?.book || defaultNoorBook) === 'taasees' ? 'taasees' : 'noor';
-                                  const val = normalizeNoorEndPage(e.target.value, book);
+                                  const val = normalizeNoorEndPage(e.target.value.replace(/[^0-9٠-٩]/g, ''), book);
                                   e.target.value = val;
                                   if (isNoorMirrorMode) {
                                     const sayatimEl = document.getElementById('noor-sayatim-to-page') as HTMLInputElement;
@@ -9879,7 +9879,7 @@ function App() {
                                 onPointerLeave={handleInputPointerUp}
                                 onFocus={handleFocus}
                                 onChange={(e) => {
-                                  const val = e.target.value.replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]);
+                                  const val = e.target.value.replace(/[^0-9٠-٩]/g, '').replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]);
                                   e.target.value = val;
                                 }}
                                 className={`w-full p-3 border border-gray-200 rounded-xl text-center text-xl font-arabic transition-all ${cancelledInputs['noor-sayatim-from-page'] ? 'bg-gray-200 text-transparent' : 'bg-gray-50'}`}
@@ -9898,7 +9898,7 @@ function App() {
                                 onPointerLeave={handleInputPointerUp}
                                 onFocus={handleFocus}
                                 onChange={(e) => {
-                                  const val = normalizeNoorEndPage(e.target.value, (lastReports[smartReportModal.studentId]?.noor?.book || defaultNoorBook) === 'taasees' ? 'taasees' : 'noor');
+                                  const val = normalizeNoorEndPage(e.target.value.replace(/[^0-9٠-٩]/g, ''), (lastReports[smartReportModal.studentId]?.noor?.book || defaultNoorBook) === 'taasees' ? 'taasees' : 'noor');
                                   e.target.value = val;
                                 }}
                                 className={`w-full p-3 border border-gray-200 rounded-xl text-center text-xl font-arabic transition-all ${cancelledInputs['noor-sayatim-to-page'] ? 'bg-gray-200 text-transparent' : 'bg-gray-50'}`}
@@ -10585,7 +10585,7 @@ function App() {
                                 inputMode="numeric"
                                 value={toHindiDigits(lastReport?.readingNew?.fromPage ?? '')}
                                 onChange={(e) => {
-                                  const val = e.target.value.replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]);
+                                  const val = e.target.value.replace(/[^0-9٠-٩]/g, '').replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]);
                                   setLastReports(prev => {
                                     const studentId = smartReportModal?.studentId;
                                     if (!studentId) return prev;
@@ -10616,7 +10616,7 @@ function App() {
                                 inputMode="numeric"
                                 value={toHindiDigits(lastReport?.readingNew?.toPage ?? '')}
                                 onChange={(e) => {
-                                  const val = e.target.value.replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]);
+                                  const val = e.target.value.replace(/[^0-9٠-٩]/g, '').replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]);
 
                                   // Auto-Advance Calculation
                                   let nextHwStart = '';
@@ -11165,7 +11165,7 @@ function App() {
                                 inputMode="numeric"
                                 value={toHindiDigits(lastReport?.readingRev?.fromPage ?? '')}
                                 onChange={(e) => {
-                                  const val = e.target.value.replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]);
+                                  const val = e.target.value.replace(/[^0-9٠-٩]/g, '').replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]);
                                   setLastReports(prev => {
                                     const studentId = smartReportModal?.studentId;
                                     if (!studentId) return prev;
@@ -11196,7 +11196,7 @@ function App() {
                                 inputMode="numeric"
                                 value={toHindiDigits(lastReport?.readingRev?.toPage ?? '')}
                                 onChange={(e) => {
-                                  const val = e.target.value.replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]);
+                                  const val = e.target.value.replace(/[^0-9٠-٩]/g, '').replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]);
 
                                   // Auto-Advance Next Homework Start Page
                                   if (val) {
@@ -11894,7 +11894,7 @@ function App() {
                                 inputMode="numeric"
                                 value={toHindiDigits(lastReport?.readingOldRev?.fromPage ?? '')}
                                 onChange={(e) => {
-                                  const val = e.target.value.replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]);
+                                  const val = e.target.value.replace(/[^0-9٠-٩]/g, '').replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]);
                                   setLastReports(prev => {
                                     const studentId = smartReportModal?.studentId;
                                     if (!studentId) return prev;
@@ -11925,7 +11925,7 @@ function App() {
                                 inputMode="numeric"
                                 value={toHindiDigits(lastReport?.readingOldRev?.toPage ?? '')}
                                 onChange={(e) => {
-                                  const val = e.target.value.replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]);
+                                  const val = e.target.value.replace(/[^0-9٠-٩]/g, '').replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]);
 
                                   // Auto-Advance Next Homework Start Page
                                   if (val && !isRedoModeOldRev) {
@@ -12674,7 +12674,7 @@ function App() {
                                 inputMode="numeric"
                                 value={toHindiDigits(lastReport?.readingTilawa?.fromPage || '')}
                                 onChange={(e) => {
-                                  const val = e.target.value.replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]);
+                                  const val = e.target.value.replace(/[^0-9٠-٩]/g, '').replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]);
                                   e.target.value = val;
                                   setLastReports(prev => {
                                     const studentId = smartReportModal?.studentId;
@@ -12706,7 +12706,7 @@ function App() {
                                 inputMode="numeric"
                                 value={toHindiDigits(lastReport?.readingTilawa?.toPage || '')}
                                 onChange={(e) => {
-                                  const val = e.target.value.replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]);
+                                  const val = e.target.value.replace(/[^0-9٠-٩]/g, '').replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]);
                                   e.target.value = val;
 
                                   // Auto-Advance Logic
@@ -13183,7 +13183,7 @@ function App() {
                                   autoComplete="off"
                                   value={toHindiDigits(lastReport?.homeworkNew?.from ?? '')}
                                   onChange={(e) => {
-                                    const val = (preferredModes.homeworkNew === 'ayah' ? e.target.value.replace(/[^0-9٠-٩]/g, '').replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]) : e.target.value.replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]));
+                                    const val = ((preferredModes.homeworkNew === 'ayah' || preferredModes.homeworkNew === 'page') ? e.target.value.replace(/[^0-9٠-٩]/g, '').replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]) : e.target.value.replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]));
                                     setLastReports(prev => {
                                       const studentId = smartReportModal?.studentId;
                                       if (!studentId) return prev;
@@ -13274,7 +13274,7 @@ function App() {
                                   autoComplete="off"
                                   value={toHindiDigits(lastReport?.homeworkNew?.to ?? '')}
                                   onChange={(e) => {
-                                    const val = (preferredModes.homeworkNew === 'ayah' ? e.target.value.replace(/[^0-9٠-٩]/g, '').replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]) : e.target.value.replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]));
+                                    const val = ((preferredModes.homeworkNew === 'ayah' || preferredModes.homeworkNew === 'page') ? e.target.value.replace(/[^0-9٠-٩]/g, '').replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]) : e.target.value.replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]));
                                     setLastReports(prev => {
                                       const studentId = smartReportModal?.studentId;
                                       if (!studentId) return prev;
@@ -13366,7 +13366,7 @@ function App() {
                                     inputMode="numeric"
                                     value={toHindiDigits(lastReport?.homeworkNew?.to ?? '')}
                                     onChange={(e) => {
-                                      const val = (preferredModes.homeworkNew === 'ayah' ? e.target.value.replace(/[^0-9٠-٩]/g, '').replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]) : e.target.value.replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]));
+                                      const val = ((preferredModes.homeworkNew === 'ayah' || preferredModes.homeworkNew === 'page') ? e.target.value.replace(/[^0-9٠-٩]/g, '').replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]) : e.target.value.replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]));
 
                                       setLastReports(prev => {
                                         const studentId = smartReportModal?.studentId;
@@ -13670,7 +13670,7 @@ function App() {
                                   autoComplete="off"
                                   value={toHindiDigits(lastReport?.homeworkRev?.from ?? '')}
                                   onChange={(e) => {
-                                    const val = (preferredModes.homeworkRev === 'ayah' ? e.target.value.replace(/[^0-9٠-٩]/g, '').replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]) : e.target.value.replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]));
+                                    const val = ((preferredModes.homeworkRev === 'ayah' || preferredModes.homeworkRev === 'page') ? e.target.value.replace(/[^0-9٠-٩]/g, '').replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]) : e.target.value.replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]));
 
                                     setLastReports(prev => {
                                       const studentId = smartReportModal?.studentId;
@@ -13710,7 +13710,7 @@ function App() {
                                   autoComplete="off"
                                   value={toHindiDigits(lastReport?.homeworkRev?.to ?? '')}
                                   onChange={(e) => {
-                                    const val = (preferredModes.homeworkRev === 'ayah' ? e.target.value.replace(/[^0-9٠-٩]/g, '').replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]) : e.target.value.replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]));
+                                    const val = ((preferredModes.homeworkRev === 'ayah' || preferredModes.homeworkRev === 'page') ? e.target.value.replace(/[^0-9٠-٩]/g, '').replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]) : e.target.value.replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]));
 
                                     setLastReports(prev => {
                                       const studentId = smartReportModal?.studentId;
@@ -13790,7 +13790,7 @@ function App() {
                                     inputMode="numeric"
                                     value={toHindiDigits(lastReport?.homeworkRev?.to ?? '')}
                                     onChange={(e) => {
-                                      const val = (preferredModes.homeworkRev === 'ayah' ? e.target.value.replace(/[^0-9٠-٩]/g, '').replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]) : e.target.value.replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]));
+                                      const val = ((preferredModes.homeworkRev === 'ayah' || preferredModes.homeworkRev === 'page') ? e.target.value.replace(/[^0-9٠-٩]/g, '').replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]) : e.target.value.replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]));
 
                                       setLastReports(prev => {
                                         const studentId = smartReportModal?.studentId;
@@ -14095,7 +14095,7 @@ function App() {
                                   autoComplete="off"
                                   value={toHindiDigits(lastReport?.homeworkOldRev?.from ?? '')}
                                   onChange={(e) => {
-                                    const val = (preferredModes.homeworkOldRev === 'ayah' ? e.target.value.replace(/[^0-9٠-٩]/g, '').replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]) : e.target.value.replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]));
+                                    const val = ((preferredModes.homeworkOldRev === 'ayah' || preferredModes.homeworkOldRev === 'page') ? e.target.value.replace(/[^0-9٠-٩]/g, '').replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]) : e.target.value.replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]));
 
                                     setLastReports(prev => {
                                       const studentId = smartReportModal?.studentId;
@@ -14135,7 +14135,7 @@ function App() {
                                   autoComplete="off"
                                   value={toHindiDigits(lastReport?.homeworkOldRev?.to ?? '')}
                                   onChange={(e) => {
-                                    const val = (preferredModes.homeworkOldRev === 'ayah' ? e.target.value.replace(/[^0-9٠-٩]/g, '').replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]) : e.target.value.replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]));
+                                    const val = ((preferredModes.homeworkOldRev === 'ayah' || preferredModes.homeworkOldRev === 'page') ? e.target.value.replace(/[^0-9٠-٩]/g, '').replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]) : e.target.value.replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]));
 
                                     setLastReports(prev => {
                                       const studentId = smartReportModal?.studentId;
@@ -14215,7 +14215,7 @@ function App() {
                                     inputMode="numeric"
                                     value={toHindiDigits(lastReport?.homeworkOldRev?.to ?? '')}
                                     onChange={(e) => {
-                                      const val = (preferredModes.homeworkOldRev === 'ayah' ? e.target.value.replace(/[^0-9٠-٩]/g, '').replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]) : e.target.value.replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]));
+                                      const val = ((preferredModes.homeworkOldRev === 'ayah' || preferredModes.homeworkOldRev === 'page') ? e.target.value.replace(/[^0-9٠-٩]/g, '').replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]) : e.target.value.replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]));
 
                                       setLastReports(prev => {
                                         const studentId = smartReportModal?.studentId;
@@ -14517,7 +14517,7 @@ function App() {
                                   autoComplete="off"
                                   value={toHindiDigits(lastReport?.homeworkTilawa?.from || '')}
                                   onChange={(e) => {
-                                    const val = (preferredModes.homeworkTilawa === 'ayah' ? e.target.value.replace(/[^0-9٠-٩]/g, '').replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]) : e.target.value.replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]));
+                                    const val = ((preferredModes.homeworkTilawa === 'ayah' || preferredModes.homeworkTilawa === 'page') ? e.target.value.replace(/[^0-9٠-٩]/g, '').replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]) : e.target.value.replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]));
 
                                     setLastReports(prev => {
                                       const studentId = smartReportModal?.studentId;
@@ -14555,7 +14555,7 @@ function App() {
                                     autoComplete="off"
                                     value={toHindiDigits(lastReport?.homeworkTilawa?.to ?? '')}
                                     onChange={(e) => {
-                                      const val = (preferredModes.homeworkTilawa === 'ayah' ? e.target.value.replace(/[^0-9٠-٩]/g, '').replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]) : e.target.value.replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]));
+                                      const val = ((preferredModes.homeworkTilawa === 'ayah' || preferredModes.homeworkTilawa === 'page') ? e.target.value.replace(/[^0-9٠-٩]/g, '').replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]) : e.target.value.replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]));
 
                                       // Validation: Cap at maximum Ayahs
                                       let finalVal = val;
@@ -14637,7 +14637,7 @@ function App() {
                                     autoComplete="off"
                                     value={toHindiDigits(lastReport?.homeworkTilawa?.to ?? '')}
                                     onChange={(e) => {
-                                      const val = (preferredModes.homeworkTilawa === 'ayah' ? e.target.value.replace(/[^0-9٠-٩]/g, '').replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]) : e.target.value.replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]));
+                                      const val = ((preferredModes.homeworkTilawa === 'ayah' || preferredModes.homeworkTilawa === 'page') ? e.target.value.replace(/[^0-9٠-٩]/g, '').replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]) : e.target.value.replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[parseInt(d)]));
 
                                       setLastReports(prev => {
                                         const studentId = smartReportModal?.studentId;
