@@ -7161,7 +7161,15 @@ function App() {
                   ...(isCalendarSortedPending && calendarSortedPending
                     ? [{ academy: '__calendar__', section: 'pending' as const, flatStudents: calendarSortedPending.sortedStudents }]
                     : sortedAcademies.map(academy => ({ academy, section: 'pending' as const, flatStudents: null as Student[] | null }))),
-                  ...(activePendingDay === null ? [] : sortedAcademies.map(academy => ({ academy, section: 'completed' as const, flatStudents: null as Student[] | null }))),
+                  ...(activePendingDay === null ? [] : isCalendarSortedPending && calendarSortedPending
+                    ? [{ academy: '__calendar__', section: 'completed' as const, flatStudents: [...calendarSortedPending.sortedStudents].sort((a, b) => {
+                        const aTime = calendarSortedPending.slotsByStudentId[a.id]?.timestamp;
+                        const bTime = calendarSortedPending.slotsByStudentId[b.id]?.timestamp;
+                        if (aTime === undefined) return bTime === undefined ? 0 : 1;
+                        if (bTime === undefined) return -1;
+                        return bTime - aTime;
+                      }) }]
+                    : sortedAcademies.map(academy => ({ academy, section: 'completed' as const, flatStudents: null as Student[] | null }))),
                 ]).map(({ academy, section, flatStudents }) => {
                   const isFlatCalendarSection = flatStudents !== null;
                   const academyStudents = (isFlatCalendarSection ? flatStudents : (groupedStudents[academy] || [])).filter(student => {
@@ -7175,7 +7183,7 @@ function App() {
                     (searchQuery.trim() !== '' || (section === 'pending' && activePendingDay !== null));
                   return (
                     <React.Fragment key={`${section}:${academy}`}>
-                      {section === 'completed' && academy === firstCompletedAcademy && (
+                      {section === 'completed' && (isFlatCalendarSection ? academyStudents.some(student => searchMatches(student.name)) : academy === firstCompletedAcademy) && (
                         <tr>
                           <td colSpan={daysInMonth + 1} className="px-8 pt-7 pb-3">
                             <button type="button" aria-expanded={completedClassesOpen} onClick={() => setCompletedClassesOpen(open => !open)} className="flex w-full items-center gap-3 text-sm text-gray-400 font-arabic hover:text-gray-600 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 rounded-lg">
@@ -7188,7 +7196,7 @@ function App() {
                         </tr>
                       )}
                       {/* Section Header */}
-                      {isFlatCalendarSection ? (
+                      {isFlatCalendarSection && section === 'completed' ? null : isFlatCalendarSection ? (
                         <FilteredRow filtered={allHiddenBySearch} className="scroll-mt-40">
                           <td colSpan={daysInMonth + 1} className="bg-gray-50/80 p-4 text-center select-none">
                             <div className="relative inline-flex items-center gap-3 px-6 py-2 rounded-full shadow-sm border border-gray-100 bg-white text-2xl text-gray-800 font-arabic select-none">
