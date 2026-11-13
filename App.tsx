@@ -5102,7 +5102,7 @@ function App() {
     }
   }, [whatsappMode, sendViaWhatsapp, students, academyRates]);
 
-  const closeAllModals = useCallback((isCommit = false) => {
+  const closeAllModals = useCallback((isCommit = false, reportOnly = false) => {
     if (!isCommit && smartReportModal?.undoSnapshot) {
       const backup = smartReportModal.undoSnapshot;
       if (backup.attendance) setAttendance(backup.attendance);
@@ -5143,6 +5143,7 @@ function App() {
 
     // 1. Core Modals
     setSmartReportModal(null);
+    if (reportOnly) return;
     setMissedClassesMenu(null);
 
     // 2. UI States
@@ -5180,25 +5181,20 @@ function App() {
   useEffect(() => {
     const handleGlobalEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        if (!smartReportModal?.isOpen) setPendingFilter(null);
-        closeAllModals(false);
+        if (e.repeat) return;
+        if (smartReportModal?.isOpen) {
+          closeAllModals(false, true);
+        } else {
+          setPendingFilter(null);
+          closeAllModals(false);
+        }
       }
     };
-
-    if (window.electronAPI?.onEscapeBtn) {
-      window.electronAPI.onEscapeBtn(() => {
-        if (!smartReportModal?.isOpen) setPendingFilter(null);
-        closeAllModals(false);
-      });
-    }
 
     window.addEventListener('keydown', handleGlobalEscape);
 
     return () => {
       window.removeEventListener('keydown', handleGlobalEscape);
-      if (window.electronAPI?.offEscapeBtn) {
-        window.electronAPI.offEscapeBtn();
-      }
     };
   }, [closeAllModals, smartReportModal?.isOpen]);
 
@@ -9168,7 +9164,7 @@ function App() {
           // Create a simple form
           return (
             <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-              <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => closeAllModals(false)} />
+              <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => closeAllModals(false, true)} />
               <div
                 key={`${smartReportModal.studentId}_${lastReports[smartReportModal.studentId]?._dayNum || 'new'}`}
                 className="smart-report-modal-container relative bg-white rounded-3xl shadow-2xl w-full max-w-[95vw] lg:max-w-6xl overflow-hidden max-h-[calc(100vh-2rem)] overflow-y-auto"
