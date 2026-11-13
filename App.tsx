@@ -31,6 +31,7 @@ const customStyles = `
   @keyframes filtered-row-out { from { opacity: 1; } to { opacity: 0; } }
   .filtered-row-entering { animation: filtered-row-in 650ms ease-out both; }
   .filtered-row-exiting { animation: filtered-row-out 500ms ease-in-out both; pointer-events: none; }
+  .empty-pending-entering { animation: filtered-row-in 500ms ease-in-out both; }
   @keyframes completed-row-in { from { opacity: 0; } to { opacity: .5; } }
   @keyframes completed-row-out { from { opacity: .5; } to { opacity: 0; } }
   .completed-review-row.filtered-row-entering { animation-name: completed-row-in; }
@@ -41,7 +42,7 @@ const customStyles = `
   }
   .academy-menu-opening { animation: academy-menu-in 220ms ease-out; }
   @media (prefers-reduced-motion: reduce) {
-    .filtered-row-entering, .filtered-row-exiting { animation-duration: 1ms; }
+    .filtered-row-entering, .filtered-row-exiting, .empty-pending-entering { animation-duration: 1ms; }
     .academy-menu-opening { animation: none; }
   }
   /* Ensure sticky student name column is transparent normally, but becomes solid when scrolled */
@@ -6301,9 +6302,7 @@ function App() {
       setShowNoPendingClasses(false);
       return;
     }
-    const delay = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 500;
-    const timer = window.setTimeout(() => setShowNoPendingClasses(true), delay);
-    return () => window.clearTimeout(timer);
+    setShowNoPendingClasses(true);
   }, [noPendingClasses, activePendingDay, month, year]);
   const isCompletedClass = (student: Student, dayNum: number) => {
     if (isPendingClass(student, dayNum)) return false;
@@ -7176,7 +7175,7 @@ function App() {
                 )}
 
                 {noPendingClasses && showNoPendingClasses && (
-                  <tr className="filtered-row-entering"><td colSpan={daysInMonth + 1} className="py-12 text-center font-arabic text-xl text-gray-500">لا توجد حصص متبقية لهذا اليوم.</td></tr>
+                  <tr className="empty-pending-entering"><td colSpan={daysInMonth + 1} className="py-12 text-center font-arabic text-xl text-gray-500">لا توجد حصص متبقية لهذا اليوم.</td></tr>
                 )}
 
                 {([
