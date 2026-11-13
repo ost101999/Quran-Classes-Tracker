@@ -7100,7 +7100,7 @@ function App() {
                       <th
                         key={dayNum}
                         id={isToday ? 'today-column' : undefined}
-                        className={`p-3 min-w-[70px] antialiased relative transition-opacity duration-[400ms] ease-out`}
+                        className={`p-3 min-w-[70px] antialiased relative select-none transition-opacity duration-[400ms] ease-out`}
                         style={{
                           opacity: activePendingDay !== null && activePendingDay !== dayNum ? 0.35 : 1,
                           backgroundColor: isToday ? 'rgba(255, 224, 93, 0.4)' : isWknd ? 'rgba(129, 255, 234, 0.1)' : 'transparent'
@@ -7108,8 +7108,9 @@ function App() {
                       >
                         {(remainingInfo.count > 0 || activePendingDay === dayNum) && (
                           <div
+                            onMouseDown={(e) => e.preventDefault()}
                             onClick={(e) => { e.stopPropagation(); togglePendingFilter(dayNum); }}
-                            className={`absolute -top-14 left-1/2 -translate-x-1/2 flex flex-col items-center justify-center gap-1 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-full shadow-md border border-amber-200/80 z-20 transition-all duration-300 cursor-pointer hover:scale-110 active:scale-95 ${isToday || activePendingDay === dayNum ? 'opacity-100' : 'opacity-0 group-hover/header:opacity-100 translate-y-2 group-hover/header:translate-y-0'}`}
+                            className={`absolute -top-14 left-1/2 -translate-x-1/2 flex flex-col items-center justify-center gap-1 select-none bg-white/90 backdrop-blur-sm px-2 py-1 rounded-full shadow-md border border-amber-200/80 z-20 transition-all duration-300 cursor-pointer hover:scale-110 active:scale-95 ${isToday || activePendingDay === dayNum ? 'opacity-100' : 'opacity-0 group-hover/header:opacity-100 translate-y-2 group-hover/header:translate-y-0'}`}
                             title={`انقر لعرض الحصص المتبقية (${toHindiDigits(remainingInfo.count)} حصص | ${toHindiDigits(remainingInfo.hours)} ساعة)`}
                           >
                             <span className="text-amber-700 text-[0.95rem] font-bold font-arabic leading-none">{toHindiDigits(remainingInfo.hours)}<span className="text-[0.6rem] text-amber-600/90 font-medium mr-0.5">س</span></span>
@@ -18301,7 +18302,7 @@ const StickyHeader = React.forwardRef<HTMLDivElement, {
                   return (
                     <th
                       key={dayNum}
-                      className={`p-3 min-w-[70px] antialiased relative transition-opacity duration-[400ms] ease-out`}
+                      className={`p-3 min-w-[70px] antialiased relative select-none transition-opacity duration-[400ms] ease-out`}
                       style={{
                         opacity: activePendingDay !== null && activePendingDay !== dayNum ? 0.35 : 1,
                         backgroundColor: isToday ? 'rgba(255, 224, 93, 0.4)' : isWknd ? 'rgba(129, 255, 234, 0.1)' : 'transparent'
@@ -18309,8 +18310,9 @@ const StickyHeader = React.forwardRef<HTMLDivElement, {
                     >
                       {(info.count > 0 || activePendingDay === dayNum) && (
                         <div
-                          onClick={(e) => { e.stopPropagation(); togglePendingFilter(dayNum); }}
-                          className={`absolute -top-14 left-1/2 -translate-x-1/2 flex flex-col items-center justify-center gap-1 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-full shadow-md border border-amber-200/80 z-20 transition-all duration-300 cursor-pointer hover:scale-110 active:scale-95 pointer-events-auto ${isToday || activePendingDay === dayNum ? 'opacity-100' : 'opacity-0 group-hover/header:opacity-100 translate-y-2 group-hover/header:translate-y-0'}`}
+                          onMouseDown={(e) => e.preventDefault()}
+                            onClick={(e) => { e.stopPropagation(); togglePendingFilter(dayNum); }}
+                          className={`absolute -top-14 left-1/2 -translate-x-1/2 flex flex-col items-center justify-center gap-1 select-none bg-white/90 backdrop-blur-sm px-2 py-1 rounded-full shadow-md border border-amber-200/80 z-20 transition-all duration-300 cursor-pointer hover:scale-110 active:scale-95 pointer-events-auto ${isToday || activePendingDay === dayNum ? 'opacity-100' : 'opacity-0 group-hover/header:opacity-100 translate-y-2 group-hover/header:translate-y-0'}`}
                           title={`انقر لعرض الحصص المتبقية (${toHindiDigits(info.count)} حصص | ${toHindiDigits(info.hours)} ساعة)`}
                         >
                           <span className="text-amber-700 text-[0.95rem] font-bold font-arabic leading-none">{toHindiDigits(info.hours)}<span className="text-[0.6rem] text-amber-600/90 font-medium mr-0.5">س</span></span>
