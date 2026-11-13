@@ -29,8 +29,8 @@ const customStyles = `
   }
   @keyframes filtered-row-in { from { opacity: 0; } to { opacity: 1; } }
   @keyframes filtered-row-out { from { opacity: 1; } to { opacity: 0; } }
-  .filtered-row-entering { animation: filtered-row-in 420ms ease-out both; }
-  .filtered-row-exiting { animation: filtered-row-out 280ms ease-in both; pointer-events: none; }
+  .filtered-row-entering { animation: filtered-row-in 650ms ease-out both; }
+  .filtered-row-exiting { animation: filtered-row-out 500ms ease-in-out both; pointer-events: none; }
   @keyframes completed-row-in { from { opacity: 0; } to { opacity: .5; } }
   @keyframes completed-row-out { from { opacity: .5; } to { opacity: 0; } }
   .completed-review-row.filtered-row-entering { animation-name: completed-row-in; }
@@ -147,7 +147,7 @@ function animateFilteredRowLayout(row: HTMLTableRowElement | null) {
     for (const { row: current, distance } of movements) {
       const animation = current.animate(
         [{ translate: `0 ${distance}px` }, { translate: '0 0' }],
-        { duration: 420, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' }
+        { duration: 650, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' }
       );
       rowLayoutAnimations.set(current, animation);
       animation.onfinish = () => {
@@ -163,27 +163,30 @@ function FilteredRow({ filtered, animateOnMount = false, className = '', ...prop
   const previousFiltered = useRef(filtered);
   const rowRef = useRef<HTMLTableRowElement>(null);
 
-  useLayoutEffect(() => {
-    animateFilteredRowLayout(rowRef.current);
-  }, [phase]);
-
   useEffect(() => {
     if (!animateOnMount || filtered) return;
-    const timer = window.setTimeout(() => setPhase(current => current === 'entering' ? 'visible' : current), 420);
+    const timer = window.setTimeout(() => setPhase(current => current === 'entering' ? 'visible' : current), 650);
     return () => window.clearTimeout(timer);
   }, [animateOnMount, filtered]);
 
   useEffect(() => {
     if (previousFiltered.current === filtered) return;
     previousFiltered.current = filtered;
-    if (!filtered) prepareFilteredRowLayout(rowRef.current);
+    if (!filtered && animateOnMount && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setPhase('hidden');
+      let finish: number | undefined;
+      const start = window.setTimeout(() => {
+        setPhase('entering');
+        finish = window.setTimeout(() => setPhase('visible'), 650);
+      }, 500);
+      return () => { window.clearTimeout(start); if (finish !== undefined) window.clearTimeout(finish); };
+    }
     setPhase(filtered ? 'exiting' : 'entering');
     const timer = window.setTimeout(() => {
-      if (filtered) prepareFilteredRowLayout(rowRef.current);
       setPhase(filtered ? 'hidden' : 'visible');
-    }, filtered ? 280 : 420);
+    }, filtered ? 500 : 650);
     return () => window.clearTimeout(timer);
-  }, [filtered]);
+  }, [filtered, animateOnMount]);
 
   return <tr {...props} ref={rowRef} aria-hidden={filtered || undefined} inert={filtered || undefined}
     className={`${className} ${phase === 'hidden' ? 'hidden' : phase === 'entering' ? 'filtered-row-entering' : phase === 'exiting' ? 'filtered-row-exiting' : ''}`} />;
@@ -5169,14 +5172,14 @@ function App() {
   useEffect(() => {
     const handleGlobalEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        setPendingFilter(null);
+        if (!smartReportModal?.isOpen) setPendingFilter(null);
         closeAllModals(false);
       }
     };
 
     if (window.electronAPI?.onEscapeBtn) {
       window.electronAPI.onEscapeBtn(() => {
-        setPendingFilter(null);
+        if (!smartReportModal?.isOpen) setPendingFilter(null);
         closeAllModals(false);
       });
     }
@@ -5189,7 +5192,7 @@ function App() {
         window.electronAPI.offEscapeBtn();
       }
     };
-  }, [closeAllModals]);
+  }, [closeAllModals, smartReportModal?.isOpen]);
 
   // --- Ctrl+F Search Shortcut ---
   useEffect(() => {
@@ -7174,17 +7177,15 @@ function App() {
                 ]).map(({ academy, section, flatStudents }) => {
                   const isFlatCalendarSection = flatStudents !== null;
                   const academyStudents = (isFlatCalendarSection ? flatStudents : (groupedStudents[academy] || [])).filter(student => {
-                    if (activePendingDay === null || section === 'pending') return true;
-                    return isCompletedClass(student, activePendingDay);
+                    return true;
                   });
-                  if (section === 'completed' && academyStudents.length === 0) return null;
                   const allHiddenBySearch = academyStudents.every(s =>
                     (searchQuery.trim() !== '' && !searchMatches(s.name)) ||
                     (section === 'pending' && activePendingDay !== null && !isPendingClass(s, activePendingDay))) &&
                     (searchQuery.trim() !== '' || (section === 'pending' && activePendingDay !== null));
                   return (
                     <React.Fragment key={`${section}:${academy}`}>
-                      {section === 'completed' && (isFlatCalendarSection ? academyStudents.some(student => searchMatches(student.name)) : academy === firstCompletedAcademy) && (
+                      {section === 'completed' && (isFlatCalendarSection ? academyStudents.some(student => activePendingDay !== null && isCompletedClass(student, activePendingDay) && searchMatches(student.name)) : academy === firstCompletedAcademy) && (
                         <tr>
                           <td colSpan={daysInMonth + 1} className="px-8 pt-7 pb-3">
                             <button type="button" aria-expanded={completedClassesOpen} onClick={() => setCompletedClassesOpen(open => !open)} className="flex w-full items-center gap-3 text-sm text-gray-400 font-arabic hover:text-gray-600 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 rounded-lg">
@@ -7318,7 +7319,7 @@ function App() {
                           }
                         }
 
-                        const isSearchHidden = (searchQuery.trim() !== '' && !searchMatches(student.name)) || (section === 'completed' && !completedClassesOpen) || (section === 'pending' && activePendingDay !== null && !isPendingClass(student, activePendingDay));
+                        const isSearchHidden = (searchQuery.trim() !== '' && !searchMatches(student.name)) || (section === 'completed' && (!completedClassesOpen || activePendingDay === null || !isCompletedClass(student, activePendingDay))) || (section === 'pending' && activePendingDay !== null && !isPendingClass(student, activePendingDay));
                         return (
                           <FilteredRow
                             key={student.id}
