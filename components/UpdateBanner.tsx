@@ -76,7 +76,7 @@ const UpdateBanner: React.FC = () => {
                 <div className="absolute top-full left-0 mt-3 w-72 rounded-2xl border border-gray-100 bg-white p-4 shadow-2xl" role="status" aria-live="polite">
                     <button type="button" onClick={() => setOpen(false)} aria-label="إغلاق" className="absolute left-3 top-3 rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700"><X size={16} /></button>
                     <h3 className="pl-6 text-lg font-bold text-gray-800">تحديثات البرنامج</h3>
-                    <p className="mt-2 text-sm leading-6 text-gray-500">
+                    <p className="mt-2 text-sm leading-6 text-gray-500" style={{ fontFamily: "AcmeWeb, Acme, sans-serif" }}>
                         {checking ? 'جارٍ البحث عن تحديثات...' : info?.status === 'available' ? <>تحديث جديد متاح {info.latest && <bdi dir="ltr" style={{ fontFamily: 'AcmeWeb, Acme, sans-serif' }}>(v{info.latest})</bdi>}</> : info?.status === 'up-to-date' ? 'البرنامج محدّث لآخر إصدار.' : 'تعذّر التحقق من التحديثات. حاول مرة أخرى.'}
                     </p>
                     {startError && <p className="mt-2 text-sm text-red-600">تعذّر تشغيل أداة التحديث. تأكد من مجلد المشروع وحاول مرة أخرى.</p>}
