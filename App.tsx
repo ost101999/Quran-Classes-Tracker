@@ -113,6 +113,8 @@ import MonthlyCurriculumReportModal from './components/MonthlyCurriculumReportMo
 // Animate the rows that move when filtered rows enter or leave the table.
 const pendingRowLayouts = new WeakMap<HTMLTableSectionElement, { positions: Map<HTMLTableRowElement, number>; scheduled: boolean }>();
 const rowLayoutAnimations = new WeakMap<HTMLTableRowElement, Animation>();
+let animatingPendingFilter = false;
+let pendingFilterAnimationTimer: number | undefined;
 
 function prepareFilteredRowLayout(row: HTMLTableRowElement | null) {
   const body = row?.parentElement;
@@ -163,6 +165,10 @@ function FilteredRow({ filtered, animateOnMount = false, className = '', ...prop
   const previousFiltered = useRef(filtered);
   const rowRef = useRef<HTMLTableRowElement>(null);
 
+  useLayoutEffect(() => {
+    if (animatingPendingFilter) animateFilteredRowLayout(rowRef.current);
+  }, [phase]);
+
   useEffect(() => {
     if (!animateOnMount || filtered) return;
     const timer = window.setTimeout(() => setPhase(current => current === 'entering' ? 'visible' : current), 650);
@@ -172,6 +178,7 @@ function FilteredRow({ filtered, animateOnMount = false, className = '', ...prop
   useEffect(() => {
     if (previousFiltered.current === filtered) return;
     previousFiltered.current = filtered;
+    if (animatingPendingFilter && !filtered) prepareFilteredRowLayout(rowRef.current);
     if (!filtered && animateOnMount && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       setPhase('hidden');
       let finish: number | undefined;
@@ -183,6 +190,7 @@ function FilteredRow({ filtered, animateOnMount = false, className = '', ...prop
     }
     setPhase(filtered ? 'exiting' : 'entering');
     const timer = window.setTimeout(() => {
+      if (animatingPendingFilter && filtered) prepareFilteredRowLayout(rowRef.current);
       setPhase(filtered ? 'hidden' : 'visible');
     }, filtered ? 500 : 650);
     return () => window.clearTimeout(timer);
@@ -6314,6 +6322,9 @@ function App() {
   }, [activePendingDay, pendingStudentColumnWidth]);
 
   const togglePendingFilter = (dayNum: number) => {
+    animatingPendingFilter = true;
+    window.clearTimeout(pendingFilterAnimationTimer);
+    pendingFilterAnimationTimer = window.setTimeout(() => { animatingPendingFilter = false; }, 1400);
     if (activePendingDay === null && studentHeaderRef.current) {
       setPendingStudentColumnWidth(studentHeaderRef.current.getBoundingClientRect().width);
     }
