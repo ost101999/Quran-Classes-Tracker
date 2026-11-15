@@ -6295,6 +6295,19 @@ function App() {
   }, [month, year]);
 
   const activePendingDay = pendingFilter?.month === month && pendingFilter.year === year ? pendingFilter.day : null;
+  const [holdCalendarSort, setHoldCalendarSort] = useState(false);
+  const calendarSortTimer = useRef<number | undefined>(undefined);
+  const calendarSortPositions = useRef<Map<string, number> | null>(null);
+  useEffect(() => () => window.clearTimeout(calendarSortTimer.current), []);
+  const captureCalendarSortPositions = () => {
+    const positions = new Map<string, number>();
+    document.querySelectorAll<HTMLTableRowElement>('tr[data-pending-sort-student]').forEach(row => {
+      if (row.getClientRects().length && row.dataset.pendingSortStudent) {
+        positions.set(row.dataset.pendingSortStudent, row.getBoundingClientRect().top);
+      }
+    });
+    calendarSortPositions.current = positions;
+  };
   const noPendingClasses = activePendingDay !== null && getRemainingClasses(activePendingDay) === 0;
   const [showNoPendingClasses, setShowNoPendingClasses] = useState(false);
   useEffect(() => {
@@ -6320,13 +6333,40 @@ function App() {
     animatingPendingFilter = true;
     window.clearTimeout(pendingFilterAnimationTimer);
     pendingFilterAnimationTimer = window.setTimeout(() => { animatingPendingFilter = false; }, 1400);
+    window.clearTimeout(calendarSortTimer.current);
+    if (activePendingDay === null && pendingCalendarSort && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setHoldCalendarSort(true);
+      calendarSortTimer.current = window.setTimeout(() => {
+        captureCalendarSortPositions();
+        setHoldCalendarSort(false);
+      }, 500);
+    } else {
+      if (activePendingDay !== null && activePendingDay !== dayNum && pendingCalendarSort) captureCalendarSortPositions();
+      else calendarSortPositions.current = null;
+      setHoldCalendarSort(false);
+    }
     if (activePendingDay === null && studentHeaderRef.current) {
       setPendingStudentColumnWidth(studentHeaderRef.current.getBoundingClientRect().width);
     }
     setPendingFilter(activePendingDay === dayNum ? null : { day: dayNum, month, year });
   };
 
-  const isCalendarSortedPending = activePendingDay !== null && pendingCalendarSort;
+  const isCalendarSortedPending = activePendingDay !== null && pendingCalendarSort && !holdCalendarSort;
+  useLayoutEffect(() => {
+    const positions = calendarSortPositions.current;
+    if (!positions || !isCalendarSortedPending) return;
+    calendarSortPositions.current = null;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    document.querySelectorAll<HTMLTableRowElement>('tr[data-pending-sort-student]').forEach(row => {
+      const previousTop = positions.get(row.dataset.pendingSortStudent || '');
+      if (previousTop === undefined || !row.getClientRects().length) return;
+      const distance = previousTop - row.getBoundingClientRect().top;
+      if (Math.abs(distance) > 0.5) {
+        row.animate([{ translate: `0 ${distance}px` }, { translate: '0 0' }],
+          { duration: 650, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' });
+      }
+    });
+  }, [isCalendarSortedPending, activePendingDay]);
   const calendarSortedPending = useMemo(() => {
     if (activePendingDay === null || !pendingCalendarSort) return null;
     const allStudents = sortedAcademies.flatMap(academy => groupedStudents[academy] || []);
@@ -7224,7 +7264,7 @@ function App() {
                           </td>
                         </FilteredRow>
                       ) : (
-                      <FilteredRow id={section === 'completed' ? undefined : `academy-${academy}`} animateOnMount={section === 'completed'} filtered={allHiddenBySearch || (section === 'completed' && !completedClassesOpen)} className={`scroll-mt-40 group ${section === 'completed' ? 'completed-review-row opacity-50' : ''}`}>
+                      <FilteredRow id={section === 'completed' ? undefined : `academy-${academy}`} animateOnMount={section === 'completed' || (activePendingDay === null && pendingCalendarSort && animatingPendingFilter)} filtered={allHiddenBySearch || (section === 'completed' && !completedClassesOpen)} className={`scroll-mt-40 group ${section === 'completed' ? 'completed-review-row opacity-50' : ''}`}>
                         <td
                           colSpan={daysInMonth + 1}
                           className="bg-gray-50/80 p-4 text-center select-none"
@@ -7341,8 +7381,9 @@ function App() {
                           <FilteredRow
                             key={student.id}
                             filtered={isSearchHidden}
-                            animateOnMount={section === 'completed'}
+                            animateOnMount={section === 'completed' || (activePendingDay === null && pendingCalendarSort && animatingPendingFilter)}
                             data-student-id={section === 'pending' && activePendingDay !== null && !isPendingClass(student, activePendingDay) ? undefined : student.id}
+                            data-pending-sort-student={section === 'pending' ? student.id : undefined}
                             draggable={!isFlatCalendarSection}
                             onDragStart={(e) => handleStudentDragStart(e, student.id)}
                             onDragOver={(e) => handleStudentDragOver(e, student.id)}
