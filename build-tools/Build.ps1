@@ -15,7 +15,17 @@ try {
     $dirty = (& git status --porcelain 2>$null | Out-String).Trim()
     if ([string]::IsNullOrEmpty($dirty)) {
         Write-Host 'Checking for latest commits from GitHub...' -ForegroundColor Cyan
-        & git pull --ff-only 2>&1 | Out-Host
+        # Git writes normal progress messages to stderr. Windows PowerShell 5.1
+        # otherwise treats those messages as terminating errors with Stop set.
+        $previousErrorActionPreference = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = 'Continue'
+            & git pull --ff-only 2>&1 | ForEach-Object { Write-Host "$_" }
+            $gitExitCode = $LASTEXITCODE
+        } finally {
+            $ErrorActionPreference = $previousErrorActionPreference
+        }
+        if ($gitExitCode -ne 0) { throw "Git pull failed (exit code $gitExitCode). Update was stopped." }
     }
 
     Write-Host 'Installing dependencies...' -ForegroundColor Cyan
