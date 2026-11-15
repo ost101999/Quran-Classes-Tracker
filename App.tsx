@@ -84,7 +84,7 @@ import StudentModal from './components/StudentModal';
 import { applyShortcutMatches, findShortcutDifferences, type ShortcutDifference } from './services/shortcutStudentSync';
 import { applyWhatsAppMatches, whatsappDifferences } from './services/whatsappStudentSync';
 import { applyCalendarSchedules } from './services/calendarStudentSync';
-import { ingestCalendarReviews, commitCalendarAction, type CalendarActionPreview } from './services/calendarReview';
+import { ingestCalendarReviews, commitCalendarAction, visibleCalendarProposals, type CalendarActionPreview } from './services/calendarReview';
 import { scheduledCount } from './services/studentSchedule';
 import { sortPendingStudentsByCalendar } from './services/pendingCalendarSort';
 import { buildOldRevisionRedo } from './services/oldRevisionRedo';
@@ -2326,7 +2326,7 @@ function App() {
   const calendarReviewData = { students, attendance, makeupLinks, savedReports, savedReportDrafts, lastReports, dayTransitionTime };
   const calendarReviewDataRef = useRef(calendarReviewData);
   calendarReviewDataRef.current = calendarReviewData;
-  const calendarPendingCount = students.reduce((total, student) => total + (student.calendarReview?.name === student.name?.trim() ? (student.calendarReview.pending?.length || 0) : 0), 0);
+  const calendarPendingCount = students.reduce((total, student) => total + visibleCalendarProposals(student, attendance, dayTransitionTime).length, 0);
   const confirmCalendarAction = (studentId: string, preview: CalendarActionPreview, allowReplace: boolean) => {
     if (applyingCloudRef.current || syncConflicts.length || resolvingConflict) throw new Error('انتظر اكتمال المزامنة أو حل التعارض قبل تطبيق التعديل.');
     const updated = commitCalendarAction(calendarReviewDataRef.current, studentId, preview, allowReplace);

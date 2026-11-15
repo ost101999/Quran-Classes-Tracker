@@ -13,7 +13,7 @@ function loadTs(file, cache = new Map()) {
     vm.runInNewContext(code, { exports: mod.exports, module: mod, require: name => name.startsWith('.') ? loadTs(path.resolve(path.dirname(file), name), cache) : require(name), Date, Intl, Map, Set, JSON, console });
     return mod.exports;
 }
-const { getRecentApologyClasses, ingestCalendarReviews, prepareCalendarAction, commitCalendarAction } = loadTs('../services/calendarReview.ts');
+const { getRecentApologyClasses, ingestCalendarReviews, prepareCalendarAction, commitCalendarAction, visibleCalendarProposals } = loadTs('../services/calendarReview.ts');
 const { cairoDate, scheduledCount, replaceScheduleFrom } = loadTs('../services/studentSchedule.ts');
 const { createCalendarSchedules, currentWeek, reviewFor } = require('../calendar-schedules');
 const json = value => JSON.parse(JSON.stringify(value));
@@ -25,6 +25,20 @@ const result = (events, extras = {}) => ({ available: true, schedules: {}, revie
 const ingest = (students, events, extras) => ingestCalendarReviews(students, [{ id: 's1', name: 'Bilal' }], result(events, extras));
 const state = (students) => ({ students, attendance: {}, makeupLinks: [], savedReports: {}, savedReportDrafts: {} });
 const attendanceKey = (studentId, date) => { const [y, m, d] = date.split('-').map(Number); return `${studentId}_${d}_${m - 1}_${y}`; };
+
+test('red proposals follow recorded attendance and remain visible for ambiguous days', () => {
+    const event = occurrence({ colorId: '11' });
+    const [updated] = ingest([student()], [event]);
+    const date = cairoDate(event.start, '07:00');
+    const key = attendanceKey('s1', date);
+    for (const status of ['r', 'x', '!', '!2']) {
+        assert.equal(visibleCalendarProposals(updated, { [key]: status }, '07:00').length, 0);
+    }
+    assert.equal(visibleCalendarProposals(updated, {}, '07:00').length, 1, 'removing the status shows the question again');
+    assert.equal(visibleCalendarProposals(updated, { [key]: '1' }, '07:00').length, 1, 'attendance is not a red outcome');
+    const [ambiguous] = ingest([student()], [event, occurrence({ id: 'other', colorId: '', recurring: true })]);
+    assert.equal(visibleCalendarProposals(ambiguous, { [key]: 'r' }, '07:00').length, 1);
+});
 
 test('detection only creates proposals and does not modify days, attendance or input data', () => {
     const students = [student()]; const before = JSON.stringify(students);

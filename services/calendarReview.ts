@@ -41,6 +41,22 @@ const fingerprint = (event: CalendarOccurrence) => JSON.stringify([event.start, 
 const sameDays = (a: number[], b: number[]) => JSON.stringify([...a].sort()) === JSON.stringify([...b].sort());
 export const attendanceLabels: Record<string, string> = { '': 'بدون تسجيل', e: 'حصة مجدولة — دائرة زرقاء', ed: 'حصتان مجدولتان', exempt: 'إلغاء طلب الحصة لهذا اليوم', r: 'اعتذار الطالب', '!': 'غياب الطالب — تُحسب حصة', '!2': 'غياب الطالب — تُحسب حصتان', x: 'اعتذار المعلم', 'م': 'مؤجلة للتعويض', '1': 'حضور', '2': 'حضور حصتين', t: 'حصة منقولة', ta: 'غياب منقول' };
 
+// Red only identifies a category, not which kind of absence. A matching
+// recorded status resolves it only when there is no ambiguity between classes.
+export function visibleCalendarProposals(student: Student, attendance: AttendanceRecord, dayTransitionTime = '00:00'): CalendarProposal[] {
+  if (student.calendarReview?.name !== student.name.trim()) return [];
+  return (student.calendarReview.pending || []).filter(proposal => {
+    if (proposal.kind !== 'red' || !proposal.event || !Number.isFinite(Date.parse(proposal.event.start))) return true;
+    const date = cairoDate(proposal.event.start, dayTransitionTime);
+    const { key, day, month, year } = dateKey(student.id, date);
+    const status = attendance[key];
+    if (![AttendanceStatus.ABSENCE_RED, AttendanceStatus.UNEXCUSED_ABSENCE, AttendanceStatus.PAID_ABSENCE, AttendanceStatus.PAID_ABSENCE_DOUBLE].includes(status)) return true;
+    if (scheduledCount(student, day, month, year) > 1) return true;
+    const sameDay = Object.values(student.calendarReview?.observed || {}).filter(item => item.present !== false && Number.isFinite(Date.parse(item.event.start)) && cairoDate(item.event.start, dayTransitionTime) === date);
+    return sameDay.some(item => item.event.id !== proposal.event!.id);
+  });
+}
+
 // Detection only. This function never modifies attendance, reports or fixed days.
 export function ingestCalendarReviews(students: Student[], requests: { id: string; name: string }[], result: CalendarSchedulesResult, dayTransitionTime = '00:00'): Student[] {
   if (!result.available || !result.reviews) return students;

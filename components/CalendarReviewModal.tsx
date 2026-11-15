@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { X, Calendar, RefreshCw, ArrowLeftRight, Trash2 } from 'lucide-react';
 import type { Student, CalendarProposal } from '../types';
-import { getRecentApologyClasses, prepareCalendarAction, type CalendarAction, type ActionOptions, type CalendarActionPreview, type ReviewData } from '../services/calendarReview';
+import { getRecentApologyClasses, prepareCalendarAction, visibleCalendarProposals, type CalendarAction, type ActionOptions, type CalendarActionPreview, type ReviewData } from '../services/calendarReview';
 import { cairoDate } from '../services/studentSchedule';
 
 const days = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
@@ -125,7 +125,7 @@ export default function CalendarReviewModal({ data, error, loading, disabled, on
     closeRef.current?.focus();
     return () => previous?.focus();
   }, []);
-  const entries = data.students.flatMap(student => student.calendarReview?.name === student.name?.trim() ? (student.calendarReview.pending || []).map(proposal => ({ student, proposal })) : [])
+  const entries = data.students.flatMap(student => visibleCalendarProposals(student, data.attendance, data.dayTransitionTime).map(proposal => ({ student, proposal })))
     .sort((a, b) => (Date.parse(b.proposal.detectedAt) || 0) - (Date.parse(a.proposal.detectedAt) || 0));
   const visible = entries.filter(({ student }) => student.name.toLowerCase().includes(search.toLowerCase()));
   return <div className="fixed inset-0 z-[150] bg-black/45 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose} onKeyDown={event => { event.stopPropagation(); if (event.key === 'Escape') onClose(); }}>
