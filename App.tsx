@@ -15429,7 +15429,17 @@ function App() {
                               const academyWhatsapp = student ? academyRates[student.academy]?.whatsappNumber : undefined;
                               const finalTarget = studentWhatsapp || academyWhatsapp;
 
+                              saveReportForDay(_tajweedStudentId, _tajweedDayNum, report, {
+                                ...noorConfigPart,
+                                noorDetails,
+                                activeSection: reportPath,
+                                mergeWithQuran,
+                                customNotes: customNotesText.trim(),
+                                audioLink: audioLinkText.trim()
+                              });
+                              ensureTajweedAssignmentForLesson(_tajweedStudentId, selectedTajweedLessonId, 'ar');
                               if (!finalTarget || finalTarget.trim() === '') {
+                                handleClipboardCopy(_tajweedStudentId, report, () => checkAndOpenLink(_tajweedStudentId));
                                 alert('يرجى تحديد رقم واتساب في إعدادات الطالب أو إعدادات الأكاديمية أولاً.');
                                 return;
                               }
@@ -15450,20 +15460,12 @@ function App() {
                               }));
 
                               closeAllModals(true);
-                              navigator.clipboard.writeText(report).catch(() => { });
-                              checkAndOpenLink(_tajweedStudentId);
+                              handleClipboardCopy(_tajweedStudentId, report, () => checkAndOpenLink(_tajweedStudentId));
+
                               showToast('جاري الإرسال عبر واتساب... ⏳');
                               window.electronAPI?.sendWhatsAppAuto(finalTarget, report).then((result: any) => {
                                 if (result.success) {
-                                  saveReportForDay(_tajweedStudentId, _tajweedDayNum, report, {
-                                    ...noorConfigPart,
-                                    noorDetails,
-                                    activeSection: reportPath,
-                                    mergeWithQuran,
-                                    customNotes: customNotesText.trim(),
-                                    audioLink: audioLinkText.trim()
-                                  });
-                                  ensureTajweedAssignmentForLesson(_tajweedStudentId, selectedTajweedLessonId, 'ar');
+
                                   showToast('تم الإرسال عبر واتساب ✅');
                                   setSearchQuery('');
                                 } else {
@@ -15583,7 +15585,16 @@ function App() {
                               const academyWhatsapp = student ? academyRates[student.academy]?.whatsappNumber : undefined;
                               const finalTarget = studentWhatsapp || academyWhatsapp;
 
+                              saveReportForDay(_studentIdNoor1, _dayNumNoor1, report, {
+                                ...noorConfigPart,
+                                noorDetails,
+                                activeSection: reportPath,
+                                mergeWithQuran,
+                                customNotes: customNotesText.trim(),
+                                audioLink: audioLinkText.trim()
+                              });
                               if (!finalTarget || finalTarget.trim() === '') {
+                                handleClipboardCopy(_studentIdNoor1, report, () => checkAndOpenLink(_studentIdNoor1));
                                 alert('يرجى تحديد رقم واتساب في إعدادات الطالب أو إعدادات الأكاديمية أولاً.');
                                 return;
                               }
@@ -15599,19 +15610,12 @@ function App() {
                               }));
                               closeAllModals(true);
                               // Copy + open link immediately alongside WhatsApp send
-                              navigator.clipboard.writeText(report).catch(() => { });
-                              checkAndOpenLink(_studentIdNoor1);
+                              handleClipboardCopy(_studentIdNoor1, report, () => checkAndOpenLink(_studentIdNoor1));
+
                               showToast('جاري الإرسال عبر واتساب... ⏳');
                               window.electronAPI?.sendWhatsAppAuto(finalTarget, report).then((result: any) => {
                                 if (result.success) {
-                                  saveReportForDay(_studentIdNoor1, _dayNumNoor1, report, {
-                                    ...noorConfigPart,
-                                    noorDetails,
-                                    activeSection: reportPath,
-                                    mergeWithQuran,
-                                    customNotes: customNotesText.trim(),
-                                    audioLink: audioLinkText.trim()
-                                  });
+
                                   showToast('تم الإرسال عبر واتساب ✅');
                                   setSearchQuery('');
                                 } else {
@@ -15644,7 +15648,6 @@ function App() {
                           // Start Quran Generation (for 'quran' or 'combined')
                           const arReportTajweedLessonId = (sectionToggles.quranTajweed && (reportPath !== 'noor' || mergeWithQuran)) ? quranTajweedCurrentLessonId : '';
                           const arTajweedQuizNote = getTajweedQuizNote('ar', smartReportModal.studentId, arReportTajweedLessonId);
-
 
                           // 1. Reading New Values
                           const isQuranNewPageMode = preferredModes.readingNew === 'page';
@@ -15740,7 +15743,6 @@ function App() {
                           const quranNewToSurahAdvanced = (document.getElementById('quran-new-to-surah-advanced') as HTMLSelectElement)?.value || SURAHS[0];
                           const quranRevToSurahAdvanced = (document.getElementById('quran-rev-to-surah-advanced') as HTMLSelectElement)?.value || SURAHS[0];
                           const quranOldRevToSurahAdvanced = (document.getElementById('quran-oldrev-to-surah-advanced') as HTMLSelectElement)?.value || SURAHS[0];
-
 
                           // Build Report
                           const days = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
@@ -15920,7 +15922,6 @@ function App() {
                             report += `\n`;
                           }
 
-
                           // Add Old Revision Recitation (only if toggle is ON)
                           if (sectionToggles.readingOldRev && !excludeReadingOldRev) {
                             report += `\n*• المراجعة البعيدة:*\n`;
@@ -16083,7 +16084,6 @@ function App() {
                             report += `\n`;
                           }
 
-
                           // Add Homework Old Revision (only if toggle is ON)
                           if (sectionToggles.homeworkOldRev && !excludeHomeworkOldRev) {
                             report += `\n*\u2022 المراجعة البعيدة:*\n`;
@@ -16184,8 +16184,6 @@ function App() {
                               }
                             }
                           }
-
-
 
                           // Save Report Config
                           if (mergeWithQuran && noorPlanPart) {
@@ -16325,7 +16323,17 @@ function App() {
                             const academyWhatsapp = student ? academyRates[student.academy]?.whatsappNumber : undefined;
                             const finalTarget = studentWhatsapp || academyWhatsapp;
 
+                            saveReportForDay(smartReportModal.studentId, smartReportModal.dayNum, report, {
+                              ...noorConfigPart,
+                              noorDetails,
+                              activeSection: reportPath,
+                              mergeWithQuran,
+                              customNotes: customNotesText.trim(),
+                              audioLink: audioLinkText.trim()
+                            });
+                            ensureTajweedAssignmentForLesson(smartReportModal.studentId, arReportTajweedLessonId, 'ar');
                             if (!finalTarget || finalTarget.trim() === '') {
+                              handleClipboardCopy(smartReportModal.studentId, report, () => checkAndOpenLink(smartReportModal.studentId));
                               alert('يرجى تحديد رقم واتساب في إعدادات الطالب أو إعدادات الأكاديمية أولاً.');
                               return;
                             }
@@ -16335,8 +16343,8 @@ function App() {
                             const _arDayNum = smartReportModal.dayNum;
                             closeAllModals(true);
                             // Copy + open link immediately alongside WhatsApp send
-                            navigator.clipboard.writeText(report).catch(() => { });
-                            checkAndOpenLink(_arStudentId);
+                            handleClipboardCopy(_arStudentId, report, () => checkAndOpenLink(_arStudentId));
+
                             showToast('جاري الإرسال عبر واتساب... ⏳');
                             window.electronAPI?.sendWhatsAppAuto(finalTarget, report).then((result: any) => {
                               if (result.success) {
@@ -16433,15 +16441,6 @@ function App() {
                                   }
                                 }));
 
-                                saveReportForDay(_arStudentId, _arDayNum, report, {
-                                  ...noorConfigPart,
-                                  noorDetails,
-                                  activeSection: reportPath,
-                                  mergeWithQuran,
-                                  customNotes: customNotesText.trim(),
-                                  audioLink: audioLinkText.trim()
-                                });
-                                ensureTajweedAssignmentForLesson(_arStudentId, arReportTajweedLessonId, 'ar');
                                 if (mergeWithQuran) {
                                   new Notification('تذكير الدمج 📖', { body: `تم دمج تقرير ${studentName} مع القرآن الكريم` });
                                 }
@@ -16742,7 +16741,16 @@ function App() {
                                 const academyWhatsapp = student ? academyRates[student.academy]?.whatsappNumber : undefined;
                                 const finalTarget = studentWhatsapp || academyWhatsapp;
 
+                                saveReportForDay(_noorEngStudentId, _noorEngDayNum, report, {
+                                  ...noorConfigPart,
+                                  noorDetails,
+                                  activeSection: reportPath,
+                                  mergeWithQuran,
+                                  customNotes: customNotesText.trim(),
+                                  audioLink: audioLinkText.trim()
+                                });
                                 if (!finalTarget || finalTarget.trim() === '') {
+                                  handleClipboardCopy(_noorEngStudentId, report, () => checkAndOpenLink(_noorEngStudentId));
                                   alert('يرجى تحديد رقم واتساب في إعدادات الطالب أو إعدادات الأكاديمية أولاً.');
                                   return;
                                 }
@@ -16750,19 +16758,12 @@ function App() {
                                 // Send via Puppeteer automation
                                 closeAllModals(true);
                                 // Copy + open link immediately alongside WhatsApp send
-                                navigator.clipboard.writeText(report).catch(() => { });
-                                checkAndOpenLink(_noorEngStudentId);
+                                handleClipboardCopy(_noorEngStudentId, report, () => checkAndOpenLink(_noorEngStudentId));
+
                                 showToast('Sending via WhatsApp... ⏳');
                                 window.electronAPI?.sendWhatsAppAuto(finalTarget, report).then((result: any) => {
                                   if (result.success) {
-                                    saveReportForDay(_noorEngStudentId, _noorEngDayNum, report, {
-                                      ...noorConfigPart,
-                                      noorDetails,
-                                      activeSection: reportPath,
-                                      mergeWithQuran,
-                                      customNotes: customNotesText.trim(),
-                                      audioLink: audioLinkText.trim()
-                                    });
+
                                     showToast('Sent via WhatsApp ✅');
                                     setSearchQuery('');
                                     if (mergeWithQuran) {
@@ -16795,9 +16796,6 @@ function App() {
                               return;
                             }
                           }
-
-
-
 
                           // 1. Reading New Values
                           const isQuranNewPageMode = preferredModes.readingNew === 'page';
@@ -16964,7 +16962,6 @@ function App() {
 
                           const hwOldRevFrom = toEnglish((document.getElementById('hw-oldrev-from') as HTMLInputElement)?.value || '');
                           const hwOldRevTo = toEnglish((document.getElementById('hw-oldrev-to') as HTMLInputElement)?.value || '');
-
 
                           // Build Report
                           const daysEn = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -17193,7 +17190,6 @@ function App() {
                             }
                             report += `\n`;
                           }
-
 
                           // Add English Old Revision Recitation (only if toggle is ON)
                           if (sectionToggles.readingOldRev && !excludeReadingOldRev) {
@@ -17524,7 +17520,6 @@ function App() {
                             report += `\n`;
                           }
 
-
                           // Add Old Revision Homework
                           if (sectionToggles.homeworkOldRev && !excludeHomeworkOldRev) {
                             report += `\n*• Old Revision:*\n`;
@@ -17716,8 +17711,6 @@ function App() {
                             }
                           }
 
-
-
                           // Save Report Config (English - Logic is same, saving the raw inputs)
                           // Note: English inputs are already converted to English digits for the report string,
                           // but for 'lastReports' state we might want to store them in a consistent format (e.g. English digits)
@@ -17875,7 +17868,17 @@ function App() {
                             const finalTarget = studentWhatsapp || academyWhatsapp;
 
                             // Check if we have a valid target
+                            saveReportForDay(_engStudentId, _engDayNum, report, {
+                              ...noorConfigPart,
+                              noorDetails,
+                              activeSection: reportPath,
+                              mergeWithQuran,
+                              customNotes: customNotesText.trim(),
+                              audioLink: audioLinkText.trim()
+                            });
+                            ensureTajweedAssignmentForLesson(_engStudentId, enReportTajweedLessonId, 'en');
                             if (!finalTarget || finalTarget.trim() === '') {
+                              handleClipboardCopy(_engStudentId, report, () => checkAndOpenLink(_engStudentId));
                               alert('يرجى تحديد رقم واتساب في إعدادات الطالب أو إعدادات الأكاديمية أولاً.');
                               return;
                             }
@@ -17883,8 +17886,8 @@ function App() {
                             // Send via Puppeteer automation using the resolved target
                             closeAllModals(true);
                             // Copy + open link immediately alongside WhatsApp send
-                            navigator.clipboard.writeText(report).catch(() => { });
-                            checkAndOpenLink(_engStudentId);
+                            handleClipboardCopy(_engStudentId, report, () => checkAndOpenLink(_engStudentId));
+
                             showToast(`Sending to ${finalTarget}... ⏳`);
                             window.electronAPI?.sendWhatsAppAuto(finalTarget, report).then((result: any) => {
                               if (result.success) {
@@ -17982,15 +17985,8 @@ function App() {
                                   }
                                 }));
 
-                                saveReportForDay(_engStudentId, _engDayNum, report, {
-                                  ...noorConfigPart,
-                                  noorDetails,
-                                  activeSection: reportPath,
-                                  mergeWithQuran,
-                                  customNotes: customNotesText.trim(),
-                                  audioLink: audioLinkText.trim()
-                                });
-                                ensureTajweedAssignmentForLesson(_engStudentId, enReportTajweedLessonId, 'en');
+
+
 
                                 showToast('Sent via WhatsApp ✅');
                               } else {
