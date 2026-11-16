@@ -52,7 +52,7 @@ export function getDetailedReportDays(student: Student, attendance: AttendanceRe
         const lines = [`   ${academyRate?.hazemSystem ? '- ' : '🟢 '}*${academyRate?.hazemSystem ? (isEnglish ? `Counted sessions (${count})` : `الحصص المحسوبة (${count})`) : (isEnglish ? 'Active days' : 'الأيام النشطة')}:*`];
         if (academyRate.hazemSystem) {
             const missingCount = missing.reduce((total, item) => total + item.sessions, 0);
-            lines.push(isEnglish ? `   - *(Not Counted) (${missingCount})*` : `   - *(غير محسوب) (${toHindiDigits(missingCount)})*`);
+            lines.push(isEnglish ? `   - *Not Counted (${missingCount})*` : `   - *غير محسوب (${toHindiDigits(missingCount)})*`);
             const appendGroup = (label: string, dates: Date[]) => {
                 if (!dates.length) return;
                 lines.push('', label);
