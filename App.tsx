@@ -2606,6 +2606,9 @@ function App() {
   const longPressTimerRef = React.useRef<NodeJS.Timeout | null>(null);
   const reschedulePressRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const rescheduleHeldRef = React.useRef(false);
+  const tabHoldTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tabHoldActionRef = React.useRef<(() => void) | null>(null);
+  const tabHoldConsumedRef = React.useRef(false);
   const longPressTriggeredRef = React.useRef<boolean>(false);
   const [selectedStudentsForCombinedReport, setSelectedStudentsForCombinedReport] = useState<Student[] | null>(null);
 
@@ -3620,7 +3623,14 @@ function App() {
     setPickerError('');
     setPartPicker({ field, kind: 'juz' });
   };
-  useEffect(() => { if (!smartReportModal?.isOpen) setPartPicker(null); }, [smartReportModal?.isOpen, smartReportModal?.studentId]);
+  useEffect(() => {
+    if (!smartReportModal?.isOpen) {
+      setPartPicker(null);
+      if (tabHoldTimerRef.current) { clearTimeout(tabHoldTimerRef.current); tabHoldTimerRef.current = null; }
+      tabHoldActionRef.current = null;
+      tabHoldConsumedRef.current = false;
+    }
+  }, [smartReportModal?.isOpen, smartReportModal?.studentId]);
   const applyPartRange = (range: ReturnType<typeof quranPartRange>) => {
     if (!partPicker || !smartReportModal?.studentId || !range) return;
     const field = partPicker.field;
@@ -9232,9 +9242,24 @@ function App() {
               <div
                 key={`${smartReportModal.studentId}_${lastReports[smartReportModal.studentId]?._dayNum || 'new'}`}
                 className="smart-report-modal-container relative bg-white rounded-3xl shadow-2xl w-full max-w-[95vw] lg:max-w-6xl overflow-hidden max-h-[calc(100vh-2rem)] overflow-y-auto"
+                onKeyUp={(e) => {
+                  if (e.key !== 'Tab') return;
+                  if (tabHoldTimerRef.current) {
+                    clearTimeout(tabHoldTimerRef.current);
+                    tabHoldTimerRef.current = null;
+                    const fallback = tabHoldActionRef.current;
+                    tabHoldActionRef.current = null;
+                    fallback?.();
+                  }
+                  tabHoldConsumedRef.current = false;
+                }}
                 onKeyDown={(e) => {
                   const target = e.target as HTMLElement;
                   if (e.key !== 'Tab') return;
+                  if (e.repeat && (tabHoldTimerRef.current || tabHoldConsumedRef.current)) {
+                    e.preventDefault();
+                    return;
+                  }
 
                   if (!target.id || (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA')) return;
 
@@ -9394,15 +9419,48 @@ function App() {
                     const currentIndex = flowOrder.indexOf(currentKey);
                     if (currentIndex === -1) return;
 
-                    for (let i = currentIndex + 1; i < flowOrder.length; i++) {
-                      const nextVisibleIds = getVisibleIdsInOrder(flowOrder[i]);
-                      if (nextVisibleIds.length > 0 && focusId(nextVisibleIds[0])) return;
+                    const focusDefaultNextSection = (preventDefault: boolean) => {
+                      const tryFocus = (sectionKey: string) => {
+                        const nextVisibleIds = getVisibleIdsInOrder(sectionKey);
+                        if (nextVisibleIds.length === 0) return false;
+                        if (preventDefault) return focusId(nextVisibleIds[0]);
+                        const nextEl = getVisibleElementById(nextVisibleIds[0]);
+                        if (!nextEl) return false;
+                        nextEl.focus();
+                        return true;
+                      };
+                      for (let i = currentIndex + 1; i < flowOrder.length; i++) {
+                        if (tryFocus(flowOrder[i])) return;
+                      }
+                      // Loop back to start if at the very end
+                      for (let i = 0; i < currentIndex; i++) {
+                        if (tryFocus(flowOrder[i])) return;
+                      }
+                    };
+
+                    const toAyahNextTargets: Record<string, string> = {
+                      'quran-new-to-ayah': 'hw-new-to',
+                      'quran-rev-to-ayah': 'hw-rev-to',
+                      'quran-oldrev-to-ayah': 'hw-oldrev-to',
+                      'quran-tilawa-to-ayah': 'hw-tilawa-to',
+                    };
+                    const directToAyahTarget = toAyahNextTargets[target.id];
+                    const directTargetEl = directToAyahTarget ? getVisibleElementById(directToAyahTarget) : null;
+                    if (directTargetEl && !e.repeat) {
+                      e.preventDefault();
+                      if (tabHoldTimerRef.current) clearTimeout(tabHoldTimerRef.current);
+                      tabHoldConsumedRef.current = false;
+                      tabHoldActionRef.current = () => focusDefaultNextSection(false);
+                      tabHoldTimerRef.current = setTimeout(() => {
+                        tabHoldTimerRef.current = null;
+                        tabHoldActionRef.current = null;
+                        tabHoldConsumedRef.current = true;
+                        directTargetEl.focus();
+                      }, 320);
+                      return;
                     }
-                    // Loop back to start if at the very end
-                    for (let i = 0; i < currentIndex; i++) {
-                      const nextVisibleIds = getVisibleIdsInOrder(flowOrder[i]);
-                      if (nextVisibleIds.length > 0 && focusId(nextVisibleIds[0])) return;
-                    }
+
+                    focusDefaultNextSection(true);
                     return;
                   }
 
