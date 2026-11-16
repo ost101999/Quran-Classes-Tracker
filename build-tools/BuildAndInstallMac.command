@@ -26,16 +26,26 @@ osascript -e 'tell application id "com.quran.tracker" to quit' >/dev/null 2>&1 |
 sleep 1
 
 cd "$project_dir"
-if [[ -z "$(git status --porcelain 2>/dev/null)" ]]; then
-  echo "Checking for latest commits from GitHub..."
-  git pull --ff-only || true
+echo "Checking for latest commits from GitHub..."
+git fetch origin main
+if [[ -z "$(git status --porcelain)" ]]; then
+  git pull --ff-only
+elif ! git merge-base --is-ancestor origin/main HEAD; then
+  echo "The project has local changes and is behind GitHub. Save or commit those changes and update the project before building."
+  exit 1
+else
+  echo "Building the current project, including its local changes."
 fi
 
 npm install --no-audit --no-fund
 npm run electron:build
 
-source_app="$(find "$project_dir/dist_electron" -maxdepth 2 -name "$app_name" -type d -print -quit)"
-if [[ -z "$source_app" ]]; then
+case "$(uname -m)" in
+  arm64) source_app="$project_dir/dist_electron/mac-arm64/$app_name" ;;
+  x86_64) source_app="$project_dir/dist_electron/mac/$app_name" ;;
+  *) echo "Unsupported Mac architecture."; exit 1 ;;
+esac
+if [[ ! -d "$source_app" ]]; then
   echo "The macOS application was not created."
   exit 1
 fi

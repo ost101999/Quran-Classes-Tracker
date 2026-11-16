@@ -26,7 +26,7 @@
       "icon": "public/ChatGPT Image 21 يناير 2026، 04_27_04 ص.png  ( 2 ).ico"
     },
     "mac": {
-      "target": "default",
+      "target": "dmg",
       "icon": "public/ChatGPT Image 21 يناير 2026، 04_27_04 ص.png  ( 2 ).png"
     },
     "nsis": {

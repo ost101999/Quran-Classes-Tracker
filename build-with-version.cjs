@@ -51,7 +51,9 @@ if (result.status === 0 && buildingMac) {
         const hasCurrentDmg = entries.some(entry => entry.isFile() && entry.name.startsWith(currentPrefix) && entry.name.endsWith('.dmg'));
         if (hasCurrentDmg) {
             for (const entry of entries) {
-                if (entry.isFile() && entry.name.startsWith(prefix) && entry.name.endsWith('.dmg') && !entry.name.startsWith(currentPrefix)) {
+                const generatedArchive = entry.name.startsWith(prefix) && /(?:\.dmg(?:\.blockmap)?|-mac\.zip(?:\.blockmap)?)$/.test(entry.name);
+                const currentDmg = entry.name.startsWith(currentPrefix) && entry.name.endsWith('.dmg');
+                if (entry.isFile() && generatedArchive && !currentDmg) {
                     try {
                         fs.unlinkSync(path.join(outputDir, entry.name));
                         console.log(`[Build] Removed old disk image: ${entry.name}`);
