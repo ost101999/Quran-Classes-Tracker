@@ -28,8 +28,7 @@ test('Hazem excludes teacher and student apologies, including double scheduled d
   const text = result.lines.join('\n');
   assert.match(text, /Counted sessions \(2\)/);
   assert.match(text, /Absent \(Counted\):\*\n• Monday, 2 November/);
-  assert.match(text, /Student Apology \(Not Counted\):\*\n• Sunday, 8 November/);
-  assert.match(text, /Teacher Apology \(Not Counted\):\*\n• Monday, 9 November/);
+  assert.match(text, /Apology \(Not Counted\):\*\n• Sunday, 8 November - Student\n• Monday, 9 November - Teacher/);
   assert.equal(result.extraSessions, 0);
   assert.equal(result.expectedExtraSessions, 13);
   assert.doesNotMatch(text, /Active days coming/);
@@ -47,7 +46,7 @@ test('Hazem separates all expected sessions from counted sessions', () => {
   assert.match(shown.lines.join('\n'), /22 November/);
   assert.match(shown.lines.join('\n'), /Upcoming:\*\n• Sunday, 22 November/);
   assert.doesNotMatch(shown.lines.join('\n'), /Active days coming/);
-  assert.ok(shown.lines.findIndex(line => line.includes('Upcoming')) < shown.lines.findIndex(line => line.includes('Student Apology')));
+  assert.ok(shown.lines.findIndex(line => line.includes('Upcoming')) < shown.lines.findIndex(line => line.includes('Apology')));
   assert.doesNotMatch(hidden.lines.join('\n'), /Active days coming/);
 });
 
@@ -77,5 +76,6 @@ test('formats Arabic labels and the counted sessions', () => {
   const text = result.lines.join('\n');
   assert.match(text, /الحصص المحسوبة \(٢\)/);
   assert.match(text, /الغياب \(محسوب\)/);
-  assert.match(text, /اعتذار الطالب/);
+  assert.match(text, /اعتذار \(غير محسوب\)/);
+  assert.match(text, / - الطالب/);
 });

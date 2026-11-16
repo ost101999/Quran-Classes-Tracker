@@ -59,8 +59,10 @@ export function getDetailedReportDays(student: Student, attendance: AttendanceRe
             appendGroup(isEnglish ? '✅ *Completed:*' : '✅ *الحصص المكتملة:*', active.filter(item => !item.absent).map(item => item.date));
             appendGroup(isEnglish ? '⚠️ *Absent (Counted):*' : '⚠️ *الغياب (محسوب):*', active.filter(item => item.absent).map(item => item.date));
             appendGroup(isEnglish ? '📅 *Upcoming:*' : '📅 *الحصص القادمة:*', coming);
-            appendGroup(isEnglish ? '❌ *Teacher Apology (Not Counted):*' : '❌ *اعتذار المعلم (غير محسوب):*', missing.filter(item => item.teacher).map(item => item.date));
-            appendGroup(isEnglish ? '❌ *Student Apology (Not Counted):*' : '❌ *اعتذار الطالب (غير محسوب):*', missing.filter(item => !item.teacher).map(item => item.date));
+            if (missing.length) {
+                lines.push('', isEnglish ? '❌ *Apology (Not Counted):*' : '❌ *اعتذار (غير محسوب):*');
+                lines.push(...missing.map(item => `• ${dateText(item.date)} - ${isEnglish ? (item.teacher ? 'Teacher' : 'Student') : (item.teacher ? 'المعلم' : 'الطالب')}`));
+            }
             return { lines, extraSessions, expectedExtraSessions };
         }
         lines.push(...(active.length ? active.map(item => `   • ${item.absent ? (isEnglish ? '(Absent) ' : '(غياب) ') : ''}${dateText(item.date)}`) : [isEnglish ? '   None' : '   لا يوجد']));
