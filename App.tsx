@@ -8909,8 +8909,9 @@ function App() {
               </div>
               <p className="px-3 py-2 text-center text-lg font-normal text-red-500">{toHindiDigits(breakdown.scheduled)} {breakdown.hasRecordedFallback ? (breakdown.hasScheduledDays ? 'حصة مقررة أو مسجلة' : 'حصة مسجلة') : 'حصة مقررة'} في الشهر</p>
               {breakdown.categories.map((category, index) => {
-                const monthDenominator = category.id === 'teacherApology' ? breakdown.scheduled : breakdown.studentRateScheduled;
-                const monthNumerator = category.id === 'teacherApology' ? Math.max(0, monthDenominator - category.count) : category.count;
+                const isTeacherCommitment = category.id === 'teacherApology';
+                const monthDenominator = isTeacherCommitment ? breakdown.scheduled : breakdown.studentRateScheduled;
+                const monthNumerator = isTeacherCommitment ? Math.max(0, monthDenominator - category.count) : category.count;
                 const percent = monthDenominator ? Math.round(monthNumerator / monthDenominator * 1000) / 10 : null;
                 return (
                   <React.Fragment key={category.id}>
@@ -8943,8 +8944,8 @@ function App() {
                       <span>{category.id === 'rescheduled' ? 'نسخ ' : ''}{missedClassesMenu.academyName && category.id === 'studentApology' ? 'اعتذارات الطلبة' : missedClassesMenu.academyName && category.id === 'studentAbsence' ? 'غياب الطلبة' : category.label}</span>
                       {category.id === 'rescheduled' && <span role="tooltip" className="pointer-events-none absolute top-full left-2 right-2 z-10 rounded-lg border border-gray-200/60 bg-white/75 backdrop-blur-sm px-3 py-2 text-center text-sm leading-relaxed text-gray-600 shadow-sm opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus:opacity-100">ينسخ اعتذارات الطالب والمعلم للشهر المعروض. اضغط مطولًا لنسخ الشهر المعروض والسابق.</span>}
                       {category.id !== 'rescheduled' && <span className="grid grid-cols-2 gap-4 w-28 shrink-0 text-center text-lg font-normal text-blue-600 whitespace-nowrap">{[true, false].map(isGeneral => {
-                        const denominator = category.id === 'teacherApology' ? breakdown.allRecorded : breakdown.allRecorded - breakdown.allCategoryCounts.teacherApology;
-                        const numerator = category.id === 'teacherApology' ? Math.max(0, denominator - breakdown.allCategoryCounts[category.id]) : breakdown.allCategoryCounts[category.id];
+                        const denominator = isTeacherCommitment ? breakdown.allRecorded : breakdown.allRecorded - breakdown.allCategoryCounts.teacherApology;
+                        const numerator = isTeacherCommitment ? Math.max(0, denominator - breakdown.allCategoryCounts[category.id]) : breakdown.allCategoryCounts[category.id];
                         const value = isGeneral ? (denominator ? Math.round(numerator / denominator * 1000) / 10 : null) : percent;
                         const description = category.id === 'studentApology' ? 'نسبة الحصص التي اعتذر عنها الطالب' : category.id === 'studentAbsence' ? 'نسبة الحصص التي غاب عنها الطالب' : 'نسبة الحصص التي التزم بها المعلم دون اعتذار';
                         return <span key={String(isGeneral)} role="button" tabIndex={0} aria-label={`نسخ ${category.label} ${isGeneral ? 'العام' : 'للشهر'}`} onClick={event => { event.stopPropagation(); void copyDays(category, false, isGeneral); }} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); void copyDays(category, false, isGeneral); } }} className="group/ratio"><span dir="ltr" className="inline-flex items-center">{value !== null && <span className="text-xs">٪</span>}<span>{value === null ? '—' : toHindiDigits(value)}</span></span><span role="tooltip" className="pointer-events-none absolute bottom-full left-2 right-2 z-10 rounded-lg border border-gray-200/60 bg-white/75 backdrop-blur-sm px-3 py-2 text-center text-sm leading-relaxed text-gray-600 shadow-sm whitespace-normal opacity-0 transition-opacity duration-150 group-hover/ratio:opacity-100 group-focus/ratio:opacity-100">{description} {isGeneral ? 'من جميع الحصص المسجلة.' : 'من حصص الشهر المعروض.'} اضغط لنسخ الأيام.</span></span>;
