@@ -6,7 +6,7 @@ const toHindiDigits = (num: number): string => String(num).replace(/\d/g, d => '
 
 export function getDetailedReportDays(student: Student, attendance: AttendanceRecord, month: number, year: number, isEnglish: boolean, academyRate: ReportOptions = {}, today = cairoDate()) {
         const active: { date: Date; absent: boolean }[] = [];
-        const missing: { date: Date; teacher: boolean }[] = [];
+        const missing: { date: Date; teacher: boolean; sessions: number }[] = [];
         const coming: Date[] = [];
         let extraSessions = 0;
         let expectedExtraSessions = 0;
@@ -37,7 +37,7 @@ export function getDetailedReportDays(student: Student, attendance: AttendanceRe
                     active.push({ date, absent: status === AttendanceStatus.PAID_ABSENCE || status === AttendanceStatus.PAID_ABSENCE_DOUBLE || status === AttendanceStatus.TRANSFERRED_ABSENT });
                 } else if (status === AttendanceStatus.ABSENCE_RED || status === AttendanceStatus.UNEXCUSED_ABSENCE) {
                     if (academyRate?.hazemSystem) {
-                        missing.push({ date, teacher: status === AttendanceStatus.UNEXCUSED_ABSENCE });
+                        missing.push({ date, teacher: status === AttendanceStatus.UNEXCUSED_ABSENCE, sessions: Math.max(1, scheduled) });
                     }
                 } else if (!status && academyRate?.autoCompleteReport && dateKey > today && eligibleScheduled > 0) {
                     coming.push(date);
@@ -60,7 +60,8 @@ export function getDetailedReportDays(student: Student, attendance: AttendanceRe
             appendGroup(isEnglish ? '⚠️ *Absent (Counted):*' : '⚠️ *الغياب (محسوب):*', active.filter(item => item.absent).map(item => item.date));
             appendGroup(isEnglish ? '📅 *Upcoming:*' : '📅 *الحصص القادمة:*', coming);
             if (missing.length) {
-                lines.push('', isEnglish ? '❌ *Apology (Not Counted):*' : '❌ *اعتذار (غير محسوب):*');
+                const missingCount = missing.reduce((total, item) => total + item.sessions, 0);
+                lines.push('', isEnglish ? `❌ *Apology (Not Counted) (${missingCount}):*` : `❌ *اعتذار (غير محسوب) (${toHindiDigits(missingCount)}):*`);
                 lines.push(...missing.map(item => `• ${dateText(item.date)} - ${isEnglish ? (item.teacher ? 'Teacher' : 'Student') : (item.teacher ? 'المعلم' : 'الطالب')}`));
             }
             return { lines, extraSessions, expectedExtraSessions };
