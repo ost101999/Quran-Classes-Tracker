@@ -7299,15 +7299,6 @@ function App() {
                             onContextMenu={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
-                              setAcademyContextMenu(prev => ({ ...prev, isOpen: false, isClosing: false }));
-                              setMissedClassesMenu(null);
-                              setSelectedAcademyForDetails(academy);
-                            }}
-                            className={`relative inline-flex items-center gap-3 px-6 py-2 rounded-full shadow-sm border border-gray-100 bg-white hover:bg-gray-50 text-2xl text-gray-800 select-none cursor-pointer hover:shadow-md transition-all ${/[a-zA-Z]/.test(academy) ? 'font-english' : 'font-arabic'}`}
-                            style={showMissedCount ? { color: 'rgba(107, 114, 128, 0.6)' } : undefined}
-                            title={showMissedCount ? 'عرض نسب الأكاديمية' : undefined}
-                            onClick={(e) => {
-                              e.stopPropagation();
                               if (!showMissedCount) {
                                 openAcademyMenu(academy, e.currentTarget);
                                 return;
@@ -7318,6 +7309,15 @@ function App() {
                                 x: Math.max(24, Math.min(rect.left, window.innerWidth - 264)),
                                 y: Math.max(8, Math.min(rect.bottom + 4, window.innerHeight - 370))
                               });
+                            }}
+                            className={`relative inline-flex items-center gap-3 px-6 py-2 rounded-full shadow-sm border border-gray-100 bg-white hover:bg-gray-50 text-2xl text-gray-800 select-none cursor-pointer hover:shadow-md transition-all ${/[a-zA-Z]/.test(academy) ? 'font-english' : 'font-arabic'}`}
+                            style={showMissedCount ? { color: 'rgba(107, 114, 128, 0.6)' } : undefined}
+                            title={showMissedCount ? 'عرض نسب الأكاديمية بالزر الأيمن' : undefined}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setAcademyContextMenu(prev => ({ ...prev, isOpen: false, isClosing: false }));
+                              setMissedClassesMenu(null);
+                              setSelectedAcademyForDetails(academy);
                             }}
                           >
                             <span>{academy}</span>
