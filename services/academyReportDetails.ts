@@ -49,8 +49,10 @@ export function getDetailedReportDays(student: Student, attendance: AttendanceRe
             ? `${date.toLocaleDateString('en-GB', { weekday: 'long' })}, ${date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })}`
             : date.toLocaleDateString(isEnglish ? 'en-GB' : 'ar-EG', { weekday: 'long', day: 'numeric', month: 'long' });
         const count = isEnglish ? String(recordedSessions + extraSessions) : toHindiDigits(recordedSessions + extraSessions);
-        const lines = [`   ${academyRate?.hazemSystem ? '' : '🟢 '}*${academyRate?.hazemSystem ? (isEnglish ? `Counted sessions (${count})` : `الحصص المحسوبة (${count})`) : (isEnglish ? 'Active days' : 'الأيام النشطة')}:*`];
+        const lines = [`   ${academyRate?.hazemSystem ? '- ' : '🟢 '}*${academyRate?.hazemSystem ? (isEnglish ? `Counted sessions (${count})` : `الحصص المحسوبة (${count})`) : (isEnglish ? 'Active days' : 'الأيام النشطة')}:*`];
         if (academyRate.hazemSystem) {
+            const missingCount = missing.reduce((total, item) => total + item.sessions, 0);
+            lines.push(isEnglish ? `   - *(Not Counted) (${missingCount})*` : `   - *(غير محسوب) (${toHindiDigits(missingCount)})*`);
             const appendGroup = (label: string, dates: Date[]) => {
                 if (!dates.length) return;
                 lines.push('', label);
@@ -60,8 +62,7 @@ export function getDetailedReportDays(student: Student, attendance: AttendanceRe
             appendGroup(isEnglish ? '⚠️ *Absent (Counted):*' : '⚠️ *الغياب (محسوب):*', active.filter(item => item.absent).map(item => item.date));
             appendGroup(isEnglish ? '📅 *Upcoming:*' : '📅 *الحصص القادمة:*', coming);
             if (missing.length) {
-                const missingCount = missing.reduce((total, item) => total + item.sessions, 0);
-                lines.push('', isEnglish ? `❌ *Apology (Not Counted) (${missingCount}):*` : `❌ *اعتذار (غير محسوب) (${toHindiDigits(missingCount)}):*`);
+                lines.push('', isEnglish ? '❌ *Apology (Not Counted):*' : '❌ *اعتذار (غير محسوب):*');
                 lines.push(...missing.map(item => `• ${dateText(item.date)} - ${isEnglish ? (item.teacher ? 'Teacher' : 'Student') : (item.teacher ? 'المعلم' : 'الطالب')}`));
             }
             return { lines, extraSessions, expectedExtraSessions };

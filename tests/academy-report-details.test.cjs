@@ -28,7 +28,8 @@ test('Hazem excludes teacher and student apologies, including double scheduled d
   const text = result.lines.join('\n');
   assert.match(text, /Counted sessions \(2\)/);
   assert.match(text, /Absent \(Counted\):\*\n• Monday, 2 November/);
-  assert.match(text, /Apology \(Not Counted\) \(3\):\*\n• Sunday, 8 November - Student\n• Monday, 9 November - Teacher/);
+  assert.match(text, /- \*Counted sessions \(2\):\*\n\s+- \*\(Not Counted\) \(3\)\*/);
+  assert.match(text, /Apology \(Not Counted\):\*\n• Sunday, 8 November - Student\n• Monday, 9 November - Teacher/);
   assert.equal(result.extraSessions, 0);
   assert.equal(result.expectedExtraSessions, 13);
   assert.doesNotMatch(text, /Active days coming/);
