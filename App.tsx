@@ -104,7 +104,7 @@ import SimpleInputModal from './components/SimpleInputModal';
 import WebModal from './components/WebModal';
 import MultiStudentDetailsModal from './components/MultiStudentDetailsModal';
 import SearchableSurahSelect from './components/SearchableSurahSelect';
-import { quranPartRange, quranPartForVerse } from './services/quranParts';
+import { quranPartRange, quranRubSpanRange, quranRubForVerse, type QuranPartKind } from './services/quranParts';
 import TajweedBankModal from './components/TajweedBankModal';
 import TajweedAssignModal from './components/TajweedAssignModal';
 import TajweedGradingModal from './components/TajweedGradingModal';
@@ -3585,32 +3585,44 @@ function App() {
     homeworkTilawa: boolean;
   }>({ readingNew: false, readingRev: false, readingOldRev: false, readingTilawa: false, homeworkNew: false, homeworkRev: false, homeworkOldRev: false, homeworkTilawa: false });
 
-  const [partPicker, setPartPicker] = useState<{ field: 'readingRev' | 'readingOldRev' | 'readingTilawa' | 'homeworkRev' | 'homeworkOldRev' | 'homeworkTilawa'; kind: 'juz' | 'hizb' } | null>(null);
+  const [partPicker, setPartPicker] = useState<{ field: 'readingRev' | 'readingOldRev' | 'readingTilawa' | 'homeworkRev' | 'homeworkOldRev' | 'homeworkTilawa'; kind: QuranPartKind } | null>(null);
   const [pickerJuz, setPickerJuz] = useState('');
   const [pickerHizb, setPickerHizb] = useState('');
+  const [pickerRubRange, setPickerRubRange] = useState<[number, number] | null>(null);
   const [pickerError, setPickerError] = useState('');
   const openPartPicker = (field: NonNullable<typeof partPicker>['field']) => {
     const report = smartReportModal?.studentId ? lastReports[smartReportModal.studentId]?.[field] : undefined;
     const isHomework = field.startsWith('homework');
     const ayahText = String(isHomework ? (report as any)?.from ?? '' : (report as any)?.fromAyah ?? '').replace(/[٠-٩]/g, d => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)));
     const surahName = (report as any)?.surah || (report as any)?.fromSurah;
-    const prediction = report?.mode === 'ayah' && ayahText ? quranPartForVerse(SURAHS.indexOf(surahName) + 1, Number(ayahText), SURAH_AYAH_COUNTS) : null;
+    const startSurahNum = SURAHS.indexOf(surahName) + 1;
+    const prediction = report?.mode === 'ayah' && ayahText ? quranRubForVerse(startSurahNum, Number(ayahText), SURAH_AYAH_COUNTS) : null;
     let hizb = prediction?.hizb ? String(prediction.hizb) : '';
+    let rubRange: [number, number] | null = null;
     if (prediction) {
-      const range = quranPartRange('juz', prediction.juz, SURAH_AYAH_COUNTS);
-      const endAyah = String(isHomework ? (report as any)?.to ?? '' : (report as any)?.toAyah ?? '').replace(/[٠-٩]/g, d => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)));
-      if (range && range.startSurah === SURAHS.indexOf(surahName) + 1 && range.startAyah === Number(ayahText) && SURAHS.indexOf((report as any)?.toSurah) + 1 === range.endSurah && Number(endAyah) === range.endAyah) hizb = '';
+      const endAyah = Number(String(isHomework ? (report as any)?.to ?? '' : (report as any)?.toAyah ?? '').replace(/[٠-٩]/g, d => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d))));
+      const endSurahNum = SURAHS.indexOf((report as any)?.toSurah) + 1;
+      const endPart = endSurahNum >= 1 && Number.isInteger(endAyah) ? quranRubForVerse(endSurahNum, endAyah, SURAH_AYAH_COUNTS) : null;
+      const matches = (range: ReturnType<typeof quranPartRange>) =>
+        !!range && range.startSurah === startSurahNum && range.startAyah === Number(ayahText) && endSurahNum === range.endSurah && endAyah === range.endAyah;
+      if (matches(quranPartRange('juz', prediction.juz, SURAH_AYAH_COUNTS))) {
+        hizb = '';
+      } else if (matches(quranPartRange('hizb', (prediction.juz - 1) * 2 + prediction.hizb, SURAH_AYAH_COUNTS))) {
+        hizb = String(prediction.hizb);
+      } else if (endPart && endPart.juz === prediction.juz && matches(quranRubSpanRange((prediction.juz - 1) * 8 + prediction.rub, (endPart.juz - 1) * 8 + endPart.rub, SURAH_AYAH_COUNTS))) {
+        rubRange = [prediction.rub, endPart.rub];
+        hizb = endPart.rub <= 4 ? '1' : prediction.rub >= 5 ? '2' : '';
+      }
     }
     setPickerJuz(prediction ? String(prediction.juz) : '');
     setPickerHizb(hizb);
+    setPickerRubRange(rubRange);
     setPickerError('');
     setPartPicker({ field, kind: 'juz' });
   };
   useEffect(() => { if (!smartReportModal?.isOpen) setPartPicker(null); }, [smartReportModal?.isOpen, smartReportModal?.studentId]);
-  const applyPart = (number: number, kind: 'juz' | 'hizb') => {
-    if (!partPicker || !smartReportModal?.studentId) return;
-    const range = quranPartRange(kind, number, SURAH_AYAH_COUNTS);
-    if (!range) return;
+  const applyPartRange = (range: ReturnType<typeof quranPartRange>) => {
+    if (!partPicker || !smartReportModal?.studentId || !range) return;
     const field = partPicker.field;
     const studentId = smartReportModal.studentId;
     setPreferredModes(prev => ({ ...prev, [field]: 'ayah' }));
@@ -6120,7 +6132,7 @@ function App() {
       { id: 'rescheduled', label: 'الحصص المراد إعادة جدولتها', statuses: [] as AttendanceStatus[], days: [] as { day: number; studentId: string; studentName: string }[], count: 0 },
       { id: 'studentApology', label: 'اعتذار الطالب', statuses: [AttendanceStatus.ABSENCE_RED], days: [] as { day: number; studentId: string; studentName: string }[], count: 0 },
       { id: 'studentAbsence', label: 'غياب الطالب', statuses: [AttendanceStatus.PAID_ABSENCE, AttendanceStatus.PAID_ABSENCE_DOUBLE], days: [] as { day: number; studentId: string; studentName: string }[], count: 0 },
-      { id: 'teacherApology', label: 'اعتذار المعلم', statuses: [AttendanceStatus.UNEXCUSED_ABSENCE], days: [] as { day: number; studentId: string; studentName: string }[], count: 0 },
+      { id: 'teacherApology', label: 'التزام المعلم', statuses: [AttendanceStatus.UNEXCUSED_ABSENCE], days: [] as { day: number; studentId: string; studentName: string }[], count: 0 },
     ];
     let scheduled = 0;
     let studentRateScheduled = 0;
@@ -8844,7 +8856,8 @@ function App() {
               teacherApology: 'Teacher Apologies',
             };
             const arabicTitle = missedClassesMenu.academyName && category.id === 'studentApology' ? 'اعتذارات الطلبة'
-              : missedClassesMenu.academyName && category.id === 'studentAbsence' ? 'غياب الطلبة' : category.label;
+              : missedClassesMenu.academyName && category.id === 'studentAbsence' ? 'غياب الطلبة'
+              : category.id === 'teacherApology' ? 'اعتذار المعلم' : category.label;
             const text = missedClassesMenu.academyName
               ? (['en', 'ar'] as const).map(language =>
                 `*${language === 'en' ? englishTitles[category.id] : arabicTitle}*\r\n\r\n${Array.from(studentGroups.values(), group => `👤 *${group.name}*\r\n${formatDays(group.days, language, '\r\n')}`).join('\r\n\r\n')}`
@@ -8897,20 +8910,25 @@ function App() {
               <p className="px-3 py-2 text-center text-lg font-normal text-red-500">{toHindiDigits(breakdown.scheduled)} {breakdown.hasRecordedFallback ? (breakdown.hasScheduledDays ? 'حصة مقررة أو مسجلة' : 'حصة مسجلة') : 'حصة مقررة'} في الشهر</p>
               {breakdown.categories.map((category, index) => {
                 const monthDenominator = category.id === 'teacherApology' ? breakdown.scheduled : breakdown.studentRateScheduled;
-                const percent = monthDenominator ? Math.round(category.count / monthDenominator * 1000) / 10 : null;
+                const monthNumerator = category.id === 'teacherApology' ? Math.max(0, monthDenominator - category.count) : category.count;
+                const percent = monthDenominator ? Math.round(monthNumerator / monthDenominator * 1000) / 10 : null;
                 return (
                   <React.Fragment key={category.id}>
                     {index === 1 && (
-                      <div className="relative flex justify-center gap-5 px-2 py-2.5 text-base font-normal text-gray-500">
-                        <button type="button" onClick={() => copyCommitment(true)} aria-label="نسخ تقرير الالتزام مؤخرًا" className="group flex items-center gap-1 whitespace-nowrap outline-none">
-                          <span>{missedClassesMenu.academyName ? 'التزام الطلبة مؤخرًا' : 'الالتزام مؤخرًا'}</span><span dir="ltr" className="inline-flex items-center">{breakdown.recentCommitment === null ? '—' : <><span className="text-xs">٪</span><span>{toHindiDigits(breakdown.recentCommitment)}</span></>}</span>
-                          <span role="tooltip" className="pointer-events-none absolute bottom-full left-2 right-2 z-10 rounded-lg border border-gray-200/60 bg-white/75 backdrop-blur-sm px-3 py-2 text-center text-sm leading-relaxed text-gray-600 shadow-sm whitespace-normal opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus:opacity-100">نسبة الحضور في آخر ١٠ حصص.</span>
-                        </button>
-                        <button type="button" onClick={() => copyCommitment(false)} aria-label="نسخ تقرير الالتزام العام" className="group flex items-center gap-1 whitespace-nowrap outline-none">
-                          <span>{missedClassesMenu.academyName ? 'التزام الطلبة العام' : 'الالتزام العام'}</span><span dir="ltr" className="inline-flex items-center">{breakdown.commitment === null ? '—' : <><span className="text-xs">٪</span><span>{toHindiDigits(breakdown.commitment)}</span></>}</span>
-                          <span role="tooltip" className="pointer-events-none absolute bottom-full left-2 right-2 z-10 rounded-lg border border-gray-200/60 bg-white/75 backdrop-blur-sm px-3 py-2 text-center text-sm leading-relaxed text-gray-600 shadow-sm whitespace-normal opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus:opacity-100">نسبة الحضور في جميع الحصص المسجلة.</span>
-                        </button>
-                      </div>
+                      <>
+                        <div className="relative flex items-center justify-center gap-3 px-2 pt-2.5 pb-2 text-base font-normal text-gray-500">
+                          <button type="button" onClick={() => copyCommitment(true)} aria-label="نسخ تقرير الالتزام مؤخرًا" className="group flex items-center gap-1 whitespace-nowrap outline-none">
+                            <span>{missedClassesMenu.academyName ? 'التزام الطلبة مؤخرًا' : 'الالتزام مؤخرًا'}</span><span dir="ltr" className="inline-flex items-center">{breakdown.recentCommitment === null ? '—' : <><span className="text-xs">٪</span><span>{toHindiDigits(breakdown.recentCommitment)}</span></>}</span>
+                            <span role="tooltip" className="pointer-events-none absolute bottom-full left-2 right-2 z-10 rounded-lg border border-gray-200/60 bg-white/75 backdrop-blur-sm px-3 py-2 text-center text-sm leading-relaxed text-gray-600 shadow-sm whitespace-normal opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus:opacity-100">نسبة الحضور في آخر ١٠ حصص.</span>
+                          </button>
+                          <span aria-hidden="true" className="h-3.5 w-px bg-gray-200/80 shrink-0" />
+                          <button type="button" onClick={() => copyCommitment(false)} aria-label="نسخ تقرير الالتزام العام" className="group flex items-center gap-1 whitespace-nowrap outline-none">
+                            <span>{missedClassesMenu.academyName ? 'التزام الطلبة العام' : 'الالتزام العام'}</span><span dir="ltr" className="inline-flex items-center">{breakdown.commitment === null ? '—' : <><span className="text-xs">٪</span><span>{toHindiDigits(breakdown.commitment)}</span></>}</span>
+                            <span role="tooltip" className="pointer-events-none absolute bottom-full left-2 right-2 z-10 rounded-lg border border-gray-200/60 bg-white/75 backdrop-blur-sm px-3 py-2 text-center text-sm leading-relaxed text-gray-600 shadow-sm whitespace-normal opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus:opacity-100">نسبة الحضور في جميع الحصص المسجلة.</span>
+                          </button>
+                        </div>
+                        <div aria-hidden="true" className="mx-3 mt-0.5 mb-2 border-t border-gray-200/75" />
+                      </>
                     )}
                     {index === 1 && <div className="mt-1 flex justify-end px-3 text-center text-xs text-gray-400"><div className="grid w-28 grid-cols-2 gap-4"><span>عام</span><span>الشهر</span></div></div>}
                     <button type="button"
@@ -8926,8 +8944,9 @@ function App() {
                       {category.id === 'rescheduled' && <span role="tooltip" className="pointer-events-none absolute top-full left-2 right-2 z-10 rounded-lg border border-gray-200/60 bg-white/75 backdrop-blur-sm px-3 py-2 text-center text-sm leading-relaxed text-gray-600 shadow-sm opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus:opacity-100">ينسخ اعتذارات الطالب والمعلم للشهر المعروض. اضغط مطولًا لنسخ الشهر المعروض والسابق.</span>}
                       {category.id !== 'rescheduled' && <span className="grid grid-cols-2 gap-4 w-28 shrink-0 text-center text-lg font-normal text-blue-600 whitespace-nowrap">{[true, false].map(isGeneral => {
                         const denominator = category.id === 'teacherApology' ? breakdown.allRecorded : breakdown.allRecorded - breakdown.allCategoryCounts.teacherApology;
-                        const value = isGeneral ? (denominator ? Math.round(breakdown.allCategoryCounts[category.id] / denominator * 1000) / 10 : null) : percent;
-                        const description = category.id === 'studentApology' ? 'نسبة الحصص التي اعتذر عنها الطالب' : category.id === 'studentAbsence' ? 'نسبة الحصص التي غاب عنها الطالب' : 'نسبة الحصص التي اعتذر عنها المعلم';
+                        const numerator = category.id === 'teacherApology' ? Math.max(0, denominator - breakdown.allCategoryCounts[category.id]) : breakdown.allCategoryCounts[category.id];
+                        const value = isGeneral ? (denominator ? Math.round(numerator / denominator * 1000) / 10 : null) : percent;
+                        const description = category.id === 'studentApology' ? 'نسبة الحصص التي اعتذر عنها الطالب' : category.id === 'studentAbsence' ? 'نسبة الحصص التي غاب عنها الطالب' : 'نسبة الحصص التي التزم بها المعلم دون اعتذار';
                         return <span key={String(isGeneral)} role="button" tabIndex={0} aria-label={`نسخ ${category.label} ${isGeneral ? 'العام' : 'للشهر'}`} onClick={event => { event.stopPropagation(); void copyDays(category, false, isGeneral); }} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); void copyDays(category, false, isGeneral); } }} className="group/ratio"><span dir="ltr" className="inline-flex items-center">{value !== null && <span className="text-xs">٪</span>}<span>{value === null ? '—' : toHindiDigits(value)}</span></span><span role="tooltip" className="pointer-events-none absolute bottom-full left-2 right-2 z-10 rounded-lg border border-gray-200/60 bg-white/75 backdrop-blur-sm px-3 py-2 text-center text-sm leading-relaxed text-gray-600 shadow-sm whitespace-normal opacity-0 transition-opacity duration-150 group-hover/ratio:opacity-100 group-focus/ratio:opacity-100">{description} {isGeneral ? 'من جميع الحصص المسجلة.' : 'من حصص الشهر المعروض.'} اضغط لنسخ الأيام.</span></span>;
                       })}</span>}
                     </button>
@@ -9402,26 +9421,84 @@ function App() {
                 }}
               >
 
-                {partPicker && <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/35 p-4" onClick={event => { event.stopPropagation(); setPartPicker(null); }} onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); setPartPicker(null); } }}>
-                  <div role="dialog" aria-modal="true" aria-label="اختيار جزء أو حزب" dir="rtl" className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl" onClick={event => event.stopPropagation()}>
-                    <div className="mb-4 flex items-center justify-between"><h3 className="text-lg font-bold text-gray-800">اختيار جزء أو حزب</h3><button type="button" aria-label="إغلاق" onClick={() => setPartPicker(null)} className="rounded-lg px-2 py-1 text-gray-500 hover:bg-gray-100">✕</button></div>
+                {partPicker && (() => {
+                  const rubNames = ['الأول', 'الثاني', 'الثالث', 'الرابع', 'الخامس', 'السادس', 'السابع', 'الثامن'];
+                  const juzNum = Number(pickerJuz), hizbNum = Number(pickerHizb);
+                  const hasValidJuz = Number.isInteger(juzNum) && juzNum >= 1 && juzNum <= 30;
+                  const previewRange = !hasValidJuz ? null
+                    : pickerRubRange ? quranRubSpanRange((juzNum - 1) * 8 + pickerRubRange[0], (juzNum - 1) * 8 + pickerRubRange[1], SURAH_AYAH_COUNTS)
+                      : (hizbNum === 1 || hizbNum === 2) ? quranPartRange('hizb', (juzNum - 1) * 2 + hizbNum, SURAH_AYAH_COUNTS)
+                        : quranPartRange('juz', juzNum, SURAH_AYAH_COUNTS);
+                  const previewScope = pickerRubRange
+                    ? (pickerRubRange[0] === pickerRubRange[1]
+                      ? `الجزء ${toHindiDigits(juzNum)} · الربع ${rubNames[pickerRubRange[0] - 1]}`
+                      : `الجزء ${toHindiDigits(juzNum)} · الأرباع ${rubNames[pickerRubRange[0] - 1]} – ${rubNames[pickerRubRange[1] - 1]}`)
+                    : (hizbNum === 1 || hizbNum === 2)
+                      ? `الجزء ${toHindiDigits(juzNum)} · الحزب ${toHindiDigits(hizbNum)}`
+                      : `الجزء ${toHindiDigits(juzNum)}`;
+                  const toggleRub = (num: number) => {
+                    setPickerError('');
+                    let next: [number, number] | null;
+                    if (!pickerRubRange) next = [num, num];
+                    else {
+                      const [start, end] = pickerRubRange;
+                      if (start === end && start === num) next = null;
+                      else if (num < start) next = [num, end];
+                      else if (num > end) next = [start, num];
+                      else if (num === start) next = [start + 1, end];
+                      else if (num === end) next = [start, end - 1];
+                      else next = [num, num];
+                    }
+                    setPickerRubRange(next);
+                    if (!next) setPickerHizb('');
+                    else if (next[1] <= 4) setPickerHizb('1');
+                    else if (next[0] >= 5) setPickerHizb('2');
+                    else setPickerHizb('');
+                  };
+                  return <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/35 p-4" onClick={event => { event.stopPropagation(); setPartPicker(null); }} onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); setPartPicker(null); } }}>
+                  <div role="dialog" aria-modal="true" aria-label="اختيار جزء أو حزب أو ربع" dir="rtl" className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl" onClick={event => event.stopPropagation()}>
+                    <div className="mb-4 flex items-center justify-between"><h3 className="text-lg font-bold text-gray-800">اختيار جزء أو حزب أو ربع</h3><button type="button" aria-label="إغلاق" onClick={() => setPartPicker(null)} className="rounded-lg px-2 py-1 text-gray-500 hover:bg-gray-100">✕</button></div>
                     <form onSubmit={event => {
                       event.preventDefault();
-                      const juz = Number(pickerJuz), hizb = Number(pickerHizb);
-                      if (!Number.isInteger(juz) || juz < 1 || juz > 30) { setPickerError('أدخل رقم جزء من ١ إلى ٣٠.'); return; }
-                      if (pickerHizb && hizb !== 1 && hizb !== 2) { setPickerError('اختر الحزب ١ أو ٢ داخل الجزء.'); return; }
-                      applyPart(pickerHizb ? (juz - 1) * 2 + hizb : juz, pickerHizb ? 'hizb' : 'juz');
+                      if (!hasValidJuz) { setPickerError('أدخل رقم جزء من ١ إلى ٣٠.'); return; }
+                      if (pickerHizb && hizbNum !== 1 && hizbNum !== 2) { setPickerError('اختر الحزب ١ أو ٢ داخل الجزء.'); return; }
+                      if (!previewRange) { setPickerError('تعذّر تحديد النطاق المطلوب.'); return; }
+                      applyPartRange(previewRange);
                     }}>
                       <div className="grid grid-cols-2 gap-3">
-                        <label className="text-sm font-bold text-gray-700">رقم الجزء<input autoFocus onFocus={event => event.currentTarget.select()} type="text" inputMode="numeric" value={toHindiDigits(pickerJuz)} onChange={event => { setPickerJuz(event.target.value.replace(/[٠-٩]/g, d => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d))).replace(/[^0-9]/g, '')); setPickerHizb(''); setPickerError(''); }} className="mt-1 w-full rounded-lg border border-gray-200 p-2 text-center text-lg" placeholder="١ – ٣٠" /></label>
-                        <label className="text-sm font-bold text-gray-700">رقم الحزب <span className="font-normal text-gray-400">(اختياري)</span><input onFocus={event => event.currentTarget.select()} type="text" inputMode="numeric" value={toHindiDigits(pickerHizb)} onChange={event => { const digits = event.target.value.replace(/[٠-٩]/g, d => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d))).replace(/[^0-9]/g, ''); setPickerHizb(digits ? String(Math.min(2, Math.max(1, Number(digits)))) : ''); setPickerError(''); }} className="mt-1 w-full rounded-lg border border-gray-200 p-2 text-center text-lg" placeholder="رقم الحزب" /></label>
+                        <label className="text-sm font-bold text-gray-700">رقم الجزء<input autoFocus onFocus={event => event.currentTarget.select()} type="text" inputMode="numeric" value={toHindiDigits(pickerJuz)} onChange={event => { setPickerJuz(event.target.value.replace(/[٠-٩]/g, d => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d))).replace(/[^0-9]/g, '')); setPickerHizb(''); setPickerRubRange(null); setPickerError(''); }} className="mt-1 w-full rounded-lg border border-gray-200 p-2 text-center text-lg" placeholder="١ – ٣٠" /></label>
+                        <label className="text-sm font-bold text-gray-700">رقم الحزب <span className="font-normal text-gray-400">(اختياري)</span><input onFocus={event => event.currentTarget.select()} type="text" inputMode="numeric" value={toHindiDigits(pickerHizb)} onChange={event => { const digits = event.target.value.replace(/[٠-٩]/g, d => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d))).replace(/[^0-9]/g, ''); setPickerHizb(digits ? String(Math.min(2, Math.max(1, Number(digits)))) : ''); setPickerRubRange(null); setPickerError(''); }} className="mt-1 w-full rounded-lg border border-gray-200 p-2 text-center text-lg" placeholder="رقم الحزب" /></label>
                       </div>
-                      {Number(pickerJuz) >= 1 && Number(pickerJuz) <= 30 && <div className="mt-3 flex gap-2 text-sm">{[1, 2].map(number => <button key={number} type="button" onClick={() => { setPickerHizb(String(number)); setPickerError(''); }} className={`flex-1 rounded-lg p-2 ${pickerHizb === String(number) ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-600'}`}>الحزب {toHindiDigits(number)}</button>)}</div>}
+                      {hasValidJuz && <>
+                        <div className="mt-3 flex gap-2 text-sm">{[1, 2].map(number => {
+                          const active = pickerHizb === String(number) && !pickerRubRange;
+                          return <button key={number} type="button" onClick={() => { setPickerHizb(active ? '' : String(number)); setPickerRubRange(null); setPickerError(''); }} className={`flex-1 rounded-lg p-2 transition-colors ${pickerHizb === String(number) ? 'bg-emerald-100 font-semibold text-emerald-800 ring-1 ring-emerald-200' : 'bg-gray-100 text-gray-600 hover:bg-gray-200/70'}`}>الحزب {toHindiDigits(number)}</button>;
+                        })}</div>
+                        <div className="mt-3">
+                          <div className="mb-1.5 flex items-center justify-between text-xs">
+                            <span className="font-bold text-gray-700">الربع <span className="font-normal text-gray-400">(اختياري)</span></span>
+                            <span className="text-gray-400">يمكن اختيار أكثر من ربع</span>
+                          </div>
+                          <div className="grid grid-cols-4 gap-1.5 text-xs">
+                            {rubNames.map((label, idx) => {
+                              const num = idx + 1;
+                              const inRange = !!pickerRubRange && num >= pickerRubRange[0] && num <= pickerRubRange[1];
+                              const isEdge = !!pickerRubRange && pickerRubRange[0] < pickerRubRange[1] && (num === pickerRubRange[0] || num === pickerRubRange[1]);
+                              return <button key={num} type="button" onClick={() => toggleRub(num)} className={`rounded-lg py-2 px-1 transition-colors ${isEdge ? 'bg-emerald-200/90 font-bold text-emerald-950 ring-1 ring-emerald-400' : inRange ? 'bg-emerald-100 font-bold text-emerald-800 ring-1 ring-emerald-300' : 'bg-gray-100/90 text-gray-600 hover:bg-gray-200/70'}`}>{label}</button>;
+                            })}
+                          </div>
+                        </div>
+                        {previewRange && <div className="mt-3 flex items-center justify-between gap-2 rounded-xl border border-emerald-100 bg-emerald-50/70 px-3 py-2 text-xs text-emerald-900">
+                          <span className="font-bold">{previewScope}</span>
+                          <span className="text-emerald-700">{previewRange.startSurah === previewRange.endSurah ? `${SURAHS[previewRange.startSurah - 1]} (${toHindiDigits(previewRange.startAyah)} – ${toHindiDigits(previewRange.endAyah)})` : `${SURAHS[previewRange.startSurah - 1]} (${toHindiDigits(previewRange.startAyah)}) – ${SURAHS[previewRange.endSurah - 1]} (${toHindiDigits(previewRange.endAyah)})`}</span>
+                        </div>}
+                      </>}
                       {pickerError && <p role="alert" className="mt-2 text-sm text-red-600">{pickerError}</p>}
                       <button type="submit" className="mt-4 w-full rounded-lg bg-emerald-600 px-3 py-2 font-bold text-white hover:bg-emerald-700">اعتماد</button>
                     </form>
                   </div>
-                </div>}
+                </div>;
+                })()}
                 {/* Floating Name & Subtle Corner Monthly Report Button */}
                 <div className="sticky top-0 z-50 relative flex justify-center items-center pt-4 pointer-events-none">
                   {student && (

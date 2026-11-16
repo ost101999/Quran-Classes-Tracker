@@ -45,6 +45,14 @@ export function quranPartRange(kind: QuranPartKind, number: number, counts: numb
   return { startSurah: surah, startAyah: ayah, endSurah, endAyah };
 }
 
+export function quranRubSpanRange(startRub: number, endRub: number, counts: number[]) {
+  if (!Number.isInteger(startRub) || !Number.isInteger(endRub) || startRub > endRub) return null;
+  const start = quranPartRange('rub', startRub, counts);
+  const end = quranPartRange('rub', endRub, counts);
+  if (!start || !end) return null;
+  return { startSurah: start.startSurah, startAyah: start.startAyah, endSurah: end.endSurah, endAyah: end.endAyah };
+}
+
 export function quranRubForVerse(surah: number, ayah: number, counts: number[]) {
   if (!Number.isInteger(surah) || !Number.isInteger(ayah) || surah < 1 || surah > counts.length || ayah < 1 || ayah > counts[surah - 1]) return null;
   let index = 0;
