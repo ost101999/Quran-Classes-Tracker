@@ -4450,11 +4450,11 @@ function App() {
     });
   }, [selectedAcademy]);
 
-  const handleUpdateAcademy = useCallback((oldName: string, newName: string, rate: number, currency: string, monthlyDeductions: Record<string, number> = {}, billingStartDay: number = 1, externalLink: string = '', holidays: number[] = [], receiveInEGP: boolean = false, disableReports: boolean = false, whatsappNumber: string = '', openLinksExternally: boolean = false, includeReportHeader: boolean = true, showAnimationBeforeLink: boolean = true, monthlyAdditions: Record<string, number> = {}, monthlyDeductionTypes: Record<string, 'minutes' | 'currency'> = {}, monthlyAdditionTypes: Record<string, 'minutes' | 'currency'> = {}) => {
+  const handleUpdateAcademy = useCallback((oldName: string, newName: string, rate: number, currency: string, monthlyDeductions: Record<string, number> = {}, billingStartDay: number = 1, externalLink: string = '', holidays: number[] = [], receiveInEGP: boolean = false, disableReports: boolean = false, whatsappNumber: string = '', openLinksExternally: boolean = false, includeReportHeader: boolean = true, showAnimationBeforeLink: boolean = true, monthlyAdditions: Record<string, number> = {}, monthlyDeductionTypes: Record<string, 'minutes' | 'currency'> = {}, monthlyAdditionTypes: Record<string, 'minutes' | 'currency'> = {}, autoCompleteReport?: boolean, hazemSystem?: boolean) => {
     if (!oldName) {
       // Add Mode
       setAcademyOrder(prev => prev.includes(newName) ? prev : [...prev, newName]);
-      setAcademyRates(prev => ({ ...prev, [newName]: { rate, currency, monthlyDeductions, billingStartDay, externalLink, holidays, receiveInEGP, disableReports, whatsappNumber, openLinksExternally, includeReportHeader, showAnimationBeforeLink, monthlyAdditions, monthlyDeductionTypes, monthlyAdditionTypes } }));
+      setAcademyRates(prev => ({ ...prev, [newName]: { rate, currency, monthlyDeductions, billingStartDay, externalLink, holidays, receiveInEGP, disableReports, whatsappNumber, openLinksExternally, includeReportHeader, showAnimationBeforeLink, monthlyAdditions, monthlyDeductionTypes, monthlyAdditionTypes, autoCompleteReport, hazemSystem } }));
       setIsAddingAcademy(false);
       return;
     }
@@ -4489,7 +4489,7 @@ function App() {
     setAcademyRates(prev => {
       const next = { ...prev };
       delete next[oldName];
-      next[newName] = { ...prev[oldName], rate, currency, monthlyDeductions, billingStartDay, externalLink, holidays, receiveInEGP, disableReports, whatsappNumber, openLinksExternally, includeReportHeader, showAnimationBeforeLink, monthlyAdditions, monthlyDeductionTypes, monthlyAdditionTypes };
+      next[newName] = { ...prev[oldName], rate, currency, monthlyDeductions, billingStartDay, externalLink, holidays, receiveInEGP, disableReports, whatsappNumber, openLinksExternally, includeReportHeader, showAnimationBeforeLink, monthlyAdditions, monthlyDeductionTypes, monthlyAdditionTypes, ...(autoCompleteReport !== undefined ? { autoCompleteReport } : {}), ...(hazemSystem !== undefined ? { hazemSystem } : {}) };
       return next;
     });
 
@@ -8288,7 +8288,7 @@ function App() {
             academyName={selectedAcademyForEditing}
             academyRate={academyRates[selectedAcademyForEditing]}
             onClose={() => setSelectedAcademyForEditing(null)}
-            onSave={(old, name, rate, curr, dm, bsd, el, hols, regp, disRep, whatsapp, openExt, incHdr, anim, adds, dedType, addsType) => handleUpdateAcademy(old, name, rate, curr, dm, bsd, el, hols, regp, disRep, whatsapp, openExt, incHdr, anim, adds, dedType, addsType)}
+            onSave={(old, name, rate, curr, dm, bsd, el, hols, regp, disRep, whatsapp, openExt, incHdr, anim, adds, dedType, addsType, autoComplete, hazem) => handleUpdateAcademy(old, name, rate, curr, dm, bsd, el, hols, regp, disRep, whatsapp, openExt, incHdr, anim, adds, dedType, addsType, autoComplete, hazem)}
             onDelete={() => handleDeleteAcademy(selectedAcademyForEditing)}
             onArchive={() => setAcademyArchived(selectedAcademyForEditing, true)}
           />
@@ -8299,7 +8299,7 @@ function App() {
           <AcademyEditModal
             academyName=""
             onClose={() => setIsAddingAcademy(false)}
-            onSave={(old, name, rate, curr, dm, bsd, el, hols, regp, disRep, whatsapp, openExt, incHdr, anim, adds, dedType, addsType) => handleUpdateAcademy('', name, rate, curr, dm, bsd, el, hols, regp, disRep, whatsapp, openExt, incHdr, anim, adds, dedType, addsType)}
+            onSave={(old, name, rate, curr, dm, bsd, el, hols, regp, disRep, whatsapp, openExt, incHdr, anim, adds, dedType, addsType, autoComplete, hazem) => handleUpdateAcademy('', name, rate, curr, dm, bsd, el, hols, regp, disRep, whatsapp, openExt, incHdr, anim, adds, dedType, addsType, autoComplete, hazem)}
             isAdd
           />
         )

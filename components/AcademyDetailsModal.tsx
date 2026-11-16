@@ -1,5 +1,5 @@
-import { formatAttendanceDays } from './reportAttendanceDays';
 import { scheduledCount } from '../services/studentSchedule';
+import { getDetailedReportDays } from '../services/academyReportDetails';
 import ReportMonthNavigation, { useReportMonth } from './ReportMonthNavigation';
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Calendar, Clock, Copy, Check, Wallet, FileText, AlignLeft, DollarSign, ChevronRight, ChevronLeft, Trash2, Edit2, ShieldAlert, ExternalLink, RotateCcw, Users, Image as ImageIcon } from 'lucide-react';
@@ -14,7 +14,7 @@ interface Props {
     onClose: () => void;
     onDelete: () => void;
     onUpdate: (oldName: string, newName: string, rate: number, currency: string, monthlyDeductions: Record<string, number>, billingStartDay: number, externalLink: string, holidays: number[], disableReports?: boolean, monthlyAdditions?: Record<string, number>, monthlyDeductionTypes?: Record<string, 'minutes' | 'currency'>, monthlyAdditionTypes?: Record<string, 'minutes' | 'currency'>) => void;
-    academyRate?: { rate: number; currency: string; deductedMinutes?: number; monthlyDeductions?: Record<string, number>; monthlyAdditions?: Record<string, number>; monthlyDeductionTypes?: Record<string, 'minutes' | 'currency'>; monthlyAdditionTypes?: Record<string, 'minutes' | 'currency'>; billingStartDay?: number; externalLink?: string; holidays?: number[], disableReports?: boolean };
+    academyRate?: { rate: number; currency: string; deductedMinutes?: number; monthlyDeductions?: Record<string, number>; monthlyAdditions?: Record<string, number>; monthlyDeductionTypes?: Record<string, 'minutes' | 'currency'>; monthlyAdditionTypes?: Record<string, 'minutes' | 'currency'>; billingStartDay?: number; externalLink?: string; holidays?: number[], disableReports?: boolean; autoCompleteReport?: boolean; hazemSystem?: boolean };
     year: number;
     usdRate: number;
     paymentStatus: Record<string, boolean>;
@@ -296,9 +296,14 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
         const dateForMonthName = new Date(year, month, 1);
         const currentMonthName = dateForMonthName.toLocaleDateString(isEnglish ? 'en-US' : 'ar-SA', { month: 'long', year: 'numeric' });
         const lines: string[] = [];
+        const hazemDetailed = !!academyRate?.hazemSystem && !!attendanceDetail;
 
         // Header
-        if (isEnglish) {
+        if (hazemDetailed) {
+            lines.push(isEnglish ? '📋 *Monthly Class Report*' : '📋 *تقرير الحصص الشهري*');
+            lines.push(`👤 *${academyName.trim()}*`);
+            lines.push(`🗓️ *${currentMonthName}*`);
+        } else if (isEnglish) {
             lines.push(`*${academyName.trim()}*`);
             lines.push(`🗓️ ${currentMonthName}`);
         } else {
@@ -306,39 +311,62 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
             lines.push(`🗓️ ${currentMonthName}`);
         }
         lines.push('');
+        if (hazemDetailed) lines.push('━━━━━━━━━━━━━━', '');
 
         // Students Breakdown
         const academyStudents = activeStudents;
 
+        let reportExtraClasses = 0;
+        let reportExtraHours = 0;
+        const reportExtraIncome: Record<string, number> = {};
         academyStudents.forEach(student => {
-            const { studentClasses, studentHours } = getStudentStatsForAcademy(student);
-            const formattedHours = fmtHours(studentHours);
+            const base = getStudentStatsForAcademy(student);
+            const details = attendanceDetail ? getDetailedReportDays(student, attendance, month, year, isEnglish, academyRate) : null;
+            const extra = details?.extraSessions || 0;
+            const studentClasses = base.studentClasses + extra;
+            const studentHours = base.studentHours + extra * base.durationVal;
+            const expectedClasses = details && academyRate?.hazemSystem ? base.studentClasses + details.expectedExtraSessions : studentClasses;
+            const expectedHours = details && academyRate?.hazemSystem ? base.studentHours + details.expectedExtraSessions * base.durationVal : studentHours;
+            reportExtraClasses += extra;
+            reportExtraHours += extra * base.durationVal;
+            const currency = student.location || 'جنيه';
+            reportExtraIncome[currency] = (reportExtraIncome[currency] || 0) + extra * (student.paymentBasis === 'بالساعة' || student.duration === 'خليط' ? base.durationVal : 1) * student.rate;
+            const formattedHours = fmtHours(expectedHours);
 
             // Only add if they have stats
-            if (studentClasses > 0) {
+            if (expectedClasses > 0) {
                 if (isEnglish) {
                     lines.push(`🔹 *${student.name.trim()}*`);
-                    lines.push(`   ${formattedHours} Hours  |  ${studentClasses} Sessions`);
+                    lines.push(hazemDetailed ? `⏱️ ${formattedHours} Hours | 📚 ${expectedClasses} Sessions` : `   ${formattedHours} Hours  |  ${expectedClasses} Sessions`);
                 } else {
                     lines.push(`🔹 *${student.name.trim()}*`);
-                    lines.push(`   ${toHindiDigits(formattedHours)} ${getHoursPlural(studentHours)}  |  ${toHindiDigits(studentClasses)} ${getSessionsPlural(studentClasses)}`);
+                    lines.push(`   ${toHindiDigits(formattedHours)} ${getHoursPlural(expectedHours)}  |  ${toHindiDigits(expectedClasses)} ${getSessionsPlural(expectedClasses)}`);
                 }
-                if (attendanceDetail) lines.push(`   ${formatAttendanceDays(student, attendance, month, year, isEnglish, academyRate?.billingStartDay || 1)}`);
+                if (details) lines.push('', ...details.lines);
                 lines.push('');
+                if (hazemDetailed) lines.push('━━━━━━━━━━━━━━', '');
             }
         });
 
-        lines.push('──────────────');
+        if (!hazemDetailed) lines.push('──────────────');
 
         // Footer (Totals)
-        if (isEnglish) {
+        if (hazemDetailed && isEnglish) {
+            lines.push('📊 *Monthly Total*', '');
+            lines.push(`⏱️ Total Hours: *${fmtHours(stats.totalHours + reportExtraHours)}*`);
+            lines.push(`📚 Total Sessions: *${stats.totalClasses + reportExtraClasses}*`);
+        } else if (hazemDetailed) {
+            lines.push('📊 *الإجمالي الشهري*', '');
+            lines.push(`⏱️ إجمالي الساعات: *${toHindiDigits(fmtHours(stats.totalHours + reportExtraHours))}*`);
+            lines.push(`📚 إجمالي الحصص: *${toHindiDigits(stats.totalClasses + reportExtraClasses)}*`);
+        } else if (isEnglish) {
             lines.push(`*Total:*`);
-            lines.push(`⏱️ ${fmtHours(stats.totalHours)} Hours`);
-            lines.push(`📚 ${stats.totalClasses} Sessions`);
+            lines.push(`⏱️ ${fmtHours(stats.totalHours + reportExtraHours)} Hours`);
+            lines.push(`📚 ${stats.totalClasses + reportExtraClasses} Sessions`);
         } else {
             lines.push(`*الإجمالي:*`);
-            lines.push(`⏱️ ${toHindiDigits(fmtHours(stats.totalHours))} ${getHoursPlural(stats.totalHours)}`);
-            lines.push(`📚 ${toHindiDigits(stats.totalClasses)} ${getSessionsPlural(stats.totalClasses)}`);
+            lines.push(`⏱️ ${toHindiDigits(fmtHours(stats.totalHours + reportExtraHours))} ${getHoursPlural(stats.totalHours + reportExtraHours)}`);
+            lines.push(`📚 ${toHindiDigits(stats.totalClasses + reportExtraClasses)} ${getSessionsPlural(stats.totalClasses + reportExtraClasses)}`);
         }
 
         if (withPricing) {
@@ -347,7 +375,7 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
             lines.push(isEnglish ? '*Payment Details:*' : '*تفاصيل الحساب:*');
 
             currencies.forEach(curr => {
-                const amount = stats.incomeByCurrency[curr];
+                const amount = stats.incomeByCurrency[curr] + (reportExtraIncome[curr] || 0);
                 const formattedAmount = amount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
                 if (isEnglish) {
                     lines.push(`${formattedAmount} ${curr === 'دولار' ? 'USD' : (curr === 'جنيه' ? 'L.E' : curr)}`);

@@ -36,6 +36,8 @@ export interface AcademyRate {
   whatsappNumber?: string; // WhatsApp number/group for this academy
   openLinksExternally?: boolean; // If true, session links open in external browser
   showAnimationBeforeLink?: boolean; // If true, display the class number animation overlay before opening
+  autoCompleteReport?: boolean;
+  hazemSystem?: boolean;
 }
 
 export interface StudyPlan {

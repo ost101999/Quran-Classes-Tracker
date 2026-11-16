@@ -20,9 +20,11 @@ interface Props {
         monthlyDeductionTypes?: Record<string, 'minutes' | 'currency'>;
         monthlyAdditionTypes?: Record<string, 'minutes' | 'currency'>;
         includeReportHeader?: boolean;
+        autoCompleteReport?: boolean;
+        hazemSystem?: boolean;
     };
     onClose: () => void;
-    onSave: (oldName: string, newName: string, rate: number, currency: string, monthlyDeductions: Record<string, number>, billingStartDay?: number, externalLink?: string, holidays?: number[], receiveInEGP?: boolean, disableReports?: boolean, whatsappNumber?: string, openLinksExternally?: boolean, includeReportHeader?: boolean, showAnimationBeforeLink?: boolean, monthlyAdditions?: Record<string, number>, monthlyDeductionTypes?: Record<string, 'minutes' | 'currency'>, monthlyAdditionTypes?: Record<string, 'minutes' | 'currency'>) => void;
+    onSave: (oldName: string, newName: string, rate: number, currency: string, monthlyDeductions: Record<string, number>, billingStartDay?: number, externalLink?: string, holidays?: number[], receiveInEGP?: boolean, disableReports?: boolean, whatsappNumber?: string, openLinksExternally?: boolean, includeReportHeader?: boolean, showAnimationBeforeLink?: boolean, monthlyAdditions?: Record<string, number>, monthlyDeductionTypes?: Record<string, 'minutes' | 'currency'>, monthlyAdditionTypes?: Record<string, 'minutes' | 'currency'>, autoCompleteReport?: boolean, hazemSystem?: boolean) => void;
     onDelete?: () => void;
     onArchive?: () => void;
     isAdd?: boolean;
@@ -65,6 +67,8 @@ const AcademyEditModal: React.FC<Props> = ({ academyName, academyRate, onClose, 
     const [openLinksExternally, setOpenLinksExternally] = useState(academyRate?.openLinksExternally || false);
     const [showAnimationBeforeLink, setShowAnimationBeforeLink] = useState(academyRate?.showAnimationBeforeLink ?? true);
     const [includeReportHeader, setIncludeReportHeader] = useState(academyRate?.includeReportHeader !== false);
+    const [autoCompleteReport, setAutoCompleteReport] = useState(academyRate?.autoCompleteReport ?? false);
+    const [hazemSystem, setHazemSystem] = useState(academyRate?.hazemSystem ?? false);
     const [showReportSettings, setShowReportSettings] = useState(false);
 
     const toggleHoliday = (dayId: number) => {
@@ -79,7 +83,7 @@ const AcademyEditModal: React.FC<Props> = ({ academyName, academyRate, onClose, 
 
         const finalRate = Number(toWesternDigits(rate).replace(',', '.'));
         const finalStartDay = Number(toWesternDigits(billingStartDay));
-        onSave(academyName, name, isNaN(finalRate) ? 0 : finalRate, currency, academyRate?.monthlyDeductions || {}, isNaN(finalStartDay) ? 1 : finalStartDay, externalLink, holidays, currency === 'دولار' ? receiveInEGP : false, disableReports, whatsappNumber, openLinksExternally, includeReportHeader, showAnimationBeforeLink, academyRate?.monthlyAdditions || {}, academyRate?.monthlyDeductionTypes || {}, academyRate?.monthlyAdditionTypes || {});
+        onSave(academyName, name, isNaN(finalRate) ? 0 : finalRate, currency, academyRate?.monthlyDeductions || {}, isNaN(finalStartDay) ? 1 : finalStartDay, externalLink, holidays, currency === 'دولار' ? receiveInEGP : false, disableReports, whatsappNumber, openLinksExternally, includeReportHeader, showAnimationBeforeLink, academyRate?.monthlyAdditions || {}, academyRate?.monthlyDeductionTypes || {}, academyRate?.monthlyAdditionTypes || {}, autoCompleteReport, hazemSystem);
         onClose();
     };
 
@@ -390,7 +394,15 @@ const AcademyEditModal: React.FC<Props> = ({ academyName, academyRate, onClose, 
                             />
                         </div>
 
-                        {/* Add more settings here in the future if needed */}
+                        {[
+                            { label: 'إكمال الحصص القادمة في التقرير', description: 'إظهار الحصص المجدولة القادمة كحضور متوقع.', checked: autoCompleteReport, set: setAutoCompleteReport },
+                            { label: 'نظام الشيخ حازم', description: 'احتساب الحصص المعتذر عنها وعرض تفاصيلها.', checked: hazemSystem, set: setHazemSystem },
+                        ].map(option => (
+                            <label key={option.label} className="flex items-center gap-4 p-5 bg-white rounded-2xl border-2 border-gray-100 cursor-pointer hover:border-[#ffe05d] transition-all shadow-sm">
+                                <div className="flex-1"><span className="block text-xl font-bold text-gray-700">{option.label}</span><span className="text-sm text-gray-500">{option.description}</span></div>
+                                <input type="checkbox" checked={option.checked} onChange={e => option.set(e.target.checked)} className="w-6 h-6 rounded-lg accent-blue-500 cursor-pointer" />
+                            </label>
+                        ))}
                     </div>
 
                     <button
