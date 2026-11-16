@@ -136,6 +136,7 @@ export default function CalendarReviewModal({ data, error, loading, disabled, on
       </header>
       <div className="p-4 border-b flex gap-2 bg-white"><input aria-label="بحث في اقتراحات الكاليندر" placeholder="ابحث باسم الطالب…" value={search} onChange={event => setSearch(event.target.value)} className="flex-1 min-w-0 p-2 border rounded-xl" /><button type="button" disabled={loading || disabled} onClick={onRefresh} className="flex items-center gap-1 px-3 text-blue-700 disabled:opacity-40"><RefreshCw size={17} className={loading ? 'animate-spin' : ''} />تحديث</button></div>
       <div className="overflow-y-auto p-4 space-y-3">
+        {loading && visible.length > 0 && <p role="status" className="bg-blue-50 text-blue-800 border border-blue-100 rounded-xl px-3 py-2 text-xs font-bold">جاري تحديث قراءة الكاليندر…</p>}
         {error && <p role="alert" className="bg-amber-50 text-amber-800 border border-amber-200 rounded-xl p-3 text-sm">{error}</p>}
         {disabled && <p className="text-amber-800 text-sm">انتظر اكتمال المزامنة أو حل تعارض البيانات قبل الموافقة.</p>}
         {!visible.length && <p className="text-center py-12 text-gray-500">{loading ? 'جاري قراءة الكاليندر…' : 'لا توجد اقتراحات تحتاج مراجعة.'}</p>}

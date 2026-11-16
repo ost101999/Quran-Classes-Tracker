@@ -2323,6 +2323,10 @@ function App() {
   const [calendarReading, setCalendarReading] = useState(false);
   const [calendarRefresh, setCalendarRefresh] = useState(0);
   const calendarForceRefresh = useRef(false);
+  const triggerCalendarRefresh = () => {
+    calendarForceRefresh.current = true;
+    setCalendarRefresh(value => value + 1);
+  };
   const calendarReviewData = { students, attendance, makeupLinks, savedReports, savedReportDrafts, lastReports, dayTransitionTime };
   const calendarReviewDataRef = useRef(calendarReviewData);
   calendarReviewDataRef.current = calendarReviewData;
@@ -8935,10 +8939,10 @@ function App() {
         })()
       }
 
-      {!isModalOpen && !calendarReviewOpen && <button type="button" onClick={() => setCalendarReviewOpen(true)} className="fixed bottom-5 left-5 z-[85] flex items-center gap-2 rounded-2xl bg-white border border-blue-200 shadow-lg px-4 py-3 text-blue-800 font-arabic font-bold" aria-label={`مراجعة تغييرات الكاليندر، ${calendarPendingCount} اقتراح`}>
+      {!isModalOpen && !calendarReviewOpen && <button type="button" onClick={() => { triggerCalendarRefresh(); setCalendarReviewOpen(true); }} className="fixed bottom-5 left-5 z-[85] flex items-center gap-2 rounded-2xl bg-white border border-blue-200 shadow-lg px-4 py-3 text-blue-800 font-arabic font-bold" aria-label={`مراجعة تغييرات الكاليندر، ${calendarPendingCount} اقتراح`}>
         <Calendar size={20} /><span>مراجعة الكاليندر</span>{calendarPendingCount > 0 && <span className="calendar-review-count rounded-full bg-blue-700 text-white text-xs px-2 py-1"><span>{calendarPendingCount}</span></span>}{calendarReadError && <span className="text-amber-600" title={calendarReadError}>!</span>}
       </button>}
-      {calendarReviewOpen && <CalendarReviewModal data={calendarReviewData} error={calendarReadError || (!window.electronAPI?.getCalendarSchedules ? 'افتح تطبيق الكمبيوتر بعد إعادة تشغيله لتفعيل قراءة الكاليندر.' : '')} loading={calendarReading} disabled={!!syncConflicts.length || resolvingConflict || applyingCloudRef.current} onClose={() => setCalendarReviewOpen(false)} onRefresh={() => { calendarForceRefresh.current = true; setCalendarRefresh(value => value + 1); }} onConfirm={confirmCalendarAction} />}
+      {calendarReviewOpen && <CalendarReviewModal data={calendarReviewData} error={calendarReadError || (!window.electronAPI?.getCalendarSchedules ? 'افتح تطبيق الكمبيوتر بعد إعادة تشغيله لتفعيل قراءة الكاليندر.' : '')} loading={calendarReading} disabled={!!syncConflicts.length || resolvingConflict || applyingCloudRef.current} onClose={() => setCalendarReviewOpen(false)} onRefresh={triggerCalendarRefresh} onConfirm={confirmCalendarAction} />}
 
       {!isModalOpen && (shortcutReadError || shortcutDifferences.length > 0 || whatsappChanges.length > 0) && (
         <div role="status" aria-live="polite" dir="rtl" className="fixed bottom-5 right-5 z-[90] w-[min(24rem,calc(100vw-2.5rem))] rounded-2xl border border-amber-200 bg-white shadow-2xl overflow-hidden font-arabic">
