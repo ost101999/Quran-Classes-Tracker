@@ -357,29 +357,26 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
             lines.push(`⏱️ إجمالي الساعات: *${toHindiDigits(fmtHours(stats.totalHours + reportExtraHours))}*`);
             lines.push(`📚 إجمالي الحصص: *${toHindiDigits(stats.totalClasses + reportExtraClasses)}*`);
         }
+        if (withPricing || withPaypal) {
+            lines.push('', isEnglish ? '─ 💳 *Payment Details* ─' : '─ 💳 *تفاصيل الدفع* ─', '');
+
+            if (withPricing) {
+                currencies.forEach(curr => {
+                    const amount = stats.incomeByCurrency[curr] + (reportExtraIncome[curr] || 0);
+                    const formattedAmount = amount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+                    if (isEnglish) {
+                        lines.push(`${formattedAmount} ${curr === 'دولار' ? 'USD' : (curr === 'جنيه' ? 'L.E' : curr)}`);
+                    } else {
+                        lines.push(`${toHindiDigits(formattedAmount)} ${curr}`);
+                    }
+                });
+            }
+            if (withPaypal) {
+                if (withPricing) lines.push('');
+                lines.push('https://paypal.me/ost101999');
+            }
+        }
         lines.push('', '──────────────', '', ...studentSection);
-
-        if (withPricing) {
-            lines.push('');
-            lines.push('──────────────');
-            lines.push(isEnglish ? '*Payment Details:*' : '*تفاصيل الحساب:*');
-
-            currencies.forEach(curr => {
-                const amount = stats.incomeByCurrency[curr] + (reportExtraIncome[curr] || 0);
-                const formattedAmount = amount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
-                if (isEnglish) {
-                    lines.push(`${formattedAmount} ${curr === 'دولار' ? 'USD' : (curr === 'جنيه' ? 'L.E' : curr)}`);
-                } else {
-                    lines.push(`${toHindiDigits(formattedAmount)} ${curr}`);
-                }
-            });
-        }
-
-        if (withPaypal) {
-            lines.push('');
-            lines.push('──────────────');
-            lines.push('https://paypal.me/ost101999');
-        }
 
         try {
             await navigator.clipboard.writeText(lines.join('\n'));
