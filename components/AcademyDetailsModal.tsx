@@ -304,10 +304,10 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
         lines.push(`${hazemDetailed ? '👤' : '🏫'} *${academyName.trim()}*`);
         lines.push(`🗓️ *${currentMonthName}*`);
         lines.push('');
-        if (detailedReport) lines.push('━━━━━━━━━━━━━━', '');
 
         // Students Breakdown
         const academyStudents = activeStudents;
+        const studentSectionStart = lines.length;
 
         let reportExtraClasses = 0;
         let reportExtraHours = 0;
@@ -343,20 +343,21 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
             }
         });
 
-        if (!detailedReport) lines.push('──────────────');
+        const studentSection = lines.splice(studentSectionStart);
 
-        // Footer (Totals)
+        // Summary precedes the student breakdown.
         if (isEnglish) {
-            lines.push('📊 *Monthly Total*', '');
-            if (!hazemDetailed) lines.push(`👥 Total Students: *${reportedStudents}*`);
+            lines.push('─ 📊 *Monthly Summary* ─', '');
+            lines.push(`👥 Total Students: *${reportedStudents}*`);
             lines.push(`⏱️ Total Hours: *${fmtHours(stats.totalHours + reportExtraHours)}*`);
             lines.push(`📚 Total Sessions: *${stats.totalClasses + reportExtraClasses}*`);
         } else {
-            lines.push('📊 *الإجمالي الشهري*', '');
-            if (!hazemDetailed) lines.push(`👥 عدد الطلاب: *${toHindiDigits(reportedStudents)}*`);
+            lines.push('─ 📊 *الملخص الشهري* ─', '');
+            lines.push(`👥 عدد الطلاب: *${toHindiDigits(reportedStudents)}*`);
             lines.push(`⏱️ إجمالي الساعات: *${toHindiDigits(fmtHours(stats.totalHours + reportExtraHours))}*`);
             lines.push(`📚 إجمالي الحصص: *${toHindiDigits(stats.totalClasses + reportExtraClasses)}*`);
         }
+        lines.push('', '──────────────', '', ...studentSection);
 
         if (withPricing) {
             lines.push('');
