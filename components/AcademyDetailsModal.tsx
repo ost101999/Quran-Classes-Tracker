@@ -343,7 +343,7 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
                     lines.push(detailedReport ? `⏱️ ${formattedHours} ${expectedHours === 1 ? 'Hour' : 'Hours'} | 📚 ${expectedClasses} ${expectedClasses === 1 ? 'Session' : 'Sessions'}` : `   ${formattedHours} Hours  |  ${expectedClasses} Sessions`);
                 } else {
                     lines.push(`🔹 *${student.name.trim()}*`);
-                    lines.push(detailedReport ? `⏱️ ${toHindiDigits(formattedHours)} ${getHoursPlural(expectedHours)} | 📚 ${toHindiDigits(expectedClasses)} ${getSessionsPlural(expectedClasses)}${hazemDetailed ? '' : ' محسوبة'}` : `   ${toHindiDigits(formattedHours)} ${getHoursPlural(expectedHours)}  |  ${toHindiDigits(expectedClasses)} ${getSessionsPlural(expectedClasses)}`);
+                    lines.push(detailedReport ? `⏱️ ${toHindiDigits(formattedHours)} ${getHoursPlural(expectedHours)} | 📚 ${toHindiDigits(expectedClasses)} ${getSessionsPlural(expectedClasses)}` : `   ${toHindiDigits(formattedHours)} ${getHoursPlural(expectedHours)}  |  ${toHindiDigits(expectedClasses)} ${getSessionsPlural(expectedClasses)}`);
                 }
                 if (details) lines.push('', ...details.lines);
                 lines.push('');
