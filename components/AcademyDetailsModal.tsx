@@ -95,6 +95,11 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
     const longCopyPress = useRef(false);
     const [noSavedCopy, setNoSavedCopy] = useState(false);
     const [copyShake, setCopyShake] = useState(0);
+    useEffect(() => {
+        if (!noSavedCopy) return;
+        const timer = setTimeout(() => setNoSavedCopy(false), 2500);
+        return () => clearTimeout(timer);
+    }, [noSavedCopy, copyShake]);
     const copyPreferenceKey = `academy-copy-options:${academyName}`;
     useEffect(() => () => { if (copyPressTimer.current) clearTimeout(copyPressTimer.current); }, []);
 
@@ -428,7 +433,7 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
     const repeatLastCopy = () => {
         try {
             const raw = localStorage.getItem(copyPreferenceKey);
-            if (!raw) { setNoSavedCopy(true); setCopyShake(value => value + 1); setShowCopyMenu(true); return; }
+            if (!raw) { setNoSavedCopy(true); setShowCopyMenu(false); return; }
             setNoSavedCopy(false);
             const preference: CopyPreference = JSON.parse(raw);
             setReportLanguage(preference.language);
@@ -695,7 +700,7 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
                             onPointerDown={(e) => {
                                 if (e.button !== 0) return;
                                 longCopyPress.current = false;
-                                copyPressTimer.current = setTimeout(() => { longCopyPress.current = true; }, 600);
+                                copyPressTimer.current = setTimeout(() => { longCopyPress.current = true; setCopyShake(value => value + 1); }, 600);
                             }}
                             onPointerUp={() => {
                                 if (copyPressTimer.current) clearTimeout(copyPressTimer.current);
@@ -713,13 +718,18 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
                             <span key={copyShake} className={copyShake ? 'academy-copy-shake block' : 'block'}>{isCopying ? <Check size={24} strokeWidth={3} /> : <Copy size={24} strokeWidth={2.5} />}</span>
                         </button>
 
+                        {noSavedCopy && (
+                            <div role="status" className="absolute right-0 top-full mt-2 z-[120] whitespace-nowrap rounded-xl bg-gray-800 px-3 py-2 text-sm text-white shadow-lg font-arabic">
+                                لا يوجد تقديرات محفوظة
+                            </div>
+                        )}
+
                         {/* Copy Menu Dropdown */}
                         {showCopyMenu && (
                             <>
                                 <div className="fixed inset-0 z-[100]" onClick={() => { setShowCopyMenu(false); setTextSelectMode(false); setImageSelectMode(false); setPaypalSelectMode(false); setAttendanceDetail(null); }} />
                                 <div className="absolute right-0 mt-3 w-64 bg-white backdrop-blur-xl rounded-[24px] shadow-[0_20px_50px_rgba(0,0,0,0.18)] border border-gray-100 p-2 z-[110] animate-in fade-in zoom-in-95 slide-in-from-top-2 duration-200 origin-top-right">
                                     <div className="flex flex-col gap-1">
-                                        {noSavedCopy && <p role="status" className="px-3 py-2 text-center text-sm text-gray-500 font-arabic">لا توجد اختيارات محفوظة بعد، انسخ التقرير أولًا.</p>}
 
                                         {!textSelectMode && !imageSelectMode ? (
                                             <>
