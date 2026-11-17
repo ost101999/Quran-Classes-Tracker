@@ -37,6 +37,7 @@ export interface AcademyRate {
   openLinksExternally?: boolean; // If true, session links open in external browser
   showAnimationBeforeLink?: boolean; // If true, display the class number animation overlay before opening
   autoCompleteReport?: boolean;
+  autoCompleteReportConfigured?: boolean;
   hazemSystem?: boolean;
 }
 

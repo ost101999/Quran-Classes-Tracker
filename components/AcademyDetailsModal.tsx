@@ -14,7 +14,7 @@ interface Props {
     onClose: () => void;
     onDelete: () => void;
     onUpdate: (oldName: string, newName: string, rate: number, currency: string, monthlyDeductions: Record<string, number>, billingStartDay: number, externalLink: string, holidays: number[], disableReports?: boolean, monthlyAdditions?: Record<string, number>, monthlyDeductionTypes?: Record<string, 'minutes' | 'currency'>, monthlyAdditionTypes?: Record<string, 'minutes' | 'currency'>) => void;
-    academyRate?: { rate: number; currency: string; deductedMinutes?: number; monthlyDeductions?: Record<string, number>; monthlyAdditions?: Record<string, number>; monthlyDeductionTypes?: Record<string, 'minutes' | 'currency'>; monthlyAdditionTypes?: Record<string, 'minutes' | 'currency'>; billingStartDay?: number; externalLink?: string; holidays?: number[], disableReports?: boolean; autoCompleteReport?: boolean; hazemSystem?: boolean };
+    academyRate?: { rate: number; currency: string; deductedMinutes?: number; monthlyDeductions?: Record<string, number>; monthlyAdditions?: Record<string, number>; monthlyDeductionTypes?: Record<string, 'minutes' | 'currency'>; monthlyAdditionTypes?: Record<string, 'minutes' | 'currency'>; billingStartDay?: number; externalLink?: string; holidays?: number[], disableReports?: boolean; autoCompleteReport?: boolean; autoCompleteReportConfigured?: boolean; hazemSystem?: boolean };
     year: number;
     usdRate: number;
     paymentStatus: Record<string, boolean>;
@@ -315,7 +315,7 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
         const reportExtraIncome: Record<string, number> = {};
         academyStudents.forEach(student => {
             const base = getStudentStatsForAcademy(student);
-            const details = attendanceDetail ? getDetailedReportDays(student, attendance, month, year, isEnglish, academyRate) : null;
+            const details = attendanceDetail ? getDetailedReportDays(student, attendance, month, year, isEnglish, { ...academyRate, autoCompleteReport: academyRate?.autoCompleteReportConfigured ? academyRate.autoCompleteReport !== false : true }) : null;
             const extra = details?.extraSessions || 0;
             const studentClasses = base.studentClasses + extra;
             const studentHours = base.studentHours + extra * base.durationVal;

@@ -21,6 +21,7 @@ interface Props {
         monthlyAdditionTypes?: Record<string, 'minutes' | 'currency'>;
         includeReportHeader?: boolean;
         autoCompleteReport?: boolean;
+        autoCompleteReportConfigured?: boolean;
         hazemSystem?: boolean;
     };
     onClose: () => void;
@@ -67,7 +68,7 @@ const AcademyEditModal: React.FC<Props> = ({ academyName, academyRate, onClose, 
     const [openLinksExternally, setOpenLinksExternally] = useState(academyRate?.openLinksExternally || false);
     const [showAnimationBeforeLink, setShowAnimationBeforeLink] = useState(academyRate?.showAnimationBeforeLink ?? true);
     const [includeReportHeader, setIncludeReportHeader] = useState(academyRate?.includeReportHeader !== false);
-    const [autoCompleteReport, setAutoCompleteReport] = useState(academyRate?.autoCompleteReport ?? false);
+    const [autoCompleteReport, setAutoCompleteReport] = useState(academyRate?.autoCompleteReportConfigured ? academyRate.autoCompleteReport !== false : true);
     const [hazemSystem, setHazemSystem] = useState(academyRate?.hazemSystem ?? false);
     const [showReportSettings, setShowReportSettings] = useState(false);
 

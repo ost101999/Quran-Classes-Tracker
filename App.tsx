@@ -4454,7 +4454,7 @@ function App() {
     if (!oldName) {
       // Add Mode
       setAcademyOrder(prev => prev.includes(newName) ? prev : [...prev, newName]);
-      setAcademyRates(prev => ({ ...prev, [newName]: { rate, currency, monthlyDeductions, billingStartDay, externalLink, holidays, receiveInEGP, disableReports, whatsappNumber, openLinksExternally, includeReportHeader, showAnimationBeforeLink, monthlyAdditions, monthlyDeductionTypes, monthlyAdditionTypes, autoCompleteReport, hazemSystem } }));
+      setAcademyRates(prev => ({ ...prev, [newName]: { rate, currency, monthlyDeductions, billingStartDay, externalLink, holidays, receiveInEGP, disableReports, whatsappNumber, openLinksExternally, includeReportHeader, showAnimationBeforeLink, monthlyAdditions, monthlyDeductionTypes, monthlyAdditionTypes, autoCompleteReport, autoCompleteReportConfigured: autoCompleteReport !== undefined, hazemSystem } }));
       setIsAddingAcademy(false);
       return;
     }
@@ -4489,7 +4489,7 @@ function App() {
     setAcademyRates(prev => {
       const next = { ...prev };
       delete next[oldName];
-      next[newName] = { ...prev[oldName], rate, currency, monthlyDeductions, billingStartDay, externalLink, holidays, receiveInEGP, disableReports, whatsappNumber, openLinksExternally, includeReportHeader, showAnimationBeforeLink, monthlyAdditions, monthlyDeductionTypes, monthlyAdditionTypes, ...(autoCompleteReport !== undefined ? { autoCompleteReport } : {}), ...(hazemSystem !== undefined ? { hazemSystem } : {}) };
+      next[newName] = { ...prev[oldName], rate, currency, monthlyDeductions, billingStartDay, externalLink, holidays, receiveInEGP, disableReports, whatsappNumber, openLinksExternally, includeReportHeader, showAnimationBeforeLink, monthlyAdditions, monthlyDeductionTypes, monthlyAdditionTypes, ...(autoCompleteReport !== undefined ? { autoCompleteReport, autoCompleteReportConfigured: true } : {}), ...(hazemSystem !== undefined ? { hazemSystem } : {}) };
       return next;
     });
 
