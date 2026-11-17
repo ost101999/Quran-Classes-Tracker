@@ -59,6 +59,15 @@
   from { opacity: 1; transform: scale(1); }
   to { opacity: 0; transform: scale(0.9); }
 }
+
+.academy-copy-shake { animation: academy-copy-shake 350ms ease-in-out; }
+@keyframes academy-copy-shake {
+  25%, 75% { transform: translateX(-3px); }
+  50% { transform: translateX(3px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .academy-copy-shake { animation: none; }
+}
 /* Monthly statistics: a gentle entrance and expandable income details. */
 .monthly-stats-overlay {
   animation: monthly-stats-fade-in 320ms ease-out both;

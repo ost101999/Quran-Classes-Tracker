@@ -91,6 +91,17 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
     const [reportLanguage, setReportLanguage] = useState<'ar' | 'en'>(/[a-zA-Z]/.test(academyName) ? 'en' : 'ar');
     const isEnglish = reportLanguage === 'en';
     const isNameEnglish = /[a-zA-Z]/.test(academyName);
+    const copyPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const longCopyPress = useRef(false);
+    const [noSavedCopy, setNoSavedCopy] = useState(false);
+    const [copyShake, setCopyShake] = useState(0);
+    const copyPreferenceKey = `academy-copy-options:${academyName}`;
+    useEffect(() => () => { if (copyPressTimer.current) clearTimeout(copyPressTimer.current); }, []);
+
+    type CopyPreference = { type: 'image' | 'text'; pricing: boolean; breakdown?: boolean; paypal?: boolean; detail?: boolean; language: 'ar' | 'en' };
+    const saveCopyPreference = (preference: CopyPreference) => {
+        try { localStorage.setItem(copyPreferenceKey, JSON.stringify(preference)); } catch (err) { console.error('Failed to save copy options:', err); }
+    };
 
     const fmtHours = (n: number) => Number.isInteger(n) ? n.toString() : parseFloat(n.toFixed(2)).toString();
 
@@ -276,7 +287,7 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
         setHistoryAdditionIndex(0);
     }, [month, year]);
 
-    const handleCopy = async (withPricing: boolean, withBreakdown: boolean = false) => {
+    const handleCopy = async (withPricing: boolean, withBreakdown: boolean = false, language = reportLanguage) => {
         if (!reportRef.current || isCopying) return;
 
         // Temporarily set the states for capture
@@ -304,8 +315,9 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
                     await navigator.clipboard.write([
                         new ClipboardItem({ 'image/png': blob })
                     ]);
+                    saveCopyPreference({ type: 'image', pricing: withPricing, breakdown: withBreakdown, language });
                     setTimeout(() => setIsCopying(false), 2000);
-                }
+                } else setIsCopying(false);
             } catch (err) {
                 console.error('Failed to copy report:', err);
                 setIsCopying(false);
@@ -313,7 +325,9 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
         }, 100);
     };
 
-    const handleCopyText = async (withPricing: boolean = false, withPaypal: boolean = true) => {
+    const handleCopyText = async (withPricing: boolean = false, withPaypal: boolean = true, detail = attendanceDetail, language = reportLanguage) => {
+        const isEnglish = language === 'en';
+        const attendanceDetail = detail;
         // Use the passed year and month for the report date
         const dateForMonthName = new Date(year, month, 1);
         const currentMonthName = dateForMonthName.toLocaleDateString(isEnglish ? 'en-US' : 'ar-SA', { month: 'long', year: 'numeric' });
@@ -402,12 +416,28 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
 
         try {
             await navigator.clipboard.writeText(lines.join('\n'));
+            saveCopyPreference({ type: 'text', pricing: withPricing, paypal: withPaypal, detail: !!attendanceDetail, language });
             setIsCopying(true);
             setTimeout(() => setIsCopying(false), 2000);
             setShowCopyMenu(false);
         } catch (err) {
             console.error('Failed to copy text:', err);
         }
+    };
+
+    const repeatLastCopy = () => {
+        try {
+            const raw = localStorage.getItem(copyPreferenceKey);
+            if (!raw) { setNoSavedCopy(true); setCopyShake(value => value + 1); setShowCopyMenu(true); return; }
+            setNoSavedCopy(false);
+            const preference: CopyPreference = JSON.parse(raw);
+            setReportLanguage(preference.language);
+            if (preference.type === 'text') {
+                void handleCopyText(preference.pricing, !!preference.paypal, !!preference.detail, preference.language);
+            } else {
+                void handleCopy(preference.pricing, !!preference.breakdown, preference.language);
+            }
+        } catch (err) { console.error('Failed to restore copy options:', err); setShowCopyMenu(true); }
     };
 
     const undoDeduction = () => {
@@ -662,12 +692,25 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
 
                     <div className="absolute right-6 top-1/2 -translate-y-1/2">
                         <button
-                            onClick={() => { setShowCopyMenu(!showCopyMenu); setTextSelectMode(false); setImageSelectMode(false); setPaypalSelectMode(false); setAttendanceDetail(null); }}
+                            onPointerDown={(e) => {
+                                if (e.button !== 0) return;
+                                longCopyPress.current = false;
+                                copyPressTimer.current = setTimeout(() => { longCopyPress.current = true; }, 600);
+                            }}
+                            onPointerUp={() => {
+                                if (copyPressTimer.current) clearTimeout(copyPressTimer.current);
+                                copyPressTimer.current = null;
+                                if (longCopyPress.current) repeatLastCopy();
+                            }}
+                            onPointerLeave={() => { if (copyPressTimer.current) clearTimeout(copyPressTimer.current); copyPressTimer.current = null; longCopyPress.current = false; }}
+                            onPointerCancel={() => { if (copyPressTimer.current) clearTimeout(copyPressTimer.current); copyPressTimer.current = null; longCopyPress.current = false; }}
+                            onContextMenu={(e) => e.preventDefault()}
+                            onClick={() => { if (longCopyPress.current) { longCopyPress.current = false; return; } setNoSavedCopy(false); setShowCopyMenu(!showCopyMenu); setTextSelectMode(false); setImageSelectMode(false); setPaypalSelectMode(false); setAttendanceDetail(null); }}
                             className={`p-2 rounded-full transition-all duration-300 ${isCopying ? 'bg-emerald-50 text-emerald-500 scale-110' : 'hover:bg-blue-50 text-blue-600 hover:scale-110 active:scale-95'
                                 }`}
                             title={isEnglish ? 'Copy Academy Report' : 'نسخ تقرير الأكاديمية'}
                         >
-                            {isCopying ? <Check size={24} strokeWidth={3} /> : <Copy size={24} strokeWidth={2.5} />}
+                            <span key={copyShake} className={copyShake ? 'academy-copy-shake block' : 'block'}>{isCopying ? <Check size={24} strokeWidth={3} /> : <Copy size={24} strokeWidth={2.5} />}</span>
                         </button>
 
                         {/* Copy Menu Dropdown */}
@@ -676,6 +719,7 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
                                 <div className="fixed inset-0 z-[100]" onClick={() => { setShowCopyMenu(false); setTextSelectMode(false); setImageSelectMode(false); setPaypalSelectMode(false); setAttendanceDetail(null); }} />
                                 <div className="absolute right-0 mt-3 w-64 bg-white backdrop-blur-xl rounded-[24px] shadow-[0_20px_50px_rgba(0,0,0,0.18)] border border-gray-100 p-2 z-[110] animate-in fade-in zoom-in-95 slide-in-from-top-2 duration-200 origin-top-right">
                                     <div className="flex flex-col gap-1">
+                                        {noSavedCopy && <p role="status" className="px-3 py-2 text-center text-sm text-gray-500 font-arabic">لا توجد اختيارات محفوظة بعد، انسخ التقرير أولًا.</p>}
 
                                         {!textSelectMode && !imageSelectMode ? (
                                             <>
