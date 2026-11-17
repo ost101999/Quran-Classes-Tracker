@@ -13,8 +13,13 @@ if (!rootElement) {
 }
 
 const root = ReactDOM.createRoot(rootElement);
-root.render(
+async function start() {
+  const saved = await window.electronAPI?.devModeRestore?.();
+  if (saved) { localStorage.clear(); Object.entries(saved).forEach(([key, value]) => localStorage.setItem(key, value)); }
+  root.render(
   <React.StrictMode>
     <App />
   </React.StrictMode>
-);
+  );
+}
+void start();

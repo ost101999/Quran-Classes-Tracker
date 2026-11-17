@@ -2,6 +2,9 @@ declare global {
     interface Window {
         electronAPI: {
             platform?: string;
+            devModeStatus?: () => Promise<{ available: boolean; active: boolean }>;
+            devModeToggle?: (storage: Record<string, string>) => Promise<{ ok: boolean; canceled?: boolean; error?: string }>;
+            devModeRestore?: () => Promise<Record<string, string> | null>;
             saveData: (data: any, skipSync?: boolean, token?: number) => Promise<{ success: boolean; busy?: boolean; error?: string }>;
             getCloudChanges?: () => Promise<{ busy?: boolean; changes?: Record<string, any>; token?: number }>;
             getSyncConflicts?: () => Promise<any[]>;

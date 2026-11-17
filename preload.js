@@ -2,6 +2,9 @@ const { contextBridge, ipcRenderer, webFrame } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
     platform: process.platform,
+    devModeStatus: () => ipcRenderer.invoke('dev-mode:status'),
+    devModeToggle: (storage) => ipcRenderer.invoke('dev-mode:toggle', storage),
+    devModeRestore: () => ipcRenderer.invoke('dev-mode:restore'),
     saveData: (data, skipSync, token) => ipcRenderer.invoke('save-data', data, skipSync, token),
     getCloudChanges: () => ipcRenderer.invoke('get-cloud-changes'),
     getSyncConflicts: () => ipcRenderer.invoke('get-sync-conflicts'),

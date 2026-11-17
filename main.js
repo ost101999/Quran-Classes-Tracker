@@ -13,6 +13,7 @@ const { readMatches } = require('./shortcut-links');
 const { readTargets } = require('./whatsapp-integration');
 const { createCalendarSchedules } = require('./calendar-schedules');
 const { registerAppUpdates } = require('./app-update');
+const { registerDevMode } = require('./dev-mode');
 const getCalendarSchedules = createCalendarSchedules();
 ipcMain.handle('get-calendar-schedules', (_event, students, force, review, dayTransitionTime) => getCalendarSchedules(students, { force: force === true, review: review === true, dayTransitionTime }));
 const chromeTabBridge = createChromeTabBridge({ onFocus: focusChromeWindow });
@@ -381,6 +382,7 @@ function registerLocalFileProtocol() {
 
 app.whenReady().then(() => {
     registerAppUpdates({ app, ipcMain, shell, dialog, getMainWindow: () => mainWindow });
+    registerDevMode({ app, ipcMain, dialog, getMainWindow: () => mainWindow });
     chromeTabBridge.start();
     registerLocalFileProtocol();
     createWindow();

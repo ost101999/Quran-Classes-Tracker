@@ -93,6 +93,7 @@ import CalendarReviewModal from './components/CalendarReviewModal';
 import StudentDetailsModal from './components/StudentDetailsModal';
 import ConfirmModal from './components/ConfirmModal';
 import UpdateBanner from './components/UpdateBanner';
+import DevModeButton from './components/DevModeButton';
 import AcademyDetailsModal from './components/AcademyDetailsModal';
 import AcademyEditModal from './components/AcademyEditModal';
 import SettingsModal from './components/SettingsModal';
@@ -6865,6 +6866,7 @@ function App() {
             </button>
           </div>
           <UpdateBanner />
+          <DevModeButton />
         </div>
 
         <div className="flex-1 flex justify-start px-12" dir="rtl">
