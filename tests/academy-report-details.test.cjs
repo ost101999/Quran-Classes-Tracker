@@ -15,9 +15,9 @@ const render = (records, options = {}, today = '2026-11-16') => getDetailedRepor
 test('lists recorded attendance and labels paid absences, without forecasting by default', () => {
   const result = render({ s_1_10_2026: S.DOUBLE_CLASS, s_2_10_2026: S.PAID_ABSENCE, s_8_10_2026: S.ABSENCE_RED });
   const text = result.lines.join('\n');
-  assert.match(text, /Active days/);
-  assert.match(text, /Sunday 1 November/);
-  assert.match(text, /\(Absent\) Monday 2 November/);
+  assert.match(text, /Completed/);
+  assert.match(text, /Sunday, 1 November \(x2\)/);
+  assert.match(text, /Absent \(Counted\):\*\n• Monday, 2 November/);
   assert.doesNotMatch(text, /2026/);
   assert.doesNotMatch(text, /Missing|coming|8 November/);
   assert.equal(result.extraSessions, 0);
@@ -54,12 +54,12 @@ test('Hazem separates all expected sessions from counted sessions', () => {
 test('projects only future unrecorded scheduled sessions, respecting double days, holidays and billing cutoff', () => {
   const result = render({ s_22_10_2026: S.EXEMPT }, { autoCompleteReport: true, billingStartDay: 25 });
   const text = result.lines.join('\n');
-  assert.match(text, /Active days coming/);
+  assert.match(text, /Upcoming/);
   assert.match(text, /23 November/);
   assert.doesNotMatch(text, /22 November|29 November|16 November/);
   assert.equal(result.extraSessions, 1);
   const holidays = render({}, { autoCompleteReport: true, billingStartDay: 25, holidays: [1] });
-  assert.match(holidays.lines.join('\n'), /22 November/);
+  assert.match(holidays.lines.join('\n'), /22 November \(x2\)/);
   assert.doesNotMatch(holidays.lines.join('\n'), /23 November 2026/);
   assert.equal(holidays.extraSessions, 2);
 });
@@ -68,7 +68,7 @@ test('uses the billing period across a year boundary and preserves transferred a
   const result = getDetailedReportDays(student, { s_24_11_2025: S.PRESENT, s_25_11_2025: S.PRESENT, s_4_0_2026: S.TRANSFERRED_ABSENT, s_25_0_2026: S.PRESENT }, 0, 2026, true, { billingStartDay: 25 }, '2026-02-01');
   const text = result.lines.join('\n');
   assert.match(text, /25 December/);
-  assert.match(text, /\(Absent\) Sunday 4 January/);
+  assert.match(text, /Sunday, 4 January/);
   assert.doesNotMatch(text, /24 December|25 January/);
 });
 

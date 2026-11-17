@@ -297,11 +297,12 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
         const currentMonthName = dateForMonthName.toLocaleDateString(isEnglish ? 'en-US' : 'ar-SA', { month: 'long', year: 'numeric' });
         const lines: string[] = [];
         const hazemDetailed = !!academyRate?.hazemSystem && !!attendanceDetail;
+        const detailedReport = !!attendanceDetail;
 
         // Header
-        if (hazemDetailed) {
+        if (detailedReport) {
             lines.push(isEnglish ? '📋 *Monthly Class Report*' : '📋 *تقرير الحصص الشهري*');
-            lines.push(`👤 *${academyName.trim()}*`);
+            lines.push(`${hazemDetailed ? '👤' : '🏫'} *${academyName.trim()}*`);
             lines.push(`🗓️ *${currentMonthName}*`);
         } else if (isEnglish) {
             lines.push(`*${academyName.trim()}*`);
@@ -311,13 +312,14 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
             lines.push(`🗓️ ${currentMonthName}`);
         }
         lines.push('');
-        if (hazemDetailed) lines.push('━━━━━━━━━━━━━━', '');
+        if (detailedReport) lines.push('━━━━━━━━━━━━━━', '');
 
         // Students Breakdown
         const academyStudents = activeStudents;
 
         let reportExtraClasses = 0;
         let reportExtraHours = 0;
+        let reportedStudents = 0;
         const reportExtraIncome: Record<string, number> = {};
         academyStudents.forEach(student => {
             const base = getStudentStatsForAcademy(student);
@@ -335,28 +337,31 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
 
             // Only add if they have stats
             if (expectedClasses > 0) {
+                reportedStudents++;
                 if (isEnglish) {
                     lines.push(`🔹 *${student.name.trim()}*`);
-                    lines.push(hazemDetailed ? `⏱️ ${formattedHours} Hours | 📚 ${expectedClasses} Sessions` : `   ${formattedHours} Hours  |  ${expectedClasses} Sessions`);
+                    lines.push(detailedReport ? `⏱️ ${formattedHours} ${expectedHours === 1 ? 'Hour' : 'Hours'} | 📚 ${expectedClasses} ${hazemDetailed ? (expectedClasses === 1 ? 'Session' : 'Sessions') : (expectedClasses === 1 ? 'Counted Session' : 'Counted Sessions')}` : `   ${formattedHours} Hours  |  ${expectedClasses} Sessions`);
                 } else {
                     lines.push(`🔹 *${student.name.trim()}*`);
-                    lines.push(`   ${toHindiDigits(formattedHours)} ${getHoursPlural(expectedHours)}  |  ${toHindiDigits(expectedClasses)} ${getSessionsPlural(expectedClasses)}`);
+                    lines.push(detailedReport ? `⏱️ ${toHindiDigits(formattedHours)} ${getHoursPlural(expectedHours)} | 📚 ${toHindiDigits(expectedClasses)} ${getSessionsPlural(expectedClasses)}${hazemDetailed ? '' : ' محسوبة'}` : `   ${toHindiDigits(formattedHours)} ${getHoursPlural(expectedHours)}  |  ${toHindiDigits(expectedClasses)} ${getSessionsPlural(expectedClasses)}`);
                 }
                 if (details) lines.push('', ...details.lines);
                 lines.push('');
-                if (hazemDetailed) lines.push('━━━━━━━━━━━━━━', '');
+                if (detailedReport) lines.push('━━━━━━━━━━━━━━', '');
             }
         });
 
-        if (!hazemDetailed) lines.push('──────────────');
+        if (!detailedReport) lines.push('──────────────');
 
         // Footer (Totals)
-        if (hazemDetailed && isEnglish) {
+        if (detailedReport && isEnglish) {
             lines.push('📊 *Monthly Total*', '');
+            if (!hazemDetailed) lines.push(`👥 Total Students: *${reportedStudents}*`);
             lines.push(`⏱️ Total Hours: *${fmtHours(stats.totalHours + reportExtraHours)}*`);
-            lines.push(`📚 Total Sessions: *${stats.totalClasses + reportExtraClasses}*`);
-        } else if (hazemDetailed) {
+            lines.push(`📚 Total ${hazemDetailed ? '' : 'Counted '}Sessions: *${stats.totalClasses + reportExtraClasses}*`);
+        } else if (detailedReport) {
             lines.push('📊 *الإجمالي الشهري*', '');
+            if (!hazemDetailed) lines.push(`👥 عدد الطلاب: *${toHindiDigits(reportedStudents)}*`);
             lines.push(`⏱️ إجمالي الساعات: *${toHindiDigits(fmtHours(stats.totalHours + reportExtraHours))}*`);
             lines.push(`📚 إجمالي الحصص: *${toHindiDigits(stats.totalClasses + reportExtraClasses)}*`);
         } else if (isEnglish) {

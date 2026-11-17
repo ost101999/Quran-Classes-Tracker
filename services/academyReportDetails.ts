@@ -5,9 +5,9 @@ type ReportOptions = { billingStartDay?: number; autoCompleteReport?: boolean; h
 const toHindiDigits = (num: number): string => String(num).replace(/\d/g, d => '٠١٢٣٤٥٦٧٨٩'[Number(d)]);
 
 export function getDetailedReportDays(student: Student, attendance: AttendanceRecord, month: number, year: number, isEnglish: boolean, academyRate: ReportOptions = {}, today = cairoDate()) {
-        const active: { date: Date; absent: boolean }[] = [];
+        const active: { date: Date; absent: boolean; sessions: number }[] = [];
         const missing: { date: Date; teacher: boolean; sessions: number }[] = [];
-        const coming: Date[] = [];
+        const coming: { date: Date; sessions: number }[] = [];
         let extraSessions = 0;
         let expectedExtraSessions = 0;
         let recordedSessions = 0;
@@ -34,22 +34,32 @@ export function getDetailedReportDays(student: Student, attendance: AttendanceRe
                     if (!eligibleScheduled && (status === AttendanceStatus.ABSENCE_RED || status === AttendanceStatus.UNEXCUSED_ABSENCE)) expectedExtraSessions++;
                 }
                 if ([AttendanceStatus.PRESENT, AttendanceStatus.DOUBLE_CLASS, AttendanceStatus.TRANSFERRED, AttendanceStatus.PAID_ABSENCE, AttendanceStatus.PAID_ABSENCE_DOUBLE, AttendanceStatus.TRANSFERRED_ABSENT].includes(status)) {
-                    active.push({ date, absent: status === AttendanceStatus.PAID_ABSENCE || status === AttendanceStatus.PAID_ABSENCE_DOUBLE || status === AttendanceStatus.TRANSFERRED_ABSENT });
+                    active.push({ date, absent: status === AttendanceStatus.PAID_ABSENCE || status === AttendanceStatus.PAID_ABSENCE_DOUBLE || status === AttendanceStatus.TRANSFERRED_ABSENT, sessions: recorded });
                 } else if (status === AttendanceStatus.ABSENCE_RED || status === AttendanceStatus.UNEXCUSED_ABSENCE) {
                     if (academyRate?.hazemSystem) {
                         missing.push({ date, teacher: status === AttendanceStatus.UNEXCUSED_ABSENCE, sessions: Math.max(1, scheduled) });
                     }
                 } else if (!status && academyRate?.autoCompleteReport && dateKey > today && eligibleScheduled > 0) {
-                    coming.push(date);
+                    coming.push({ date, sessions: scheduled });
                     extraSessions += eligibleScheduled;
                 }
             }
         }
-        const dateText = (date: Date) => academyRate.hazemSystem && isEnglish
+        const dateText = (date: Date) => isEnglish
             ? `${date.toLocaleDateString('en-GB', { weekday: 'long' })}, ${date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })}`
             : date.toLocaleDateString(isEnglish ? 'en-GB' : 'ar-EG', { weekday: 'long', day: 'numeric', month: 'long' });
         const count = isEnglish ? String(recordedSessions + extraSessions) : toHindiDigits(recordedSessions + extraSessions);
-        const lines = [`   ${academyRate?.hazemSystem ? '- ' : '🟢 '}*${academyRate?.hazemSystem ? (isEnglish ? `Counted sessions (${count})` : `الحصص المحسوبة (${count})`) : (isEnglish ? 'Active days' : 'الأيام النشطة')}:*`];
+        const lines = academyRate.hazemSystem ? [`   - *${isEnglish ? `Counted sessions (${count})` : `الحصص المحسوبة (${count})`}:*`] : [];
+        if (!academyRate.hazemSystem) {
+            const appendGroup = (label: string, entries: { date: Date; sessions: number }[]) => {
+                if (!entries.length) return;
+                lines.push('', label, ...entries.map(item => `• ${dateText(item.date)}${item.sessions === 2 ? ' (x2)' : ''}`));
+            };
+            appendGroup(isEnglish ? '✅ *Completed:*' : '✅ *الحصص المكتملة:*', active.filter(item => !item.absent));
+            appendGroup(isEnglish ? '⚠️ *Absent (Counted):*' : '⚠️ *الغياب (محسوب):*', active.filter(item => item.absent));
+            appendGroup(isEnglish ? '📅 *Upcoming:*' : '📅 *الحصص القادمة:*', coming);
+            return { lines, extraSessions, expectedExtraSessions };
+        }
         if (academyRate.hazemSystem) {
             const missingCount = missing.reduce((total, item) => total + item.sessions, 0);
             lines.push(isEnglish ? `   - *Not Counted (${missingCount})*` : `   - *غير محسوب (${toHindiDigits(missingCount)})*`);
@@ -60,25 +70,12 @@ export function getDetailedReportDays(student: Student, attendance: AttendanceRe
             };
             appendGroup(isEnglish ? '✅ *Completed:*' : '✅ *الحصص المكتملة:*', active.filter(item => !item.absent).map(item => item.date));
             appendGroup(isEnglish ? '⚠️ *Absent (Counted):*' : '⚠️ *الغياب (محسوب):*', active.filter(item => item.absent).map(item => item.date));
-            appendGroup(isEnglish ? '📅 *Upcoming:*' : '📅 *الحصص القادمة:*', coming);
+            appendGroup(isEnglish ? '📅 *Upcoming:*' : '📅 *الحصص القادمة:*', coming.map(item => item.date));
             if (missing.length) {
                 lines.push('', isEnglish ? '❌ *Apology (Not Counted):*' : '❌ *اعتذار (غير محسوب):*');
                 lines.push(...missing.map(item => `• ${dateText(item.date)} - ${isEnglish ? (item.teacher ? 'Teacher' : 'Student') : (item.teacher ? 'المعلم' : 'الطالب')}`));
             }
             return { lines, extraSessions, expectedExtraSessions };
-        }
-        lines.push(...(active.length ? active.map(item => `   • ${item.absent ? (isEnglish ? '(Absent) ' : '(غياب) ') : ''}${dateText(item.date)}`) : [isEnglish ? '   None' : '   لا يوجد']));
-        if (coming.length && academyRate.hazemSystem) {
-            if (!active.length) lines.pop();
-            lines.push(...coming.map(date => `   • (${isEnglish ? 'Coming' : 'قادمة'}) ${dateText(date)}`));
-        }
-        if (missing.length) {
-            lines.push('', `   *${isEnglish ? 'Missing' : 'الحصص الفائتة'}:*`);
-            lines.push(...missing.map(item => `   • (${isEnglish ? (item.teacher ? 'Teacher apology' : 'Student apology') : (item.teacher ? 'اعتذار المعلم' : 'اعتذار الطالب')}) ${dateText(item.date)}`));
-        }
-        if (coming.length && !academyRate.hazemSystem) {
-            lines.push('', `   🔵 *${isEnglish ? 'Active days coming' : 'الأيام القادمة المتوقعة'}:*`);
-            lines.push(...coming.map(date => `   • ${dateText(date)}`));
         }
         return { lines, extraSessions, expectedExtraSessions };
 }
