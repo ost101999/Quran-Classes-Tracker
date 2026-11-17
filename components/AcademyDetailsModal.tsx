@@ -69,6 +69,7 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
     const { month, year, changeMonth } = useReportMonth(initialMonth, initialYear, true);
     const reportRef = useRef<HTMLDivElement>(null);
     const [isCopying, setIsCopying] = useState(false);
+    const [copySucceeded, setCopySucceeded] = useState(false);
     const [includePricing, setIncludePricing] = useState(true);
     const [includeBreakdown, setIncludeBreakdown] = useState(false);
     const [showCopyMenu, setShowCopyMenu] = useState(false);
@@ -321,7 +322,8 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
                         new ClipboardItem({ 'image/png': blob })
                     ]);
                     saveCopyPreference({ type: 'image', pricing: withPricing, breakdown: withBreakdown, language });
-                    setTimeout(() => setIsCopying(false), 2000);
+                    setCopySucceeded(true);
+                    setTimeout(() => { setIsCopying(false); setCopySucceeded(false); }, 2000);
                 } else setIsCopying(false);
             } catch (err) {
                 console.error('Failed to copy report:', err);
@@ -423,7 +425,8 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
             await navigator.clipboard.writeText(lines.join('\n'));
             saveCopyPreference({ type: 'text', pricing: withPricing, paypal: withPaypal, detail: !!attendanceDetail, language });
             setIsCopying(true);
-            setTimeout(() => setIsCopying(false), 2000);
+            setCopySucceeded(true);
+            setTimeout(() => { setIsCopying(false); setCopySucceeded(false); }, 2000);
             setShowCopyMenu(false);
         } catch (err) {
             console.error('Failed to copy text:', err);
@@ -700,22 +703,35 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
                             onPointerDown={(e) => {
                                 if (e.button !== 0) return;
                                 longCopyPress.current = false;
-                                copyPressTimer.current = setTimeout(() => { longCopyPress.current = true; setCopyShake(value => value + 1); }, 600);
+                                copyPressTimer.current = setTimeout(() => {
+                                    longCopyPress.current = true;
+                                    try {
+                                        if (!localStorage.getItem(copyPreferenceKey)) {
+                                            setCopyShake(value => value + 1);
+                                        } else {
+                                            repeatLastCopy();
+                                        }
+                                    } catch { setCopyShake(value => value + 1); }
+                                }, 600);
                             }}
                             onPointerUp={() => {
                                 if (copyPressTimer.current) clearTimeout(copyPressTimer.current);
                                 copyPressTimer.current = null;
-                                if (longCopyPress.current) repeatLastCopy();
+                                if (longCopyPress.current) {
+                                    try {
+                                        if (!localStorage.getItem(copyPreferenceKey)) repeatLastCopy();
+                                    } catch { repeatLastCopy(); }
+                                }
                             }}
                             onPointerLeave={() => { if (copyPressTimer.current) clearTimeout(copyPressTimer.current); copyPressTimer.current = null; longCopyPress.current = false; }}
                             onPointerCancel={() => { if (copyPressTimer.current) clearTimeout(copyPressTimer.current); copyPressTimer.current = null; longCopyPress.current = false; }}
                             onContextMenu={(e) => e.preventDefault()}
                             onClick={() => { if (longCopyPress.current) { longCopyPress.current = false; return; } setNoSavedCopy(false); setShowCopyMenu(!showCopyMenu); setTextSelectMode(false); setImageSelectMode(false); setPaypalSelectMode(false); setAttendanceDetail(null); }}
-                            className={`p-2 rounded-full transition-all duration-300 ${isCopying ? 'bg-emerald-50 text-emerald-500 scale-110' : 'hover:bg-blue-50 text-blue-600 hover:scale-110 active:scale-95'
+                            className={`p-2 rounded-full transition-all duration-300 ${copySucceeded ? 'bg-emerald-50 text-emerald-500 scale-110' : 'hover:bg-blue-50 text-blue-600 hover:scale-110 active:scale-95'
                                 }`}
                             title={isEnglish ? 'Copy Academy Report' : 'نسخ تقرير الأكاديمية'}
                         >
-                            <span key={copyShake} className={copyShake ? 'academy-copy-shake block' : 'block'}>{isCopying ? <Check size={24} strokeWidth={3} /> : <Copy size={24} strokeWidth={2.5} />}</span>
+                            <span key={copyShake} className={copyShake ? 'academy-copy-shake block' : 'block'}>{copySucceeded ? <Check size={24} strokeWidth={3} /> : <Copy size={24} strokeWidth={2.5} />}</span>
                         </button>
 
                         {noSavedCopy && (
