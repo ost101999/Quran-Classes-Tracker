@@ -73,6 +73,17 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
     const [includeBreakdown, setIncludeBreakdown] = useState(false);
     const [showCopyMenu, setShowCopyMenu] = useState(false);
     const [showAdjustments, setShowAdjustments] = useState(false);
+    const [showProjection, setShowProjection] = useState(false);
+    const projectionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    useEffect(() => () => { if (projectionTimer.current) clearTimeout(projectionTimer.current); }, []);
+    const startProjection = () => {
+        projectionTimer.current = setTimeout(() => setShowProjection(true), 500);
+    };
+    const stopProjection = () => {
+        if (projectionTimer.current) clearTimeout(projectionTimer.current);
+        projectionTimer.current = null;
+        setShowProjection(false);
+    };
     const [textSelectMode, setTextSelectMode] = useState(false);
     const [attendanceDetail, setAttendanceDetail] = useState<boolean | null>(null);
     const [imageSelectMode, setImageSelectMode] = useState(false);
@@ -218,6 +229,17 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
 
     const stats = getAcademyStats();
     const currencies = Object.keys(stats.incomeByCurrency);
+    const displayStats = { ...stats, incomeByCurrency: { ...stats.incomeByCurrency } };
+    if (showProjection) {
+        activeStudents.forEach(student => {
+            const extra = getDetailedReportDays(student, attendance, month, year, isEnglish, { ...academyRate, autoCompleteReport: true }).extraSessions;
+            const { durationVal } = getStudentStatsForAcademy(student);
+            displayStats.totalClasses += extra;
+            displayStats.totalHours += extra * durationVal;
+            const currency = student.location || 'جنيه';
+            displayStats.incomeByCurrency[currency] = (displayStats.incomeByCurrency[currency] || 0) + extra * (student.paymentBasis === 'بالساعة' || student.duration === 'خليط' ? durationVal : 1) * student.rate;
+        });
+    }
 
     const [confirmDelete, setConfirmDelete] = useState(false);
     const monthKey = `${month}_${year}`;
@@ -883,23 +905,23 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
                     {/* Stats Cards */}
                     < div className="grid grid-cols-2 gap-4" >
                         {/* Total Hours */}
-                        < div className="bg-amber-50/50 p-4 rounded-2xl border border-amber-100 text-center space-y-1" >
+                        < div onMouseEnter={startProjection} onMouseLeave={stopProjection} className="bg-amber-50/50 p-4 rounded-2xl border border-amber-100 text-center space-y-1" >
                             <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto mb-3">
                                 <Clock size={24} />
                             </div>
-                            <div className="text-4xl font-bold text-gray-800 font-amiri">
-                                {toHindiDigits(fmtHours(stats.totalHours))}
+                            <div key={String(showProjection)} className="monthly-stats-overlay text-4xl font-bold text-gray-800 font-amiri">
+                                {toHindiDigits(fmtHours(displayStats.totalHours))}
                             </div>
                             <div className="text-lg text-gray-500 font-medium font-amiri">عدد الساعات</div>
                         </div >
 
                         {/* Total Classes */}
-                        < div className="bg-blue-50/50 p-4 rounded-2xl border border-blue-100 text-center space-y-1" >
+                        < div onMouseEnter={startProjection} onMouseLeave={stopProjection} className="bg-blue-50/50 p-4 rounded-2xl border border-blue-100 text-center space-y-1" >
                             <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-3">
                                 <Calendar size={24} />
                             </div>
-                            <div className="text-4xl font-bold text-gray-800 font-amiri flex items-center justify-center gap-2">
-                                {toHindiDigits(stats.totalClasses)}
+                            <div key={String(showProjection)} className="monthly-stats-overlay text-4xl font-bold text-gray-800 font-amiri flex items-center justify-center gap-2">
+                                {toHindiDigits(displayStats.totalClasses)}
                                 {stats.totalTransferred > 0 && (
                                     <span className="text-sm text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100 font-normal self-center" title="حصص مرحلة من الشهر السابق">
                                         +{toHindiDigits(stats.totalTransferred)} ↩
@@ -909,6 +931,8 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
                             <div className="text-lg text-gray-500 font-medium font-amiri">عدد الحصص</div>
                         </div >
                     </div >
+
+                    {showProjection && <div className="monthly-stats-overlay text-center text-sm text-gray-500 font-arabic">بافتراض إكمال الحصص القادمة</div>}
 
                     {/* Income Section */}
                     < div className="bg-gray-50 rounded-2xl p-5 space-y-3" >
@@ -920,8 +944,8 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
                                         <div className="text-gray-600 font-bold text-xl">
                                             إجمالي المستحق
                                         </div>
-                                        <div className="text-2xl font-bold text-[#d4af37] font-amiri">
-                                            {toHindiDigits(stats.incomeByCurrency[curr].toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 }))} {curr}
+                                        <div key={String(showProjection)} className="monthly-stats-overlay text-2xl font-bold text-[#d4af37] font-amiri">
+                                            {toHindiDigits(displayStats.incomeByCurrency[curr].toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 }))} {curr}
                                         </div>
                                     </div>
 
@@ -929,8 +953,8 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
                                     {curr === 'دولار' && usdRate > 0 && (
                                         <div className="text-center space-y-3 pt-2">
                                             <div className="inline-flex items-center gap-2 px-6 py-3 bg-green-50 rounded-xl">
-                                                <span className="text-2xl font-bold text-green-600">
-                                                    {toHindiDigits((stats.incomeByCurrency[curr] * usdRate).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 }))} جنيه
+                                                <span key={String(showProjection)} className="monthly-stats-overlay text-2xl font-bold text-green-600">
+                                                    {toHindiDigits((displayStats.incomeByCurrency[curr] * usdRate).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 }))} جنيه
                                                 </span>
                                             </div>
                                         </div>
