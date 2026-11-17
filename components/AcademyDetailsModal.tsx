@@ -300,17 +300,9 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
         const detailedReport = !!attendanceDetail;
 
         // Header
-        if (detailedReport) {
-            lines.push(isEnglish ? '📋 *Monthly Class Report*' : '📋 *تقرير الحصص الشهري*');
-            lines.push(`${hazemDetailed ? '👤' : '🏫'} *${academyName.trim()}*`);
-            lines.push(`🗓️ *${currentMonthName}*`);
-        } else if (isEnglish) {
-            lines.push(`*${academyName.trim()}*`);
-            lines.push(`🗓️ ${currentMonthName}`);
-        } else {
-            lines.push(`*${academyName.trim()}*`);
-            lines.push(`🗓️ ${currentMonthName}`);
-        }
+        lines.push(isEnglish ? '📋 *Monthly Class Report*' : '📋 *تقرير الحصص الشهري*');
+        lines.push(`${hazemDetailed ? '👤' : '🏫'} *${academyName.trim()}*`);
+        lines.push(`🗓️ *${currentMonthName}*`);
         lines.push('');
         if (detailedReport) lines.push('━━━━━━━━━━━━━━', '');
 
@@ -354,24 +346,16 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
         if (!detailedReport) lines.push('──────────────');
 
         // Footer (Totals)
-        if (detailedReport && isEnglish) {
+        if (isEnglish) {
             lines.push('📊 *Monthly Total*', '');
             if (!hazemDetailed) lines.push(`👥 Total Students: *${reportedStudents}*`);
             lines.push(`⏱️ Total Hours: *${fmtHours(stats.totalHours + reportExtraHours)}*`);
             lines.push(`📚 Total Sessions: *${stats.totalClasses + reportExtraClasses}*`);
-        } else if (detailedReport) {
+        } else {
             lines.push('📊 *الإجمالي الشهري*', '');
             if (!hazemDetailed) lines.push(`👥 عدد الطلاب: *${toHindiDigits(reportedStudents)}*`);
             lines.push(`⏱️ إجمالي الساعات: *${toHindiDigits(fmtHours(stats.totalHours + reportExtraHours))}*`);
             lines.push(`📚 إجمالي الحصص: *${toHindiDigits(stats.totalClasses + reportExtraClasses)}*`);
-        } else if (isEnglish) {
-            lines.push(`*Total:*`);
-            lines.push(`⏱️ ${fmtHours(stats.totalHours + reportExtraHours)} Hours`);
-            lines.push(`📚 ${stats.totalClasses + reportExtraClasses} Sessions`);
-        } else {
-            lines.push(`*الإجمالي:*`);
-            lines.push(`⏱️ ${toHindiDigits(fmtHours(stats.totalHours + reportExtraHours))} ${getHoursPlural(stats.totalHours + reportExtraHours)}`);
-            lines.push(`📚 ${toHindiDigits(stats.totalClasses + reportExtraClasses)} ${getSessionsPlural(stats.totalClasses + reportExtraClasses)}`);
         }
 
         if (withPricing) {
