@@ -340,7 +340,7 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
                 reportedStudents++;
                 if (isEnglish) {
                     lines.push(`🔹 *${student.name.trim()}*`);
-                    lines.push(detailedReport ? `⏱️ ${formattedHours} ${expectedHours === 1 ? 'Hour' : 'Hours'} | 📚 ${expectedClasses} ${hazemDetailed ? (expectedClasses === 1 ? 'Session' : 'Sessions') : (expectedClasses === 1 ? 'Counted Session' : 'Counted Sessions')}` : `   ${formattedHours} Hours  |  ${expectedClasses} Sessions`);
+                    lines.push(detailedReport ? `⏱️ ${formattedHours} ${expectedHours === 1 ? 'Hour' : 'Hours'} | 📚 ${expectedClasses} ${expectedClasses === 1 ? 'Session' : 'Sessions'}` : `   ${formattedHours} Hours  |  ${expectedClasses} Sessions`);
                 } else {
                     lines.push(`🔹 *${student.name.trim()}*`);
                     lines.push(detailedReport ? `⏱️ ${toHindiDigits(formattedHours)} ${getHoursPlural(expectedHours)} | 📚 ${toHindiDigits(expectedClasses)} ${getSessionsPlural(expectedClasses)}${hazemDetailed ? '' : ' محسوبة'}` : `   ${toHindiDigits(formattedHours)} ${getHoursPlural(expectedHours)}  |  ${toHindiDigits(expectedClasses)} ${getSessionsPlural(expectedClasses)}`);
@@ -358,7 +358,7 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
             lines.push('📊 *Monthly Total*', '');
             if (!hazemDetailed) lines.push(`👥 Total Students: *${reportedStudents}*`);
             lines.push(`⏱️ Total Hours: *${fmtHours(stats.totalHours + reportExtraHours)}*`);
-            lines.push(`📚 Total ${hazemDetailed ? '' : 'Counted '}Sessions: *${stats.totalClasses + reportExtraClasses}*`);
+            lines.push(`📚 Total Sessions: *${stats.totalClasses + reportExtraClasses}*`);
         } else if (detailedReport) {
             lines.push('📊 *الإجمالي الشهري*', '');
             if (!hazemDetailed) lines.push(`👥 عدد الطلاب: *${toHindiDigits(reportedStudents)}*`);
