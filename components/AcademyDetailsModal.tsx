@@ -130,7 +130,7 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
                 if (billingStartDay > 1 && dayNum >= billingStartDay) {
                     return; // Skip: transferred/deferred to next month
                 }
-                const sessionVal = getStatusSessionValue(status, student, dayNum, month, year);
+                const sessionVal = getStatusSessionValue(status as AttendanceStatus | undefined, student, dayNum, month, year);
                 studentClasses += sessionVal;
             }
         });

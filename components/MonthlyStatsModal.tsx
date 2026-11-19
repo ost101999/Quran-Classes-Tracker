@@ -135,12 +135,6 @@ const MonthlyStatsModal: React.FC<Props> = ({ students, attendance, month, year,
         setObligations(formatted);
     };
 
-    const handlePreviousBalanceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const value = e.target.value;
-        const formatted = formatNumberInput(value);
-        setPreviousBalance(formatted);
-    };
-
     const getObligationsValue = () => {
         if (!obligations) return 0;
         return Number(obligations.replace(/,/g, ''));
