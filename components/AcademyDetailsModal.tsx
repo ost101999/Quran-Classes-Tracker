@@ -975,22 +975,22 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
                     {/* Stats Cards */}
                     < div className="grid grid-cols-2 gap-4" >
                         {/* Total Hours */}
-                        < div onMouseEnter={startProjection} onMouseLeave={stopProjection} className="bg-amber-50/50 p-4 rounded-2xl border border-amber-100 text-center space-y-1" >
-                            <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto mb-3">
+                        < div onMouseEnter={startProjection} onMouseLeave={stopProjection} className={`p-4 rounded-2xl border text-center space-y-1 transition-colors duration-200 ${showProjection ? 'bg-emerald-50/70 border-emerald-200' : 'bg-amber-50/50 border-amber-100'}`} >
+                            <div className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3 transition-colors duration-200 ${showProjection ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
                                 <Clock size={24} />
                             </div>
-                            <div key={String(showProjection)} className="monthly-stats-overlay text-4xl font-bold text-gray-800 font-amiri">
+                            <div key={String(showProjection)} className={`monthly-stats-overlay text-4xl font-bold font-amiri ${showProjection ? 'text-emerald-700' : 'text-gray-800'}`}>
                                 {toHindiDigits(fmtHours(displayStats.totalHours))}
                             </div>
                             <div className="text-lg text-gray-500 font-medium font-amiri">عدد الساعات</div>
                         </div >
 
                         {/* Total Classes */}
-                        < div onMouseEnter={startProjection} onMouseLeave={stopProjection} className="bg-blue-50/50 p-4 rounded-2xl border border-blue-100 text-center space-y-1" >
-                            <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-3">
+                        < div onMouseEnter={startProjection} onMouseLeave={stopProjection} className={`p-4 rounded-2xl border text-center space-y-1 transition-colors duration-200 ${showProjection ? 'bg-emerald-50/70 border-emerald-200' : 'bg-blue-50/50 border-blue-100'}`} >
+                            <div className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3 transition-colors duration-200 ${showProjection ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-100 text-blue-600'}`}>
                                 <Calendar size={24} />
                             </div>
-                            <div key={String(showProjection)} className="monthly-stats-overlay text-4xl font-bold text-gray-800 font-amiri flex items-center justify-center gap-2">
+                            <div key={String(showProjection)} className={`monthly-stats-overlay text-4xl font-bold font-amiri flex items-center justify-center gap-2 ${showProjection ? 'text-emerald-700' : 'text-gray-800'}`}>
                                 {toHindiDigits(displayStats.totalClasses)}
                                 {stats.totalTransferred > 0 && (
                                     <span className="text-sm text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100 font-normal self-center" title="حصص مرحلة من الشهر السابق">
@@ -1002,10 +1002,8 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
                         </div >
                     </div >
 
-                    {showProjection && <div className="monthly-stats-overlay text-center text-sm text-gray-500 font-arabic">بافتراض إكمال الحصص القادمة</div>}
-
                     {/* Income Section */}
-                    < div className="bg-gray-50 rounded-2xl p-5 space-y-3" >
+                    < div className={`rounded-2xl border p-5 space-y-3 transition-colors duration-200 ${showProjection ? 'bg-emerald-50/60 border-emerald-200' : 'bg-gray-50 border-transparent'}`} >
                         {
                             currencies.length > 0 ? currencies.map(curr => (
                                 <div key={curr} className="space-y-4">
@@ -1014,7 +1012,7 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
                                         <div className="text-gray-600 font-bold text-xl">
                                             إجمالي المستحق
                                         </div>
-                                        <div key={String(showProjection)} className="monthly-stats-overlay text-2xl font-bold text-[#d4af37] font-amiri">
+                                        <div key={String(showProjection)} className={`monthly-stats-overlay text-2xl font-bold font-amiri ${showProjection ? 'text-emerald-600' : 'text-[#d4af37]'}`}>
                                             {toHindiDigits(displayStats.incomeByCurrency[curr].toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 }))} {curr}
                                         </div>
                                     </div>
@@ -1022,8 +1020,8 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
                                     {/* Egyptian Equivalent (for USD) */}
                                     {curr === 'دولار' && usdRate > 0 && (
                                         <div className="text-center space-y-3 pt-2">
-                                            <div className="inline-flex items-center gap-2 px-6 py-3 bg-green-50 rounded-xl">
-                                                <span key={String(showProjection)} className="monthly-stats-overlay text-2xl font-bold text-green-600">
+                                            <div className={`inline-flex items-center gap-2 px-6 py-3 rounded-xl transition-colors duration-200 ${showProjection ? 'bg-emerald-100/80' : 'bg-green-50'}`}>
+                                                <span key={String(showProjection)} className={`monthly-stats-overlay text-2xl font-bold ${showProjection ? 'text-emerald-700' : 'text-green-600'}`}>
                                                     {toHindiDigits((displayStats.incomeByCurrency[curr] * usdRate).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 }))} جنيه
                                                 </span>
                                             </div>
