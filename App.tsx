@@ -5007,7 +5007,15 @@ function App() {
     academyOrder.forEach(a => groups[a] = []);
 
     students.forEach(student => {
-      // Filter based on enrollment end date
+      // Filter based on enrollment start/end dates
+      if (student.startedAt) {
+        if (year < student.startedAt.year || (year === student.startedAt.year && month < student.startedAt.month)) {
+          const prefix = `${student.id}_`;
+          const suffix = `_${month}_${year}`;
+          const hasMonthActivity = Object.keys(attendance).some(k => k.startsWith(prefix) && k.endsWith(suffix) && !!attendance[k]);
+          if (!hasMonthActivity) return;
+        }
+      }
       if (student.deletedAt) {
         if (year > student.deletedAt.year) return;
         if (year === student.deletedAt.year && month >= student.deletedAt.month) return;
@@ -5027,7 +5035,7 @@ function App() {
     });
 
     return groups;
-  }, [students, academyOrder, month, year]);
+  }, [students, academyOrder, month, year, attendance]);
 
   // Sync academyOrder with actual existing academies
   useEffect(() => {
@@ -5994,13 +6002,16 @@ function App() {
   const handleAddStudent = (student: Student) => {
     const existingStudent = students.find(s => s.id === student.id);
     const oldDays = existingStudent?.days || [];
+    const savedStudent = existingStudent
+      ? student
+      : { ...student, startedAt: student.startedAt ?? { month, year } };
 
     setStudents(prev => {
-      const exists = prev.find(s => s.id === student.id);
+      const exists = prev.find(s => s.id === savedStudent.id);
       if (exists) {
-        return prev.map(s => s.id === student.id ? student : s);
+        return prev.map(s => s.id === savedStudent.id ? savedStudent : s);
       }
-      return [...prev, student];
+      return [...prev, savedStudent];
     });
 
     // Determine today for current-month logic
@@ -6266,6 +6277,8 @@ function App() {
   // Use the same eligibility rules for the counter and the filtered table.
   const isPendingClass = useCallback((student: Student, dayNum: number) => {
     if (academyRates[student.academy]?.isArchived) return false;
+    if (student.startedAt && (year < student.startedAt.year ||
+      (year === student.startedAt.year && month < student.startedAt.month))) return false;
     if (student.deletedAt && (year > student.deletedAt.year ||
       (year === student.deletedAt.year && month >= student.deletedAt.month))) return false;
 

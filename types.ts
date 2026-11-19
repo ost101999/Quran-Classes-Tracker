@@ -126,6 +126,7 @@ export interface Student {
   paymentBasis?: string;
   useAcademyRate?: boolean;
   externalLink?: string;
+  startedAt?: { month: number; year: number };
   deletedAt?: { month: number; year: number };
   hasSeparator?: boolean;
   hasTopSeparator?: boolean;

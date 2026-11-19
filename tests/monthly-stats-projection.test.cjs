@@ -161,3 +161,24 @@ test('applies hourly/mixed rates, USD conversion, receiveInEGP, and academy dedu
   assert.equal(stats.projectedTotalInEgp, 1750);
   assert.equal(stats.remainingProjectedInEgp, 875);
 });
+
+test('excludes zero-class students from monthly breakdown lists and respects startedAt month', () => {
+  const activeWithClasses = { id: 's1', name: 'Bilal', academy: 'خاص', rate: 20, location: 'دولار', days: [1] };
+  const addedLater = { id: 's2', name: 'Eesa', academy: 'خاص', rate: 20, location: 'دولار', days: [1], startedAt: { month: 10, year: 2026 } };
+  const zeroInOct = { id: 's3', name: 'Aziz', academy: 'خاص', rate: 20, location: 'دولار', days: [] };
+
+  const stats = calculateMonthlyStats({
+    students: [activeWithClasses, addedLater, zeroInOct],
+    attendance: { s1_5_9_2026: AttendanceStatus.PRESENT }, // Oct 2026 (month=9)
+    month: 9,
+    year: 2026,
+    usdRate: 50,
+    todayDate: '2026-10-01',
+  });
+
+  assert.deepEqual(JSON.parse(JSON.stringify(stats.usdStudents.map(s => s.name))), ['Bilal']);
+  assert.equal(stats.usdTotal, 20);
+  // Eesa has startedAt in Nov 2026, so he should not project into Oct 2026 either:
+  // Bilal has 4 Mondays in Oct 2026 (Oct 5, 12, 19, 26) -> 4 * $20 * 50 = 4000 EGP
+  assert.equal(stats.projectedTotalInEgp, 4000);
+});

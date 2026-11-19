@@ -48,6 +48,9 @@ const formatYmd = (d: number, m: number, y: number): string =>
 const isStudentDeletedInMonth = (student: Student, m: number, y: number): boolean =>
   !!student.deletedAt && (y > student.deletedAt.year || (y === student.deletedAt.year && m >= student.deletedAt.month));
 
+const isStudentBeforeStartInMonth = (student: Student, m: number, y: number): boolean =>
+  !!student.startedAt && (y < student.startedAt.year || (y === student.startedAt.year && m < student.startedAt.month));
+
 export const getStatusSessionValue = (
   status: AttendanceStatus | undefined,
   student: Student,
@@ -91,7 +94,7 @@ export const getProjectedSessionValue = (
     return getStatusSessionValue(status, student, d, m, y);
   }
   if (formatYmd(d, m, y) < todayStr) return 0;
-  if (academyInfo?.isArchived || isStudentDeletedInMonth(student, m, y)) return 0;
+  if (academyInfo?.isArchived || isStudentDeletedInMonth(student, m, y) || isStudentBeforeStartInMonth(student, m, y)) return 0;
   if (status === AttendanceStatus.EXTRA_DOUBLE) return 2;
 
   const holidays = academyInfo?.holidays || [];
@@ -301,7 +304,7 @@ export function calculateMonthlyStats({
     };
 
     if (!(isDeletedThisMonth && currentCycleClasses === 0 && deferredClasses === 0)) {
-      addIncome(actualTotals, studentAmount, true);
+      addIncome(actualTotals, studentAmount, currentCycleClasses > 0);
     }
     addIncome(projectedTotals, projectedAmount, false);
 
