@@ -1,6 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { X, TrendingUp, Calendar, DollarSign, Wallet, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Save } from 'lucide-react';
-import { Student, AttendanceRecord, AttendanceStatus } from '../types';
+import { Student, AttendanceRecord, MakeupLink } from '../types';
+import { calculateMonthlyStats } from '../services/monthlyStats';
 
 interface Props {
     students: Student[];
@@ -17,6 +18,8 @@ interface Props {
     paymentStatus?: Record<string, boolean>;
     onTogglePayment?: (studentId: string, month: number, year: number) => void;
     academyRates?: Record<string, any>;
+    makeupLinks?: MakeupLink[];
+    dayTransitionTime?: string;
     showPaymentToggles?: boolean;
     initiallyExpanded?: boolean;
 }
@@ -26,31 +29,15 @@ const toHindiDigits = (num: number | string): string => {
     return num.toString().replace(/\d/g, (d) => "٠١٢٣٤٥٦٧٨٩"[parseInt(d)]).replace('.', '٫');
 };
 
-// Helper to convert Hindi digits to Western
-const toWesternDigits = (str: string): string => {
-    if (!str) return '';
-    return str.replace(/[٠-٩]/g, (d) => "٠١٢٣٤٥٦٧٨٩".indexOf(d).toString());
-};
+const formatCurrencyNumber = (value: number): string =>
+    toHindiDigits(value.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 }));
 
-const getScheduledCountOnDate = (student: Student, d: number, m: number, y: number) => {
-    const dow = new Date(y, m, d).getDay();
-    const count = student.days?.filter(day => day === dow).length || 0;
-    if (count === 0) return 0;
-    const startDate = student.dayStartDates?.[dow];
-    if (!startDate) return count;
-    const currentStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-    return currentStr >= startDate ? count : 0;
-};
-
-const getStatusSessionValue = (status: AttendanceStatus | undefined, student: Student, d: number, m: number, y: number) => {
-    if (!status) return 0;
-    if (status === AttendanceStatus.DOUBLE_CLASS || status === AttendanceStatus.PAID_ABSENCE_DOUBLE) return 2;
-    if (status === AttendanceStatus.PAID_ABSENCE) {
-        const isDouble = getScheduledCountOnDate(student, d, m, y) === 2;
-        return isDouble ? 2 : 1;
-    }
-    if ([AttendanceStatus.PRESENT, AttendanceStatus.TRANSFERRED, AttendanceStatus.TRANSFERRED_ABSENT].includes(status)) return 1;
-    return 0;
+const formatClassesCountLabel = (count: number): string => {
+    const num = toHindiDigits(count);
+    if (count === 1) return 'حصة واحدة';
+    if (count === 2) return 'حصتان';
+    if (count >= 3 && count <= 10) return `${num} حصص`;
+    return `${num} حصة`;
 };
 
 const MONTHS = [
@@ -84,7 +71,7 @@ const IncomeDetails: React.FC<{ expanded: boolean; currency: 'egp' | 'usd'; chil
     );
 };
 
-const MonthlyStatsModal: React.FC<Props> = ({ students, attendance, month, year, currentMonth, currentYear, usdRate, onClose, onNavigateMonth, academyRates, initialObligations, onSaveObligations, paymentStatus, onTogglePayment, showPaymentToggles, initiallyExpanded = false }) => {
+const MonthlyStatsModal: React.FC<Props> = ({ students, attendance, month, year, currentMonth, currentYear, usdRate, onClose, onNavigateMonth, academyRates, makeupLinks, dayTransitionTime, initialObligations, onSaveObligations, paymentStatus, onTogglePayment, showPaymentToggles, initiallyExpanded = false }) => {
     const [showEgpDetails, setShowEgpDetails] = useState(initiallyExpanded);
     const [showUsdDetails, setShowUsdDetails] = useState(initiallyExpanded);
     const previousPeriod = useRef(year * 12 + month);
@@ -161,238 +148,17 @@ const MonthlyStatsModal: React.FC<Props> = ({ students, attendance, month, year,
 
     const isDirtyObligations = getObligationsValue() !== (initialObligations || 0);
 
-    const calculateStats = () => {
-        let egpTotal = 0;
-        let usdTotal = 0;
-        let deferredEgpTotal = 0;
-        let deferredUsdTotal = 0;
-
-        const egpStudents: { id: string; name: string; amount: number; academy: string; isAggregated?: boolean }[] = [];
-        const usdStudents: { id: string; name: string; amount: number; academy: string; isAggregated?: boolean }[] = [];
-
-        const egpAggregated: Record<string, number> = {};
-        const usdAggregated: Record<string, number> = {};
-
-        // Count classes per student for this month/year
-        const daysInMonth = new Date(year, month + 1, 0).getDate();
-
-        // Determine Previous Month
-        let prevMonth = month - 1;
-        let prevYear = year;
-        if (prevMonth < 0) {
-            prevMonth = 11;
-            prevYear = year - 1;
-        }
-        const daysInPrevMonth = new Date(prevYear, prevMonth + 1, 0).getDate();
-
-        students.forEach(student => {
-            const isDeletedThisMonth = student.deletedAt && (
-                year > student.deletedAt.year || 
-                (year === student.deletedAt.year && month >= student.deletedAt.month)
-            );
-
-            let currentCycleClasses = 0;
-            let deferredClasses = 0;
-
-            // Get billing start day or default to 1 (Normal month)
-            const billingStartDay = academyRates?.[student.academy]?.billingStartDay || 1;
-
-            // 1. Calculate from Previous Month (Tail) if Applicable (Billing Cycle Start Logic)
-            if (billingStartDay > 1) {
-                for (let d = billingStartDay; d <= daysInPrevMonth; d++) {
-                    const key = `${student.id}_${d}_${prevMonth}_${prevYear}`;
-                    const status = attendance[key];
-                    currentCycleClasses += getStatusSessionValue(status, student, d, prevMonth, prevYear);
-                }
-            }
-
-            // 1.5 Scan Previous Month for TRANSFERRED classes (from ANY day, regardless of billing cycle)
-            // These are classes marked as "Transferred to Next Month" in the previous month, so they must be billed NOW.
-            for (let d = 1; d <= daysInPrevMonth; d++) {
-                const key = `${student.id}_${d}_${prevMonth}_${prevYear}`;
-                const status = attendance[key];
-                if (status === AttendanceStatus.TRANSFERRED || status === AttendanceStatus.TRANSFERRED_ABSENT) {
-                    currentCycleClasses++;
-                }
-            }
-
-            // 2. Calculate from Current Month (Head) and Deferred (Tail)
-            for (let d = 1; d <= daysInMonth; d++) {
-                const key = `${student.id}_${d}_${month}_${year}`;
-                const status = attendance[key];
-
-                let classValue = getStatusSessionValue(status, student, d, month, year);
-
-                if (classValue > 0) {
-                    if (billingStartDay > 1 && d >= billingStartDay) {
-                        // Days >= StartDay belong to NEXT cycle (Deferred)
-                        deferredClasses += classValue;
-                    } else {
-                        // Days < StartDay belong to CURRENT cycle
-                        currentCycleClasses += classValue;
-                    }
-                }
-            }
-
-            if (isDeletedThisMonth && currentCycleClasses === 0 && deferredClasses === 0) {
-                return;
-            }
-
-            const currency = student.location || 'جنيه';
-
-            // Calculate amount based on payment basis
-            let studentAmount = 0;
-            if (student.paymentBasis === 'بالساعة' || student.duration === 'خليط') {
-                const durationMin = student.duration === 'خليط' ? 30 : (parseInt(toWesternDigits(student.duration || '٣٠')) || 30);
-                studentAmount = (currentCycleClasses * durationMin / 60) * student.rate;
-            } else {
-                studentAmount = currentCycleClasses * student.rate;
-            }
-
-            const isSpecial = student.academy === 'خاص' || student.academy.includes('خاص');
-
-            // Check if this is a USD academy that receives payment in EGP
-            const academyReceivesInEGP = academyRates?.[student.academy]?.receiveInEGP === true;
-
-            if (currency === 'جنيه') {
-                egpTotal += studentAmount;
-                if (isSpecial) {
-                    egpStudents.push({ id: student.id, name: student.name, amount: studentAmount, academy: student.academy });
-                } else {
-                    egpAggregated[student.academy] = (egpAggregated[student.academy] || 0) + studentAmount;
-                }
-            } else if (currency === 'دولار') {
-                if (academyReceivesInEGP) {
-                    // Convert to EGP and add to EGP totals
-                    const amountInEGP = studentAmount * usdRate;
-                    egpTotal += amountInEGP;
-                    if (isSpecial) {
-                        egpStudents.push({ id: student.id, name: student.name, amount: amountInEGP, academy: student.academy });
-                    } else {
-                        egpAggregated[student.academy] = (egpAggregated[student.academy] || 0) + amountInEGP;
-                    }
-                } else {
-                    usdTotal += studentAmount;
-                    if (isSpecial) {
-                        usdStudents.push({ id: student.id, name: student.name, amount: studentAmount, academy: student.academy });
-                    } else {
-                        usdAggregated[student.academy] = (usdAggregated[student.academy] || 0) + studentAmount;
-                    }
-                }
-            }
-
-            // Deferred Calculation
-            if (deferredClasses > 0) {
-                let deferredAmount = 0;
-                if (student.paymentBasis === 'بالساعة' || student.duration === 'خليط') {
-                    const durationMin = student.duration === 'خليط' ? 30 : (parseInt(toWesternDigits(student.duration || '٣٠')) || 30);
-                    deferredAmount = (deferredClasses * durationMin / 60) * student.rate;
-                } else {
-                    deferredAmount = deferredClasses * student.rate;
-                }
-
-                if (currency === 'جنيه') {
-                    deferredEgpTotal += deferredAmount;
-                } else if (currency === 'دولار') {
-                    if (academyReceivesInEGP) {
-                        // Convert deferred USD to EGP
-                        deferredEgpTotal += deferredAmount * usdRate;
-                    } else {
-                        deferredUsdTotal += deferredAmount;
-                    }
-                }
-            }
-        });
-
-        // Handle Academy Deductions (Applied to current cycle)
-        const monthKey = `${month}_${year}`;
-        if (academyRates) {
-            Object.entries(academyRates).forEach(([academyName, rateInfo]) => {
-                const deduction = rateInfo.monthlyDeductions?.[monthKey] ?? rateInfo.deductedMinutes ?? 0;
-                const deductionType = rateInfo.monthlyDeductionTypes?.[monthKey] ?? 'minutes';
-                if (deduction > 0) {
-                    const deductionAmount = deductionType === 'minutes' ? (deduction / 60) * rateInfo.rate : deduction;
-                    if (rateInfo.currency === 'جنيه') {
-                        if (egpAggregated[academyName]) {
-                            egpAggregated[academyName] = Math.max(0, egpAggregated[academyName] - deductionAmount);
-                        }
-                        egpTotal = Math.max(0, egpTotal - deductionAmount);
-                    } else if (rateInfo.currency === 'دولار') {
-                        if (rateInfo.receiveInEGP) {
-                            // Deduct from EGP total (converted)
-                            const convertedDeduction = deductionAmount * usdRate;
-                            if (egpAggregated[academyName]) {
-                                egpAggregated[academyName] = Math.max(0, egpAggregated[academyName] - convertedDeduction);
-                            }
-                            egpTotal = Math.max(0, egpTotal - convertedDeduction);
-                        } else {
-                            if (usdAggregated[academyName]) {
-                                usdAggregated[academyName] = Math.max(0, usdAggregated[academyName] - deductionAmount);
-                            }
-                            usdTotal = Math.max(0, usdTotal - deductionAmount);
-                        }
-                    }
-                }
-
-                // Handle Academy Additions
-                const addition = rateInfo.monthlyAdditions?.[monthKey] ?? 0;
-                const additionType = rateInfo.monthlyAdditionTypes?.[monthKey] ?? 'minutes';
-                if (addition > 0) {
-                    const additionAmount = additionType === 'minutes' ? (addition / 60) * rateInfo.rate : addition;
-                    if (rateInfo.currency === 'جنيه') {
-                        if (egpAggregated[academyName]) {
-                            egpAggregated[academyName] += additionAmount;
-                        }
-                        egpTotal += additionAmount;
-                    } else if (rateInfo.currency === 'دولار') {
-                        if (rateInfo.receiveInEGP) {
-                            // Add to EGP total (converted)
-                            const convertedAddition = additionAmount * usdRate;
-                            if (egpAggregated[academyName]) {
-                                egpAggregated[academyName] += convertedAddition;
-                            }
-                            egpTotal += convertedAddition;
-                        } else {
-                            if (usdAggregated[academyName]) {
-                                usdAggregated[academyName] += additionAmount;
-                            }
-                            usdTotal += additionAmount;
-                        }
-                    }
-                }
-            });
-        }
-
-        // Add Aggregated Academies to the lists
-        Object.entries(egpAggregated).forEach(([academyName, amount]) => {
-            egpStudents.push({ id: academyName, name: academyName, amount, academy: academyName, isAggregated: true });
-        });
-        Object.entries(usdAggregated).forEach(([academyName, amount]) => {
-            usdStudents.push({ id: academyName, name: academyName, amount, academy: academyName, isAggregated: true });
-        });
-
-        return {
-            egpTotal,
-            usdTotal,
-            deferredEgpTotal,
-            deferredUsdTotal,
-            totalInEgp: egpTotal + (usdTotal * usdRate),
-            egpStudents: egpStudents.sort((a, b) => {
-                const isPaidA = !!paymentStatus?.[`${a.id}_${month}_${year}`];
-                const isPaidB = !!paymentStatus?.[`${b.id}_${month}_${year}`];
-                if (isPaidA !== isPaidB) return isPaidA ? 1 : -1;
-                return b.amount - a.amount;
-            }),
-            usdStudents: usdStudents.sort((a, b) => {
-                const isPaidA = !!paymentStatus?.[`${a.id}_${month}_${year}`];
-                const isPaidB = !!paymentStatus?.[`${b.id}_${month}_${year}`];
-                if (isPaidA !== isPaidB) return isPaidA ? 1 : -1;
-                return b.amount - a.amount;
-            })
-        };
-    };
-
-    const stats = calculateStats();
+    const stats = calculateMonthlyStats({
+        students,
+        attendance,
+        month,
+        year,
+        usdRate,
+        academyRates,
+        paymentStatus,
+        makeupLinks,
+        dayTransitionTime,
+    });
 
     return (
         <div
@@ -576,17 +342,32 @@ const MonthlyStatsModal: React.FC<Props> = ({ students, attendance, month, year,
                         </div>
 
                         {/* Total Stats */}
-                        <div className="bg-amber-50/50 rounded-2xl border border-amber-100 overflow-hidden p-6 mt-2 relative">
-                            <div className="absolute top-0 right-0 p-4 opacity-10">
+                        <div
+                            tabIndex={0}
+                            aria-label={`إجمالي دخل الدورة الحالية بالمصري ${formatCurrencyNumber(stats.totalInEgp)} جنيه، المتوقع بنهاية الدورة ${formatCurrencyNumber(stats.projectedTotalInEgp)} جنيه`}
+                            className="group bg-amber-50/50 rounded-2xl border border-amber-100 overflow-hidden p-6 mt-2 relative transition-colors duration-200 hover:bg-emerald-50/50 hover:border-emerald-200 focus:outline-none focus:ring-2 focus:ring-emerald-300"
+                        >
+                            <div className="absolute top-0 right-0 p-4 opacity-10 transition-colors duration-200 group-hover:text-emerald-600">
                                 <TrendingUp size={80} />
                             </div>
-                            <div className="text-center space-y-1 relative z-10">
+                            <div className="text-center space-y-1 relative z-10 transition-opacity duration-200 group-hover:opacity-0 group-focus-within:opacity-0">
                                 <div className="text-xl text-amber-600 font-bold">إجمالي دخل الدورة الحالية (بالمصري)</div>
                                 <div className="text-5xl font-bold text-gray-900 font-amiri py-2">
-                                    {toHindiDigits(stats.totalInEgp.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 }))} جنيه
+                                    {formatCurrencyNumber(stats.totalInEgp)} جنيه
                                 </div>
                                 <div className="text-lg text-gray-400 font-normal">
                                     تم حساب الدولار بسعر: {toHindiDigits(usdRate.toFixed(2))} ج.م
+                                </div>
+                            </div>
+                            <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center p-6 text-center space-y-1 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-within:opacity-100">
+                                <div className="text-xl text-emerald-700 font-bold">الدخل المتوقع بنهاية الدورة (بالمصري)</div>
+                                <div className="text-5xl font-bold text-gray-900 font-amiri py-2">
+                                    {formatCurrencyNumber(stats.projectedTotalInEgp)} جنيه
+                                </div>
+                                <div className="text-base sm:text-lg text-emerald-700/80 font-normal">
+                                    {stats.remainingProjectedClasses > 0
+                                        ? `متبقي متوقع: +${formatCurrencyNumber(stats.remainingProjectedInEgp)} ج.م (${formatClassesCountLabel(stats.remainingProjectedClasses)})`
+                                        : 'اكتملت حصص الدورة الحالية'}
                                 </div>
                             </div>
                         </div>

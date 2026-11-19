@@ -8467,6 +8467,8 @@ function App() {
             usdRate={usdRate}
             onClose={() => setIsMonthlyStatsOpen(false)}
             academyRates={academyRates}
+            makeupLinks={makeupLinks}
+            dayTransitionTime={dayTransitionTime}
             paymentStatus={paymentStatus}
             onTogglePayment={togglePaymentStatus}
             showPaymentToggles={true}
@@ -8517,6 +8519,8 @@ function App() {
               usdRate={usdRate}
               onClose={() => setIsLastMonthStatsOpen(false)}
               academyRates={academyRates}
+              makeupLinks={makeupLinks}
+              dayTransitionTime={dayTransitionTime}
               paymentStatus={paymentStatus}
               onTogglePayment={togglePaymentStatus}
               showPaymentToggles={true}
