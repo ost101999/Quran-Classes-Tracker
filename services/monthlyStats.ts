@@ -1,5 +1,6 @@
 import { AttendanceRecord, AttendanceStatus, MakeupLink, Student } from '../types';
 import { cairoDate, scheduledCount } from './studentSchedule';
+import { isStudentInactiveInMonth } from './studentVisibility';
 
 export interface MonthlyStatsStudentItem {
   id: string;
@@ -45,12 +46,6 @@ const toWesternDigits = (str: string): string => {
 const formatYmd = (d: number, m: number, y: number): string =>
   `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 
-const isStudentDeletedInMonth = (student: Student, m: number, y: number): boolean =>
-  !!student.deletedAt && (y > student.deletedAt.year || (y === student.deletedAt.year && m >= student.deletedAt.month));
-
-const isStudentBeforeStartInMonth = (student: Student, m: number, y: number): boolean =>
-  !!student.startedAt && (y < student.startedAt.year || (y === student.startedAt.year && m < student.startedAt.month));
-
 export const getStatusSessionValue = (
   status: AttendanceStatus | undefined,
   student: Student,
@@ -94,7 +89,7 @@ export const getProjectedSessionValue = (
     return getStatusSessionValue(status, student, d, m, y);
   }
   if (formatYmd(d, m, y) < todayStr) return 0;
-  if (academyInfo?.isArchived || isStudentDeletedInMonth(student, m, y) || isStudentBeforeStartInMonth(student, m, y)) return 0;
+  if (academyInfo?.isArchived || isStudentInactiveInMonth(student, m, y)) return 0;
   if (status === AttendanceStatus.EXTRA_DOUBLE) return 2;
 
   const holidays = academyInfo?.holidays || [];
@@ -222,7 +217,7 @@ export function calculateMonthlyStats({
   const daysInPrevMonth = new Date(prevYear, prevMonth + 1, 0).getDate();
 
   students.forEach(student => {
-    const isDeletedThisMonth = isStudentDeletedInMonth(student, month, year);
+    const isInactiveThisMonth = isStudentInactiveInMonth(student, month, year);
     const academyInfo = academyRates?.[student.academy];
     const billingStartDay = academyInfo?.billingStartDay || 1;
 
@@ -264,60 +259,60 @@ export function calculateMonthlyStats({
 
     remainingProjectedClasses += Math.max(0, projectedCycleClasses - currentCycleClasses);
 
-    if (isDeletedThisMonth && currentCycleClasses === 0 && projectedCycleClasses === 0 && deferredClasses === 0) {
-      return;
-    }
-
-    const currency = student.location || 'جنيه';
-    const studentAmount = calcStudentAmount(student, currentCycleClasses);
-    const projectedAmount = calcStudentAmount(student, projectedCycleClasses);
-    const isSpecial = student.academy === 'خاص' || student.academy.includes('خاص');
-    const academyReceivesInEGP = academyInfo?.receiveInEGP === true;
-
-    const addIncome = (
-      totals: { egpTotal: number; usdTotal: number; egpAggregated?: Record<string, number>; usdAggregated?: Record<string, number> },
-      amount: number,
-      recordStudentList: boolean
-    ) => {
-      if (currency === 'جنيه') {
-        totals.egpTotal += amount;
-        if (recordStudentList) {
-          if (isSpecial) egpStudents.push({ id: student.id, name: student.name, amount, academy: student.academy });
-          else if (totals.egpAggregated) totals.egpAggregated[student.academy] = (totals.egpAggregated[student.academy] || 0) + amount;
-        }
-      } else if (currency === 'دولار') {
-        if (academyReceivesInEGP) {
-          const amountInEGP = amount * usdRate;
-          totals.egpTotal += amountInEGP;
-          if (recordStudentList) {
-            if (isSpecial) egpStudents.push({ id: student.id, name: student.name, amount: amountInEGP, academy: student.academy });
-            else if (totals.egpAggregated) totals.egpAggregated[student.academy] = (totals.egpAggregated[student.academy] || 0) + amountInEGP;
-          }
-        } else {
-          totals.usdTotal += amount;
-          if (recordStudentList) {
-            if (isSpecial) usdStudents.push({ id: student.id, name: student.name, amount, academy: student.academy });
-            else if (totals.usdAggregated) totals.usdAggregated[student.academy] = (totals.usdAggregated[student.academy] || 0) + amount;
-          }
-        }
+      if (isInactiveThisMonth && currentCycleClasses === 0 && projectedCycleClasses === 0 && deferredClasses === 0) {
+        return;
       }
-    };
 
-    if (!(isDeletedThisMonth && currentCycleClasses === 0 && deferredClasses === 0)) {
-      addIncome(actualTotals, studentAmount, currentCycleClasses > 0);
-    }
-    addIncome(projectedTotals, projectedAmount, false);
+      const currency = student.location || 'جنيه';
+      const studentAmount = calcStudentAmount(student, currentCycleClasses);
+      const projectedAmount = calcStudentAmount(student, projectedCycleClasses);
+      const isSpecial = student.academy === 'خاص' || student.academy.includes('خاص');
+      const academyReceivesInEGP = academyInfo?.receiveInEGP === true;
 
-    if (deferredClasses > 0) {
-      const deferredAmount = calcStudentAmount(student, deferredClasses);
-      if (currency === 'جنيه') {
-        deferredEgpTotal += deferredAmount;
-      } else if (currency === 'دولار') {
-        if (academyReceivesInEGP) deferredEgpTotal += deferredAmount * usdRate;
-        else deferredUsdTotal += deferredAmount;
-      }
-    }
-  });
+      const addIncome = (
+        totals: { egpTotal: number; usdTotal: number; egpAggregated?: Record<string, number>; usdAggregated?: Record<string, number> },
+        amount: number,
+        recordStudentList: boolean
+      ) => {
+        if (currency === 'جنيه') {
+          totals.egpTotal += amount;
+          if (recordStudentList) {
+            if (isSpecial) egpStudents.push({ id: student.id, name: student.name, amount, academy: student.academy });
+            else if (totals.egpAggregated) totals.egpAggregated[student.academy] = (totals.egpAggregated[student.academy] || 0) + amount;
+          }
+        } else if (currency === 'دولار') {
+          if (academyReceivesInEGP) {
+            const amountInEGP = amount * usdRate;
+            totals.egpTotal += amountInEGP;
+            if (recordStudentList) {
+              if (isSpecial) egpStudents.push({ id: student.id, name: student.name, amount: amountInEGP, academy: student.academy });
+              else if (totals.egpAggregated) totals.egpAggregated[student.academy] = (totals.egpAggregated[student.academy] || 0) + amountInEGP;
+            }
+          } else {
+            totals.usdTotal += amount;
+            if (recordStudentList) {
+              if (isSpecial) usdStudents.push({ id: student.id, name: student.name, amount, academy: student.academy });
+              else if (totals.usdAggregated) totals.usdAggregated[student.academy] = (totals.usdAggregated[student.academy] || 0) + amount;
+            }
+          }
+        }
+      };
+
+        if (!(isInactiveThisMonth && currentCycleClasses === 0 && deferredClasses === 0)) {
+          addIncome(actualTotals, studentAmount, currentCycleClasses > 0);
+        }
+        addIncome(projectedTotals, projectedAmount, false);
+
+        if (deferredClasses > 0) {
+          const deferredAmount = calcStudentAmount(student, deferredClasses);
+          if (currency === 'جنيه') {
+            deferredEgpTotal += deferredAmount;
+          } else if (currency === 'دولار') {
+            if (academyReceivesInEGP) deferredEgpTotal += deferredAmount * usdRate;
+            else deferredUsdTotal += deferredAmount;
+          }
+        }
+      });
 
   const monthKey = `${month}_${year}`;
   applyAcademyAdjustments(academyRates, monthKey, usdRate, actualTotals);

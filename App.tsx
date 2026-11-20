@@ -106,6 +106,14 @@ import WebModal from './components/WebModal';
 import MultiStudentDetailsModal from './components/MultiStudentDetailsModal';
 import SearchableSurahSelect from './components/SearchableSurahSelect';
 import { quranPartRange, quranRubSpanRange, quranRubForVerse, type QuranPartKind } from './services/quranParts';
+import {
+  isStudentInactiveInMonth,
+  isStudentPausedInMonth,
+  isStudentVisibleInMonth,
+  nextMonthYear,
+  pauseStudentFromMonth,
+  reactivateStudentInMonth,
+} from './services/studentVisibility';
 import TajweedBankModal from './components/TajweedBankModal';
 import TajweedAssignModal from './components/TajweedAssignModal';
 import TajweedGradingModal from './components/TajweedGradingModal';
@@ -2354,6 +2362,7 @@ function App() {
   const [selectedAcademyForEditing, setSelectedAcademyForEditing] = useState<string | null>(null);
   const [isAddingAcademy, setIsAddingAcademy] = useState(false);
   const [isAcademyArchiveOpen, setIsAcademyArchiveOpen] = useState(false);
+  const [isPausedStudentsOpen, setIsPausedStudentsOpen] = useState(false);
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [showControls, setShowControls] = useState(false);
   const [showMonthSelector, setShowMonthSelector] = useState(false);
@@ -4670,20 +4679,17 @@ function App() {
   };
 
   const handleEndEnrollment = (student: Student) => {
-    let nextMonth = month + 1;
-    let nextYear = year;
-    if (nextMonth > 12) {
-      nextMonth = 1;
-      nextYear++;
-    }
-
-    const updatedStudent: Student = {
-      ...student,
-      days: [], // Clear scheduled days for current month
-      deletedAt: { month: nextMonth, year: nextYear }
-    };
-
+    const nextPeriod = nextMonthYear(month, year);
+    const updatedStudent = pauseStudentFromMonth(student, nextPeriod.month, nextPeriod.year);
     setStudents(prev => prev.map(s => s.id === student.id ? updatedStudent : s));
+  };
+
+  const handleReactivateStudent = (targetStudent: Student) => {
+    const reactivated = reactivateStudentInMonth(targetStudent, month, year);
+    setStudents(prev => prev.map(s => s.id === reactivated.id ? reactivated : s));
+    setIsPausedStudentsOpen(false);
+    setEditingStudent(reactivated);
+    setIsModalOpen(true);
   };
 
   const togglePaymentStatus = (studentId: string, targetMonth: number, targetYear: number) => {
@@ -4779,7 +4785,7 @@ function App() {
       setCalendarReading(true);
       try {
         const now = new Date();
-        const requests = students.filter(student => !student.deletedAt || student.deletedAt.year > now.getFullYear() || (student.deletedAt.year === now.getFullYear() && student.deletedAt.month > now.getMonth())).map(({ id, name }) => ({ id, name }));
+        const requests = students.filter(student => !isStudentInactiveInMonth(student, now.getMonth(), now.getFullYear())).map(({ id, name }) => ({ id, name }));
         const force = calendarForceRefresh.current;
         calendarForceRefresh.current = false;
         const result = await window.electronAPI!.getCalendarSchedules!(requests, force, true, dayTransitionTime);
@@ -4809,7 +4815,7 @@ function App() {
     const refresh = async () => {
       try {
         const now = new Date();
-        const active = students.filter(student => !student.deletedAt || student.deletedAt.year > now.getFullYear() || (student.deletedAt.year === now.getFullYear() && student.deletedAt.month > now.getMonth()));
+        const active = students.filter(student => !isStudentInactiveInMonth(student, now.getMonth(), now.getFullYear()));
         const requests = active.map(({ id, name }) => ({ id, name }));
         const result = await window.electronAPI!.getWhatsAppTargets!(requests);
         if (cancelled || !result.available || applyingCloudRef.current) return;
@@ -4833,7 +4839,7 @@ function App() {
     const refresh = async () => {
       try {
         const now = new Date();
-        const activeStudents = students.filter(student => !student.shortcutNotRequired && (!student.deletedAt || student.deletedAt.year > now.getFullYear() || (student.deletedAt.year === now.getFullYear() && student.deletedAt.month > now.getMonth())));
+        const activeStudents = students.filter(student => !student.shortcutNotRequired && !isStudentInactiveInMonth(student, now.getMonth(), now.getFullYear()));
         const requests = activeStudents.map(({ id, name }) => ({ id, name }));
         const result = await window.electronAPI!.getShortcutLinks!(requests);
         if (cancelled || applyingCloudRef.current) return;
@@ -5007,19 +5013,7 @@ function App() {
     academyOrder.forEach(a => groups[a] = []);
 
     students.forEach(student => {
-      // Filter based on enrollment start/end dates
-      if (student.startedAt) {
-        if (year < student.startedAt.year || (year === student.startedAt.year && month < student.startedAt.month)) {
-          const prefix = `${student.id}_`;
-          const suffix = `_${month}_${year}`;
-          const hasMonthActivity = Object.keys(attendance).some(k => k.startsWith(prefix) && k.endsWith(suffix) && !!attendance[k]);
-          if (!hasMonthActivity) return;
-        }
-      }
-      if (student.deletedAt) {
-        if (year > student.deletedAt.year) return;
-        if (year === student.deletedAt.year && month >= student.deletedAt.month) return;
-      }
+      if (!isStudentVisibleInMonth(student, month, year, attendance)) return;
 
       if (!groups[student.academy]) groups[student.academy] = [];
       groups[student.academy].push(student);
@@ -5051,6 +5045,10 @@ function App() {
 
   const sortedAcademies = useMemo(() => academyOrder.filter(academy => !academyRates[academy]?.isArchived), [academyOrder, academyRates]);
   const archivedAcademies = useMemo(() => academyOrder.filter(academy => academyRates[academy]?.isArchived), [academyOrder, academyRates]);
+  const pausedStudents = useMemo(
+    () => students.filter(student => isStudentPausedInMonth(student, month, year)),
+    [students, month, year]
+  );
 
   // --- Keyboard Reordering ---
   useEffect(() => {
@@ -6277,10 +6275,7 @@ function App() {
   // Use the same eligibility rules for the counter and the filtered table.
   const isPendingClass = useCallback((student: Student, dayNum: number) => {
     if (academyRates[student.academy]?.isArchived) return false;
-    if (student.startedAt && (year < student.startedAt.year ||
-      (year === student.startedAt.year && month < student.startedAt.month))) return false;
-    if (student.deletedAt && (year > student.deletedAt.year ||
-      (year === student.deletedAt.year && month >= student.deletedAt.month))) return false;
+    if (isStudentInactiveInMonth(student, month, year)) return false;
 
     const dayOfWeek = getDayOfWeek(dayNum);
     const status = attendance[`${student.id}_${dayNum}_${month}_${year}`];
@@ -6841,6 +6836,25 @@ function App() {
                     </div>
                     <span className="font-arabic text-2xl">إضافة أكاديمية</span>
                   </button>
+                  {pausedStudents.length > 0 && (
+                    <button
+                      onClick={() => {
+                        setIsPausedStudentsOpen(true);
+                        setShowAddMenu(false);
+                      }}
+                      className="w-full flex items-center justify-between gap-2 px-4 py-3 text-gray-700 hover:bg-gray-50 transition-colors text-right border-t border-gray-100"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                          <ArchiveRestore size={17} />
+                        </div>
+                        <span className="font-arabic text-xl">الطلبة المتوقفون</span>
+                      </div>
+                      <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-sm font-bold text-emerald-700">
+                        {toHindiDigits(pausedStudents.length)}
+                      </span>
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -8237,6 +8251,7 @@ function App() {
       {
         isModalOpen && (
           <StudentModal
+            key={editingStudent?.id || 'new'}
             onClose={() => {
               setIsModalOpen(false);
               setOpenShortcutReview(false);
@@ -8250,6 +8265,7 @@ function App() {
               : item))}
             onDelete={deleteStudent}
             onEndEnrollment={handleEndEnrollment}
+            onReactivateStudent={handleReactivateStudent}
             academies={sortedAcademies}
             student={editingStudent ? {
               ...editingStudent,
@@ -8319,6 +8335,39 @@ function App() {
           />
         )
       }
+
+      {isPausedStudentsOpen && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 font-arabic" onClick={() => setIsPausedStudentsOpen(false)}>
+          <div role="dialog" aria-modal="true" aria-labelledby="paused-students-title" dir="rtl"
+            className="w-full max-w-lg max-h-[80vh] overflow-hidden rounded-3xl bg-white shadow-2xl flex flex-col"
+            onClick={event => event.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-gray-100 px-6 py-5">
+              <div>
+                <h2 id="paused-students-title" className="text-2xl font-bold text-gray-800">الطلبة المتوقفون</h2>
+                <p className="text-sm text-gray-500 mt-0.5">استعادة أي طالب إلى شهر {MONTHS[month]} {toHindiDigits(year)} بنفس سجله السابق.</p>
+              </div>
+              <button type="button" onClick={() => setIsPausedStudentsOpen(false)} aria-label="إغلاق" className="rounded-full p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700"><X size={22} /></button>
+            </div>
+            <div className="overflow-y-auto p-5 space-y-3">
+              {pausedStudents.length === 0 ? (
+                <p className="py-8 text-center text-lg text-gray-500">لا يوجد طلبة متوقفون في هذا الشهر.</p>
+              ) : pausedStudents.map(paused => (
+                <div key={paused.id} className="flex items-center justify-between gap-3 rounded-2xl border border-gray-100 bg-gray-50 p-4">
+                  <div className="min-w-0">
+                    <div className="break-words text-lg font-bold text-gray-800">{paused.name}</div>
+                    <div className="text-sm text-gray-500">{paused.academy}</div>
+                  </div>
+                  <button type="button" onClick={() => handleReactivateStudent(paused)}
+                    className="flex shrink-0 items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-emerald-700 hover:bg-emerald-100 transition-colors font-bold"
+                    aria-label={`استعادة ${paused.name}`}>
+                    <ArchiveRestore size={18} /> <span>استعادة لهذا الشهر</span>
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {isAcademyArchiveOpen && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 font-arabic" onClick={() => setIsAcademyArchiveOpen(false)}>
@@ -9009,7 +9058,7 @@ function App() {
                 <button type="button" className="mt-2 text-sm font-bold text-amber-800 underline" onClick={async () => {
                   if (applyingCloudRef.current || syncConflicts.length || resolvingConflict) return;
                   const now = new Date();
-                  const requests = students.filter(student => !student.deletedAt || student.deletedAt.year > now.getFullYear() || (student.deletedAt.year === now.getFullYear() && student.deletedAt.month > now.getMonth())).map(({ id, name }) => ({ id, name }));
+                  const requests = students.filter(student => !isStudentInactiveInMonth(student, now.getMonth(), now.getFullYear())).map(({ id, name }) => ({ id, name }));
                   let latest;
                   try { latest = await window.electronAPI?.getWhatsAppTargets?.(requests); } catch { /* Review must use a fresh source. */ }
                   if (!latest?.available || latest.matches[change.studentId] !== change.target || applyingCloudRef.current) {

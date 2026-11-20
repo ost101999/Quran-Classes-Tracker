@@ -114,6 +114,16 @@ export interface ScheduleHistoryEntry {
   dayStartDates?: Record<number, string>;
 }
 
+export interface MonthYear {
+  month: number;
+  year: number;
+}
+
+export interface InactivePeriod {
+  from: MonthYear;
+  to?: MonthYear;
+}
+
 export interface Student {
   id: string;
   name: string;
@@ -126,8 +136,9 @@ export interface Student {
   paymentBasis?: string;
   useAcademyRate?: boolean;
   externalLink?: string;
-  startedAt?: { month: number; year: number };
-  deletedAt?: { month: number; year: number };
+  startedAt?: MonthYear;
+  deletedAt?: MonthYear;
+  inactivePeriods?: InactivePeriod[];
   hasSeparator?: boolean;
   hasTopSeparator?: boolean;
   hasBottomSeparator?: boolean;
