@@ -36,3 +36,6 @@ project-meta.json
 
 # Local backup folder
 P A C K - U P/
+
+# Sentry native runtime files
+.sentry-native/
