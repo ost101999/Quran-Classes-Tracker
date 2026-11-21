@@ -55,7 +55,9 @@ const toWesternDigits = (str: string): string => {
 const getReportCustomizationItems = (settings: StudentReportSettings): string[] => {
   const items: string[] = [];
   if (settings.customMushafEnabled) {
-    items.push('إنشاء مصحف');
+    if (settings.mushafOutputFormat === 'web_link') items.push('إنشاء مصحف (رابط صوتي)');
+    else if (settings.mushafOutputFormat === 'html') items.push('إنشاء مصحف (HTML)');
+    else items.push('إنشاء مصحف');
   }
   return items;
 };
@@ -202,6 +204,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
   }, [headerMenuOpen]);
   const [reportSettings, setReportSettings] = useState<StudentReportSettings>(() => ({
     customMushafEnabled: student?.reportSettings?.customMushafEnabled ?? false,
+    mushafOutputFormat: student?.reportSettings?.mushafOutputFormat || 'pdf',
     mushafTargetSection: student?.reportSettings?.mushafTargetSection || 'homework',
     mushafSectionOrder: normalizeSectionOrder(student?.reportSettings?.mushafSectionOrder),
     mushafIncludedSections: {
@@ -217,6 +220,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
     mushafAutoSendWhatsapp: student?.reportSettings?.mushafAutoSendWhatsapp !== false,
   }));
   const [mushafFileStatus, setMushafFileStatus] = useState<{ found: boolean; fileName?: string; error?: string; outputDir?: string } | null>(null);
+  const [audioSessionInfo, setAudioSessionInfo] = useState<{ hasSession: boolean; clipsCount: number } | null>(null);
   const [mushafGeneratingNow, setMushafGeneratingNow] = useState(false);
   const reportGroupsStorageKey = `quranTracker.reportGroupsOpen.${student?.id || 'draft'}`;
   const [openReportGroups, setOpenReportGroups] = useState<Record<'sections' | 'format' | 'delivery' | 'preview', boolean>>(() => {
@@ -349,6 +353,12 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
     }).catch(() => {
       if (!cancelled) setMushafFileStatus({ found: false, error: 'تعذر التحقق من ملف مصحف الطالب.' });
     });
+    window.electronAPI.getStudentAudioSession?.({
+      studentId: student?.id || '',
+      studentName: name,
+    }).then(info => {
+      if (!cancelled) setAudioSessionInfo({ hasSession: !!info?.hasSession, clipsCount: info?.clipsCount || 0 });
+    }).catch(() => { });
     return () => { cancelled = true; };
   }, [activePanel, name, shortcutSourceId, quranLink]);
 
@@ -519,6 +529,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
     if (!reportSettings.customMushafEnabled && !student?.reportSettings) return undefined;
     return {
       customMushafEnabled: !!reportSettings.customMushafEnabled,
+      mushafOutputFormat: reportSettings.mushafOutputFormat || 'pdf',
       mushafTargetSection: reportSettings.mushafTargetSection || 'homework',
       mushafSectionOrder: normalizeSectionOrder(reportSettings.mushafSectionOrder),
       mushafIncludedSections: {
@@ -1272,8 +1283,14 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                       );
                     })()}
 
-                    {/* Accordion 2: Divider Style, Language & Offset */}
+                    {/* Accordion 2: Output Format, Divider Style, Language & Offset */}
                     {(() => {
+                      const outputFormat = reportSettings.mushafOutputFormat || 'pdf';
+                      const formatLabel = outputFormat === 'web_link'
+                        ? 'رابط صوتي'
+                        : outputFormat === 'html'
+                          ? 'ملف HTML'
+                          : 'PDF عادي';
                       const styleLabel = reportSettings.mushafDividerStyle === 'banner'
                         ? 'شريط أعلى الصفحة'
                         : reportSettings.mushafDividerStyle === 'page'
@@ -1303,7 +1320,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                                 <span className="block text-2xl font-bold text-slate-800 font-arabic">شكل العناوين والصفحات</span>
                                 {!openReportGroups.format && (
                                   <span className="block text-xl text-slate-600 font-arabic font-normal leading-snug mt-0.5">
-                                    {styleLabel} · لغة: <bdi className={langLabel === 'English' ? 'font-english text-base' : ''}>{langLabel}</bdi> · {offsetText}
+                                    {formatLabel} · {styleLabel} · لغة: <bdi className={langLabel === 'English' ? 'font-english text-base' : ''}>{langLabel}</bdi> · {offsetText}
                                   </span>
                                 )}
                               </span>
@@ -1312,6 +1329,32 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                           </button>
                           {openReportGroups.format && (
                             <div className="px-4 pb-4 pt-3.5 space-y-4 border-t border-slate-100">
+                              <div className="space-y-2">
+                                <label className="block text-lg font-bold text-slate-600 font-arabic">نوع مخرج المصحف</label>
+                                <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
+                                  {([
+                                    { id: 'pdf', label: 'PDF عادي' },
+                                    { id: 'web_link', label: 'رابط مصحف صوتي' },
+                                    { id: 'html', label: 'ملف HTML تفاعلي' },
+                                  ] as const).map(opt => {
+                                    const active = outputFormat === opt.id;
+                                    return (
+                                      <button
+                                        key={opt.id}
+                                        type="button"
+                                        onClick={() => setReportSettings(prev => ({ ...prev, mushafOutputFormat: opt.id }))}
+                                        className={`flex-1 py-2 rounded-lg text-base font-arabic transition-all ${active
+                                          ? 'bg-emerald-600 text-white shadow-sm font-bold'
+                                          : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                                          }`}
+                                      >
+                                        {opt.label}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+
                               <div className="space-y-2">
                                 <label className="block text-lg font-bold text-slate-600 font-arabic">شكل كتابة العنوان</label>
                                 <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
@@ -1520,6 +1563,11 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                           </button>
                           {openReportGroups.preview && (
                             <div className="p-4 space-y-3 border-t border-emerald-100">
+                              {audioSessionInfo?.hasSession && (
+                                <div className="rounded-xl bg-emerald-50 border border-emerald-200 px-3.5 py-2 text-base font-bold text-emerald-800 font-arabic">
+                                  🎙️ يوجد {toHindiDigits(String(audioSessionInfo.clipsCount))} تصحيحات صوتية جاهزة من حصة اليوم (ستُدمج تلقائياً)
+                                </div>
+                              )}
                               {previewSections.length > 0 && (
                                 <div className="rounded-xl border border-slate-200/80 divide-y divide-slate-100 bg-slate-50/60 overflow-hidden text-lg font-arabic text-slate-700">
                                   {previewSections.map(sec => (

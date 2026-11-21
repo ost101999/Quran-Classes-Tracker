@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getShortcutLinks: (students) => ipcRenderer.invoke('get-shortcut-links', students),
     resolveStudentMushaf: (payload) => ipcRenderer.invoke('resolve-student-mushaf', payload),
     generateCustomMushaf: (payload) => ipcRenderer.invoke('generate-custom-mushaf', payload),
+    getStudentAudioSession: (payload) => ipcRenderer.invoke('get-student-audio-session', payload),
     openMushafFolder: () => ipcRenderer.invoke('open-mushaf-folder'),
     openMushafFile: (filePath) => ipcRenderer.invoke('open-mushaf-file', filePath),
     copyFileToClipboard: (filePath) => ipcRenderer.invoke('copy-file-to-clipboard', filePath),

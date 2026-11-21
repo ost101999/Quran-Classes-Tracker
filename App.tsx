@@ -5474,7 +5474,7 @@ function App() {
       dateStr?: string;
       silentToast?: boolean;
     } = {}
-  ): Promise<{ success: boolean; filePath?: string; fileName?: string; error?: string } | null> => {
+  ): Promise<{ success: boolean; mode?: 'pdf' | 'web_link' | 'html'; url?: string; filePath?: string; fileName?: string; unmatchedCount?: number; error?: string } | null> => {
     if (!targetStudent?.reportSettings?.customMushafEnabled) return null;
     if (!window.electronAPI?.generateCustomMushaf) {
       if (!options.silentToast) showToast('ميزة إنشاء المصحف المخصص متاحة من تطبيق الكمبيوتر.');
@@ -5482,6 +5482,7 @@ function App() {
     }
 
     const settings = targetStudent.reportSettings;
+    const outputFormat = settings.mushafOutputFormat || 'pdf';
     const sections = buildCustomMushafPlan({
       reportData,
       sectionToggles: options.sectionTogglesOverride ?? reportData?.sectionToggles,
@@ -5489,7 +5490,7 @@ function App() {
       exclusions: options.exclusionsOverride,
       settings,
     });
-    if (sections.length === 0) {
+    if (sections.length === 0 && outputFormat === 'pdf') {
       if (!options.silentToast) showToast('لا توجد صفحات قرآن محددة في التقرير لإنشاء المصحف.');
       return null;
     }
@@ -5502,9 +5503,11 @@ function App() {
 
     try {
       const res = await window.electronAPI.generateCustomMushaf({
+        studentId: targetStudent.id,
         studentName: targetStudent.name,
         shortcutSourceId: targetStudent.shortcutSourceId,
         quranLink: targetStudent.quranLink,
+        outputFormat,
         sections,
         dividerStyle: settings.mushafDividerStyle || 'both',
         language: resolvedLang,
@@ -5514,7 +5517,14 @@ function App() {
       });
 
       if (res.success) {
-        if (!options.silentToast) showToast(`تم إنشاء مصحف الطالب (${res.fileName}) 📖`);
+        if (!options.silentToast) {
+          if (res.mode === 'web_link') showToast('تم تجهيز رابط المصحف الصوتي 🔗');
+          else if (res.mode === 'html') showToast(`تم إنشاء المصحف الصوتي (${res.fileName}) 🔊`);
+          else showToast(`تم إنشاء مصحف الطالب (${res.fileName}) 📖`);
+        }
+        if ((res.unmatchedCount || 0) > 0) {
+          showToast(`⚠️ لم يتم ربط ${res.unmatchedCount} تسجيل بتظليل محفوظ في الملف`);
+        }
       } else {
         showToast(`⚠️ ${res.error || 'تعذّر إنشاء المصحف المخصص.'}`);
       }
@@ -5526,13 +5536,14 @@ function App() {
   }, [lastReportLanguage]);
 
   const deliverCustomMushafAfterReport = useCallback(async (
-    mushafPromise: Promise<{ success: boolean; filePath?: string; fileName?: string } | null>,
+    mushafPromise: Promise<{ success: boolean; mode?: 'pdf' | 'web_link' | 'html'; url?: string; filePath?: string; fileName?: string } | null>,
     targetStudent: Student | undefined,
     delivery:
       | { mode: 'auto'; target: string; waitAuto: Promise<{ success: boolean; error?: string } | undefined> }
       | { mode: 'manual'; lang: 'ar' | 'en' }
   ) => {
     if (!targetStudent?.reportSettings?.customMushafEnabled) return;
+    if ((targetStudent.reportSettings.mushafOutputFormat || 'pdf') === 'web_link') return;
     if (targetStudent.reportSettings.mushafAutoSendWhatsapp === false) return;
 
     if (delivery.mode === 'auto') {
@@ -15500,7 +15511,7 @@ function App() {
 
                     <div className="flex justify-center gap-6">
                       <button
-                        onClick={() => {
+                        onClick={async () => {
                           // Warning logic for Noor Al-Bayan section
                           if (reportPath === 'quran' && mergeWithQuran && !visitedNoor && !noorWarningShown) {
                             setNoorWarningShown(true);
@@ -16606,6 +16617,21 @@ function App() {
                             : { rev: excludeReadingRev, oldRev: excludeReadingOldRev, new: excludeReadingNew || prevReportHadExclusion, tilawa: excludeReadingTilawa };
                           const arMushafDateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(smartReportModal.dayNum).padStart(2, '0')}`;
                           const _arMushafStudent = student;
+                          const arIsWebLinkMode = Boolean(_arMushafStudent?.reportSettings?.customMushafEnabled && (_arMushafStudent.reportSettings.mushafOutputFormat || 'pdf') === 'web_link');
+                          if (arIsWebLinkMode) {
+                            showToast('جاري تجهيز رابط المصحف الصوتي... ⏳', 0);
+                            const linkRes = await triggerCustomMushafForStudent(_arMushafStudent, arReportSnapshot, {
+                              lang: 'ar',
+                              sectionTogglesOverride: arReportSnapshot.sectionToggles,
+                              cancelledInputsOverride: arReportSnapshot.cancelledInputs,
+                              exclusionsOverride: arMushafExclusions,
+                              dateStr: arMushafDateStr,
+                              silentToast: true,
+                            });
+                            if (linkRes?.success && linkRes.url) {
+                              report += `\n\n🎧 *رابط المصحف الصوتي للحصة:*\n${linkRes.url}`;
+                            }
+                          }
 
                           setLastReports(prev => ({
                             ...prev,
@@ -16641,19 +16667,21 @@ function App() {
                             const _arStudentId = smartReportModal.studentId;
                             const _arDayNum = smartReportModal.dayNum;
                             closeAllModals(true);
-                            const arMushafPromise = triggerCustomMushafForStudent(_arMushafStudent, arReportSnapshot, {
-                              lang: 'ar',
-                              sectionTogglesOverride: arReportSnapshot.sectionToggles,
-                              cancelledInputsOverride: arReportSnapshot.cancelledInputs,
-                              exclusionsOverride: arMushafExclusions,
-                              dateStr: arMushafDateStr,
-                              silentToast: _arMushafStudent?.reportSettings?.mushafAutoSendWhatsapp !== false,
-                            });
+                            const arMushafPromise = arIsWebLinkMode
+                              ? Promise.resolve(null)
+                              : triggerCustomMushafForStudent(_arMushafStudent, arReportSnapshot, {
+                                lang: 'ar',
+                                sectionTogglesOverride: arReportSnapshot.sectionToggles,
+                                cancelledInputsOverride: arReportSnapshot.cancelledInputs,
+                                exclusionsOverride: arMushafExclusions,
+                                dateStr: arMushafDateStr,
+                                silentToast: _arMushafStudent?.reportSettings?.mushafAutoSendWhatsapp !== false,
+                              });
                             // Copy + open link immediately alongside WhatsApp send
                             handleClipboardCopy(_arStudentId, report, () => checkAndOpenLink(_arStudentId));
 
                             showToast('جاري تشغيل واتساب وإرسال التقرير... ⏳', 0);
-                            const arExpectAttachment = Boolean(_arMushafStudent?.reportSettings?.customMushafEnabled && _arMushafStudent.reportSettings.mushafAutoSendWhatsapp !== false);
+                            const arExpectAttachment = Boolean(!arIsWebLinkMode && _arMushafStudent?.reportSettings?.customMushafEnabled && _arMushafStudent.reportSettings.mushafAutoSendWhatsapp !== false);
                             const arAutoSendPromise = window.electronAPI?.sendWhatsAppAuto(finalTarget, report, { expectAttachment: arExpectAttachment });
                             void deliverCustomMushafAfterReport(arMushafPromise, _arMushafStudent, {
                               mode: 'auto',
@@ -16773,14 +16801,16 @@ function App() {
                             const _arCopyStudentId = smartReportModal.studentId;
                             const _arCopyDayNum = smartReportModal.dayNum;
                             closeAllModals(true);
-                            const arManualMushafPromise = triggerCustomMushafForStudent(_arMushafStudent, arReportSnapshot, {
-                              lang: 'ar',
-                              sectionTogglesOverride: arReportSnapshot.sectionToggles,
-                              cancelledInputsOverride: arReportSnapshot.cancelledInputs,
-                              exclusionsOverride: arMushafExclusions,
-                              dateStr: arMushafDateStr,
-                              silentToast: _arMushafStudent?.reportSettings?.mushafAutoSendWhatsapp !== false,
-                            });
+                            const arManualMushafPromise = arIsWebLinkMode
+                              ? Promise.resolve(null)
+                              : triggerCustomMushafForStudent(_arMushafStudent, arReportSnapshot, {
+                                lang: 'ar',
+                                sectionTogglesOverride: arReportSnapshot.sectionToggles,
+                                cancelledInputsOverride: arReportSnapshot.cancelledInputs,
+                                exclusionsOverride: arMushafExclusions,
+                                dateStr: arMushafDateStr,
+                                silentToast: _arMushafStudent?.reportSettings?.mushafAutoSendWhatsapp !== false,
+                              });
                             handleClipboardCopy(smartReportModal.studentId, report, () => {
                               saveReportForDay(_arCopyStudentId, _arCopyDayNum, report, {
                                 ...noorConfigPart,
@@ -16807,7 +16837,7 @@ function App() {
                         {sendViaWhatsapp ? <MessageCircle className="w-6 h-6" /> : '📋'} عربي
                       </button>
                       <button
-                        onClick={() => {
+                        onClick={async () => {
                           // Warning logic for Noor Al-Bayan section (English)
                           if (reportPath === 'quran' && mergeWithQuran && !visitedNoor && !noorWarningShown) {
                             setNoorWarningShown(true);
@@ -18178,6 +18208,21 @@ function App() {
                             : { rev: excludeReadingRev, oldRev: excludeReadingOldRev, new: excludeReadingNew || prevReportHadExclusion, tilawa: excludeReadingTilawa };
                           const enMushafDateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(smartReportModal.dayNum).padStart(2, '0')}`;
                           const _enMushafStudent = student;
+                          const enIsWebLinkMode = Boolean(_enMushafStudent?.reportSettings?.customMushafEnabled && (_enMushafStudent.reportSettings.mushafOutputFormat || 'pdf') === 'web_link');
+                          if (enIsWebLinkMode) {
+                            showToast('Preparing Audio Mushaf link... ⏳', 0);
+                            const linkRes = await triggerCustomMushafForStudent(_enMushafStudent, enReportSnapshot, {
+                              lang: 'en',
+                              sectionTogglesOverride: enReportSnapshot.sectionToggles,
+                              cancelledInputsOverride: enReportSnapshot.cancelledInputs,
+                              exclusionsOverride: enMushafExclusions,
+                              dateStr: enMushafDateStr,
+                              silentToast: true,
+                            });
+                            if (linkRes?.success && linkRes.url) {
+                              report += `\n\n🎧 *Audio Mushaf Link:*\n${linkRes.url}`;
+                            }
+                          }
 
                           setLastReports(prev => ({
                             ...prev,
@@ -18220,19 +18265,21 @@ function App() {
 
                             // Send via Puppeteer automation using the resolved target
                             closeAllModals(true);
-                            const enMushafPromise = triggerCustomMushafForStudent(_enMushafStudent, enReportSnapshot, {
-                              lang: 'en',
-                              sectionTogglesOverride: enReportSnapshot.sectionToggles,
-                              cancelledInputsOverride: enReportSnapshot.cancelledInputs,
-                              exclusionsOverride: enMushafExclusions,
-                              dateStr: enMushafDateStr,
-                              silentToast: _enMushafStudent?.reportSettings?.mushafAutoSendWhatsapp !== false,
-                            });
+                            const enMushafPromise = enIsWebLinkMode
+                              ? Promise.resolve(null)
+                              : triggerCustomMushafForStudent(_enMushafStudent, enReportSnapshot, {
+                                lang: 'en',
+                                sectionTogglesOverride: enReportSnapshot.sectionToggles,
+                                cancelledInputsOverride: enReportSnapshot.cancelledInputs,
+                                exclusionsOverride: enMushafExclusions,
+                                dateStr: enMushafDateStr,
+                                silentToast: _enMushafStudent?.reportSettings?.mushafAutoSendWhatsapp !== false,
+                              });
                             // Copy + open link immediately alongside WhatsApp send
                             handleClipboardCopy(_engStudentId, report, () => checkAndOpenLink(_engStudentId));
 
                             showToast(`Starting WhatsApp & sending to ${finalTarget}... ⏳`, 0);
-                            const enExpectAttachment = Boolean(_enMushafStudent?.reportSettings?.customMushafEnabled && _enMushafStudent.reportSettings.mushafAutoSendWhatsapp !== false);
+                            const enExpectAttachment = Boolean(!enIsWebLinkMode && _enMushafStudent?.reportSettings?.customMushafEnabled && _enMushafStudent.reportSettings.mushafAutoSendWhatsapp !== false);
                             const enAutoSendPromise = window.electronAPI?.sendWhatsAppAuto(finalTarget, report, { expectAttachment: enExpectAttachment });
                             void deliverCustomMushafAfterReport(enMushafPromise, _enMushafStudent, {
                               mode: 'auto',
@@ -18348,14 +18395,16 @@ function App() {
                               showToast('Failed to send ❌');
                             });
                           } else {
-                            const enManualMushafPromise = triggerCustomMushafForStudent(_enMushafStudent, enReportSnapshot, {
-                              lang: 'en',
-                              sectionTogglesOverride: enReportSnapshot.sectionToggles,
-                              cancelledInputsOverride: enReportSnapshot.cancelledInputs,
-                              exclusionsOverride: enMushafExclusions,
-                              dateStr: enMushafDateStr,
-                              silentToast: _enMushafStudent?.reportSettings?.mushafAutoSendWhatsapp !== false,
-                            });
+                            const enManualMushafPromise = enIsWebLinkMode
+                              ? Promise.resolve(null)
+                              : triggerCustomMushafForStudent(_enMushafStudent, enReportSnapshot, {
+                                lang: 'en',
+                                sectionTogglesOverride: enReportSnapshot.sectionToggles,
+                                cancelledInputsOverride: enReportSnapshot.cancelledInputs,
+                                exclusionsOverride: enMushafExclusions,
+                                dateStr: enMushafDateStr,
+                                silentToast: _enMushafStudent?.reportSettings?.mushafAutoSendWhatsapp !== false,
+                              });
                             handleClipboardCopy(smartReportModal.studentId, report, () => {
                               saveReportForDay(_engStudentId, _engDayNum, report, {
                                 ...noorConfigPart,

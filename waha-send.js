@@ -90,6 +90,8 @@ async function sendWahaFile(target, filePath, caption = '', options = {}) {
     } catch {
         return { success: false, error: 'تعذر قراءة ملف المصحف لإرساله عبر واتساب.' };
     }
+    const ext = path.extname(filePath).toLowerCase();
+    const mimetype = ext === '.html' || ext === '.htm' ? 'text/html' : 'application/pdf';
     return postWahaJson(
         options.url || 'http://127.0.0.1:3000/api/sendFile',
         {
@@ -97,7 +99,7 @@ async function sendWahaFile(target, filePath, caption = '', options = {}) {
             chatId,
             caption: typeof caption === 'string' ? caption : '',
             file: {
-                mimetype: 'application/pdf',
+                mimetype,
                 filename: path.basename(filePath),
                 data: base64Data,
             },

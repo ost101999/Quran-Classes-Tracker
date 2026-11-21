@@ -12,7 +12,24 @@ const { mergeStudents } = require('./sync-merge');
 const { createFirebaseClient } = require('./firebase-client');
 const { createSelectiveSync, cloudProjection, get } = require('./selective-sync');
 const { readMatches, resolveStudentMushafFile } = require('./shortcut-links');
-const { getDefaultMushafOutputDir, generateCustomMushafPdf } = require('./custom-mushaf');
+const { getDefaultMushafOutputDir, generateCustomMushafPdf, mapMushafPagesToPdfPages } = require('./custom-mushaf');
+const { PDFDocument } = require('pdf-lib');
+const {
+    extractPdfAnnotations,
+    matchClipsToAnnotations,
+    recolorAnnotationsToGreenInPdfBytes,
+    mergeReportAndAudioSections,
+} = require('./audio-mushaf/annotation-matcher');
+const {
+    findSessionForStudent,
+    readClipAudioDataUrl,
+} = require('./audio-mushaf/session-store');
+const {
+    renderPdfPagesToImages,
+    buildInteractiveHtml,
+    saveInteractiveHtmlFile,
+    publishAudioSessionToCloud,
+} = require('./audio-mushaf/publisher');
 const { readTargets } = require('./whatsapp-integration');
 const { createCalendarSchedules } = require('./calendar-schedules');
 const { registerAppUpdates } = require('./app-update');
@@ -36,12 +53,29 @@ ipcMain.handle('resolve-student-mushaf', (_event, payload) => {
     };
 });
 
+ipcMain.handle('get-student-audio-session', (_event, payload) => {
+    try {
+        const session = findSessionForStudent(payload || {});
+        const clips = Array.isArray(session?.clips) ? session.clips : [];
+        return {
+            hasSession: clips.length > 0,
+            clipsCount: clips.length,
+            sessionKey: session?.sessionKey || '',
+            lastRecordedAt: session?.lastRecordedAt || null,
+        };
+    } catch {
+        return { hasSession: false, clipsCount: 0 };
+    }
+});
+
 ipcMain.handle('generate-custom-mushaf', async (_event, payload) => {
     try {
         const {
+            studentId,
             studentName,
             shortcutSourceId,
             quranLink,
+            outputFormat = 'pdf',
             sections,
             dividerStyle,
             language,
@@ -64,6 +98,114 @@ ipcMain.handle('generate-custom-mushaf', async (_event, payload) => {
         }
 
         const outputDir = getDefaultMushafOutputDir(app);
+        const todayStr = dateStr || new Date().toLocaleDateString('en-CA');
+
+        if (outputFormat === 'web_link' || outputFormat === 'html') {
+            const audioSession = findSessionForStudent({ studentId, studentName, dateStr: todayStr });
+            const hasClips = !!(audioSession && Array.isArray(audioSession.clips) && audioSession.clips.length > 0);
+            const sourceBytes = fs.readFileSync(resolved.path);
+            const sourceDoc = await PDFDocument.load(sourceBytes, { ignoreEncryption: true });
+            const totalSourcePages = sourceDoc.getPageCount();
+            const offsetNum = Number.isFinite(pageOffset) ? Math.trunc(pageOffset) : 0;
+
+            const reportSectionsWithPages = (Array.isArray(sections) ? sections : []).map(sec => ({
+                ...sec,
+                pdfPages: mapMushafPagesToPdfPages(sec.startPage, sec.endPage, totalSourcePages, offsetNum),
+            }));
+
+            let markers = [];
+            let unmatchedClips = [];
+            let unmatchedNewAnnotations = [];
+            if (hasClips) {
+                const annotations = await extractPdfAnnotations(sourceDoc);
+                const matched = matchClipsToAnnotations(audioSession.clips, annotations, {
+                    sessionStartedAt: audioSession.startedAt || 0,
+                });
+                markers = matched.markers;
+                unmatchedClips = matched.unmatchedClips;
+                unmatchedNewAnnotations = matched.unmatchedNewAnnotations || [];
+            }
+
+            const merged = mergeReportAndAudioSections({
+                reportSections: reportSectionsWithPages,
+                markers,
+                unmatchedNewAnnotations,
+                totalSourcePages,
+                pageOffset: offsetNum,
+                mapPagesFn: mapMushafPagesToPdfPages,
+            });
+            if (merged.allPdfPages.length === 0) {
+                return { success: false, error: 'لا توجد صفحات محددة في التقرير لتوليد المصحف الصوتي.' };
+            }
+
+            const renderBytes = await recolorAnnotationsToGreenInPdfBytes(sourceBytes, unmatchedNewAnnotations);
+            const renderedImages = await renderPdfPagesToImages({
+                BrowserWindow,
+                pdfPath: resolved.path,
+                pdfBytes: renderBytes,
+                pageNumbers: merged.allPdfPages,
+                scale: 1.55,
+            });
+
+            const enrichedSections = merged.sections.map(sec => ({
+                ...sec,
+                pages: sec.pages.map(p => ({
+                    pdfPage: p.pdfPage,
+                    imageDataUrl: renderedImages[String(p.pdfPage)]?.imageDataUrl || '',
+                    markers: p.markers.map(m => ({
+                        id: m.clipId,
+                        xPercent: m.xPercent,
+                        yPercent: m.yPercent,
+                        durationMs: m.durationMs || 0,
+                        audioDataUrl: readClipAudioDataUrl(audioSession.sessionKey, m.audioFileName),
+                    })),
+                })),
+            }));
+
+            if (outputFormat === 'web_link') {
+                const published = await publishAudioSessionToCloud({
+                    studentId: studentId || '',
+                    studentName,
+                    dateStr: todayStr,
+                    language: language || 'ar',
+                    sections: enrichedSections,
+                });
+                return {
+                    success: true,
+                    mode: 'web_link',
+                    url: published.url,
+                    sessionId: published.sessionId,
+                    sectionsCount: enrichedSections.length,
+                    clipsCount: markers.length,
+                    unmatchedCount: unmatchedClips.length,
+                };
+            }
+
+            const html = buildInteractiveHtml({
+                studentName,
+                dateStr: todayStr,
+                language: language || 'ar',
+                sections: enrichedSections,
+            });
+            const savedHtml = saveInteractiveHtmlFile({
+                outputDir,
+                studentName,
+                dateStr: todayStr,
+                html,
+                maxFilesToKeep: process.platform === 'darwin' ? 3 : null,
+            });
+            if (savedHtml.success && autoOpen && savedHtml.filePath) {
+                shell.openPath(savedHtml.filePath).catch(() => { });
+            }
+            return {
+                ...savedHtml,
+                mode: 'html',
+                sectionsCount: enrichedSections.length,
+                clipsCount: markers.length,
+                unmatchedCount: unmatchedClips.length,
+            };
+        }
+
         const result = await generateCustomMushafPdf({
             studentName,
             sourcePdfPath: resolved.path,
@@ -71,16 +213,16 @@ ipcMain.handle('generate-custom-mushaf', async (_event, payload) => {
             dividerStyle,
             language,
             pageOffset,
-            dateStr,
+            dateStr: todayStr,
             outputDir,
             maxFilesToKeep: process.platform === 'darwin' ? 3 : null,
             BrowserWindow,
         });
 
         if (result.success && autoOpen && result.filePath) {
-            shell.openPath(result.filePath).catch(() => {});
+            shell.openPath(result.filePath).catch(() => { });
         }
-        return result;
+        return { ...result, mode: 'pdf' };
     } catch (error) {
         console.error('Failed to generate custom mushaf PDF:', error);
         return {
@@ -203,7 +345,7 @@ function getChromePath() {
         if (fs.existsSync(macPath)) return macPath;
         return null;
     }
-    
+
     if (process.platform === 'win32') {
         const candidates = [
             'C:\\\\Program Files\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe',
@@ -246,7 +388,7 @@ async function openExternalMaximized(url) {
             child.unref();
             return true;
         } catch (e) {
-            shell.openExternal(url).catch(() => {});
+            shell.openExternal(url).catch(() => { });
             return true;
         }
     }
@@ -310,7 +452,7 @@ function runMacWhatsAppHelper(args, payload, flightKey = null) {
                 finish({ success: false, error: 'تعذر التأكد من الإرسال. راجع المحادثة قبل إعادة المحاولة.' });
             }
         });
-        child.stdin.on('error', () => {});
+        child.stdin.on('error', () => { });
         child.stdin.end(JSON.stringify(payload) + '\n');
     });
 }
@@ -361,7 +503,7 @@ ipcMain.handle('send-whatsapp-file', async (_event, data) => {
         macPendingWahaState = null;
         const releasePrior = async () => {
             if (priorState?.started_by_us) {
-                await runMacWhatsAppHelper(['shutdown'], { waha_state: priorState }).catch(() => {});
+                await runMacWhatsAppHelper(['shutdown'], { waha_state: priorState }).catch(() => { });
             }
         };
         if (typeof targetName !== 'string' || !targetName.trim()) {
@@ -545,7 +687,7 @@ function createWindow() {
     }
 
     const isDev = !app.isPackaged;
-    
+
     // Determine dynamic port
     let port = process.env.PORT || 5173;
     const portArgIndex = process.argv.indexOf('--port');
@@ -588,7 +730,7 @@ function createWindow() {
 
             // DevTools: Ctrl+Shift+I / Cmd+Option+I
             const isDevTools = (process.platform === 'darwin' && input.alt && input.meta && input.code === 'KeyI') ||
-                               (process.platform !== 'darwin' && input.control && input.shift && input.code === 'KeyI');
+                (process.platform !== 'darwin' && input.control && input.shift && input.code === 'KeyI');
             if (isDevTools) {
                 mainWindow.webContents.toggleDevTools();
                 event.preventDefault();
@@ -688,7 +830,7 @@ let pullSequence = 0;
 let operation = Promise.resolve();
 function withSyncLock(work) {
     const result = operation.then(work);
-    operation = result.catch(() => {});
+    operation = result.catch(() => { });
     return result;
 }
 const initializeLastSyncedState = () => {
@@ -994,7 +1136,7 @@ ipcMain.handle('export-monthly-pdf', async (event, { htmlContent, defaultFileNam
         });
 
         fs.writeFileSync(saveResult.filePath, pdfBuffer);
-        shell.openPath(saveResult.filePath).catch(() => {});
+        shell.openPath(saveResult.filePath).catch(() => { });
 
         return { success: true, filePath: saveResult.filePath };
     } catch (error) {

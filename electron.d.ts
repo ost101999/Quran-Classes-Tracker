@@ -14,6 +14,7 @@ declare global {
             getShortcutLinks?: (students: { id: string; name: string }[]) => Promise<ShortcutLinksResult>;
             resolveStudentMushaf?: (payload: { studentName?: string; shortcutSourceId?: string; quranLink?: string }) => Promise<ResolveStudentMushafResult>;
             generateCustomMushaf?: (payload: GenerateCustomMushafPayload) => Promise<GenerateCustomMushafResult>;
+            getStudentAudioSession?: (payload: { studentId?: string; studentName?: string; dateStr?: string }) => Promise<{ hasSession: boolean; clipsCount: number; sessionKey?: string; lastRecordedAt?: number | null }>;
             openMushafFolder?: () => Promise<{ success: boolean; outputDir?: string; error?: string }>;
             openMushafFile?: (filePath: string) => Promise<{ success: boolean; error?: string }>;
             copyFileToClipboard?: (filePath: string) => Promise<{ success: boolean; error?: string }>;
@@ -102,9 +103,11 @@ interface CustomMushafSectionPayload {
 }
 
 interface GenerateCustomMushafPayload {
+    studentId?: string;
     studentName: string;
     shortcutSourceId?: string;
     quranLink?: string;
+    outputFormat?: 'pdf' | 'web_link' | 'html';
     sections: CustomMushafSectionPayload[];
     dividerStyle?: 'page' | 'banner' | 'both';
     language?: 'ar' | 'en';
@@ -115,11 +118,16 @@ interface GenerateCustomMushafPayload {
 
 interface GenerateCustomMushafResult {
     success: boolean;
+    mode?: 'pdf' | 'web_link' | 'html';
+    url?: string;
+    sessionId?: string;
     filePath?: string;
     fileName?: string;
     totalOutputPages?: number;
     sourceFileName?: string;
     sectionsCount?: number;
+    clipsCount?: number;
+    unmatchedCount?: number;
     reason?: string;
     error?: string;
 }

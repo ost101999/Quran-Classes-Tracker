@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import { AnimatePresence, motion } from 'framer-motion';
-import { AlertCircle, BookOpen, Calendar, CheckCircle2, Clock3, ExternalLink, FileAudio, FileText, Mic, PauseCircle, PlayCircle, Send, Video } from 'lucide-react';
+import { AlertCircle, BookOpen, Calendar, CheckCircle2, Clock3, ExternalLink, FileAudio, FileText, Mic, PauseCircle, PlayCircle, Send, Video, Volume2 } from 'lucide-react';
 import './App.css';
 
 type QuestionType = 'multiple_choice' | 'text' | 'audio';
@@ -268,9 +268,133 @@ const getAssignmentExamVersion = (
   return versions[0];
 };
 
-function App() {
-  const searchParams = new URLSearchParams(window.location.search);
-  const studentId = searchParams.get('student');
+function AudioMushafViewer({ sessionId }: { sessionId: string }) {
+  const [sessionData, setSessionData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState('');
+  const [playingId, setPlayingId] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    axios
+      .get(`${API_BASE}/audioMushafSessions/${encodeURIComponent(sessionId)}.json`)
+      .then(res => {
+        if (cancelled) return;
+        if (!res.data) setErr('هذه الجلسة غير متوفرة أو تم حذفها بعد مرور الحصص الأحدث.');
+        else setSessionData(res.data);
+      })
+      .catch(() => {
+        if (!cancelled) setErr('تعذر تحميل المصحف الصوتي. تأكد من اتصالك بالإنترنت.');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [sessionId]);
+
+  const togglePin = (pin: { id: string; audioDataUrl: string }) => {
+    if (playingId === pin.id && audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      setPlayingId(null);
+      return;
+    }
+    if (audioRef.current) {
+      audioRef.current.pause();
+    }
+    const audio = new Audio(pin.audioDataUrl);
+    audioRef.current = audio;
+    setPlayingId(pin.id);
+    audio.onended = () => setPlayingId(null);
+    void audio.play().catch(() => setPlayingId(null));
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-6 text-center" dir="rtl">
+        <div className="w-10 h-10 border-4 border-emerald-400 border-t-transparent rounded-full animate-spin mb-4" />
+        <p className="text-lg font-bold">جاري تحميل المصحف الصوتي...</p>
+      </div>
+    );
+  }
+
+  if (err || !sessionData) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-6 text-center" dir="rtl">
+        <AlertCircle size={40} className="text-amber-400 mb-3" />
+        <p className="text-lg font-bold max-w-md">{err || 'الرابط غير متوفر.'}</p>
+      </div>
+    );
+  }
+
+  const isAr = sessionData.language !== 'en';
+  const sections = Array.isArray(sessionData.sections) ? sessionData.sections : [];
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-slate-100 px-3 py-5 pb-16" dir={isAr ? 'rtl' : 'ltr'}>
+      <div className="max-w-3xl mx-auto space-y-6">
+        <header className="rounded-2xl bg-slate-900 border border-white/10 px-5 py-4 flex flex-wrap items-center justify-between gap-2 shadow-xl">
+          <div>
+            <h1 className="text-xl font-bold text-emerald-400">
+              {isAr ? `المصحف الصوتي — ${sessionData.studentName}` : `Audio Mushaf — ${sessionData.studentName}`}
+            </h1>
+            <p className="text-sm text-slate-400 mt-1">
+              {isAr ? 'اضغط على علامة الصوت 🔊 فوق الكلمة للاستماع إلى التصحيح' : 'Tap any 🔊 pin above a word to listen to the correction'}
+            </p>
+          </div>
+          <span className="px-3 py-1 rounded-full bg-white/10 text-xs font-bold text-slate-200">
+            {isAr ? toHindiDigits(sessionData.dateStr || '') : sessionData.dateStr}
+          </span>
+        </header>
+
+        {sections.map((sec: any, sIdx: number) => (
+          <section key={`${sec.key}_${sIdx}`} className="space-y-4">
+            <div className="rounded-xl bg-emerald-950/60 border border-emerald-500/30 px-4 py-3 flex items-center justify-between gap-3">
+              <span className="font-bold text-emerald-300 text-base">{isAr ? (sec.titleAr || sec.titleEn) : (sec.titleEn || sec.titleAr)}</span>
+              {(sec.summaryAr || sec.summaryEn) && (
+                <span className="text-xs font-semibold text-slate-300">{isAr ? (sec.summaryAr || sec.summaryEn) : (sec.summaryEn || sec.summaryAr)}</span>
+              )}
+            </div>
+
+            {(sec.pages || []).map((p: any) => (
+              <div key={p.pdfPage} className="space-y-1.5">
+                <div className="text-center">
+                  <span className="inline-block px-3 py-0.5 rounded-full bg-white/10 text-xs font-bold text-slate-300">
+                    {isAr ? `صفحة ${toHindiDigits(p.pdfPage)}` : `Page ${p.pdfPage}`}
+                  </span>
+                </div>
+                <div className="relative w-full rounded-xl overflow-hidden border border-white/15 bg-white shadow-2xl">
+                  <img src={p.imageDataUrl} alt={`Page ${p.pdfPage}`} className="w-full h-auto block" />
+                  {(p.markers || []).map((pin: any) => {
+                    const active = playingId === pin.id;
+                    return (
+                      <button
+                        key={pin.id}
+                        type="button"
+                        onClick={() => togglePin(pin)}
+                        style={{ left: `${pin.xPercent}%`, top: `${pin.yPercent}%`, transform: 'translate(-50%, -85%)' }}
+                        className={`absolute w-8 h-8 md:w-9 md:h-9 rounded-full border-2 border-white flex items-center justify-center shadow-lg transition-transform active:scale-95 ${
+                          active ? 'bg-rose-500 scale-125 ring-4 ring-rose-500/40 z-30' : 'bg-emerald-500 hover:scale-110 z-20'
+                        }`}
+                        title={isAr ? 'استماع للتصحيح' : 'Play correction'}
+                      >
+                        <Volume2 size={16} className="text-white" />
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </section>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function StudentPortal({ studentId }: { studentId: string | null }) {
 
   const [data, setData] = useState<AppState | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1457,6 +1581,16 @@ function App() {
       </main>
     </div>
   );
+}
+
+function App() {
+  const searchParams = new URLSearchParams(window.location.search);
+  const mushafSessionId = searchParams.get('mushaf');
+  const studentId = searchParams.get('student');
+  if (mushafSessionId) {
+    return <AudioMushafViewer sessionId={mushafSessionId} />;
+  }
+  return <StudentPortal studentId={studentId} />;
 }
 
 export default App;
