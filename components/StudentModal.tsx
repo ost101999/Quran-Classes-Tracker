@@ -166,11 +166,32 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
   const [scheduleRefresh, setScheduleRefresh] = useState(0);
   const [activePanel, setActivePanel] = useState<'main' | 'studentWeb' | 'reportSettings'>(openStudentWebInitially ? 'studentWeb' : 'main');
   const [lastSubPanel, setLastSubPanel] = useState<'studentWeb' | 'reportSettings'>('studentWeb');
+  const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
+  const headerMenuRef = useRef<HTMLDivElement>(null);
   const showStudentWeb = activePanel === 'studentWeb';
   const openSubPanel = (panel: 'studentWeb' | 'reportSettings') => {
+    setHeaderMenuOpen(false);
     setLastSubPanel(panel);
     setActivePanel(panel);
   };
+
+  useEffect(() => {
+    if (!headerMenuOpen) return;
+    const handlePointerDown = (e: MouseEvent) => {
+      if (headerMenuRef.current && !headerMenuRef.current.contains(e.target as Node)) {
+        setHeaderMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setHeaderMenuOpen(false);
+    };
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [headerMenuOpen]);
   const [reportSettings, setReportSettings] = useState<StudentReportSettings>(() => ({
     customMushafEnabled: student?.reportSettings?.customMushafEnabled ?? false,
     mushafTargetSection: student?.reportSettings?.mushafTargetSection || 'reading',
@@ -581,33 +602,66 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
           <section ref={mainPanelRef} className="w-full flex-shrink-0">
 
             {/* Header */}
-            <div className="relative p-6 text-center border-b border-gray-100">
-              <button onClick={onClose} className="absolute left-6 top-1/2 -translate-y-1/2 p-2 hover:bg-gray-100 rounded-full text-gray-500 transition-colors">
+            <div className="relative z-20 p-6 text-center border-b border-gray-100">
+              <button type="button" onClick={onClose} className="absolute left-6 top-1/2 -translate-y-1/2 p-2 hover:bg-gray-100 rounded-full text-gray-500 transition-colors">
                 <X size={24} />
               </button>
               <h2 className="text-3xl font-arabic text-gray-800 pt-2">{student ? 'تعديل بيانات الطالب' : 'إضافة طالب'}</h2>
-              <div className="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col gap-1.5 items-stretch">
+              <div ref={headerMenuRef} className="absolute right-5 top-1/2 -translate-y-1/2">
                 <button
                   type="button"
-                  onClick={() => openSubPanel('studentWeb')}
-                  title={shortcutStatus || 'واجهة الطالب'}
-                  aria-label={shortcutStatus ? `واجهة الطالب — ${shortcutStatus}` : 'واجهة الطالب'}
-                  className="relative flex items-center justify-between gap-1.5 text-sm font-bold text-gray-500 hover:text-amber-600 hover:bg-amber-50 px-3 py-1.5 rounded-xl transition-all border border-transparent hover:border-amber-200 group shadow-sm bg-gray-50"
+                  onClick={() => setHeaderMenuOpen(prev => !prev)}
+                  aria-expanded={headerMenuOpen}
+                  aria-haspopup="menu"
+                  className="flex items-center gap-1.5 text-sm font-bold text-gray-600 hover:text-gray-800 hover:bg-gray-100 px-3.5 py-2 rounded-xl transition-all border border-gray-200/80 bg-gray-50/90 shadow-sm"
                 >
-                  {shortcutStatus && <Link aria-hidden="true" size={12} strokeWidth={2.5} className={`pointer-events-none absolute -left-1 -top-1 z-10 rounded-sm bg-white ${shortcutLinked ? 'text-emerald-600' : 'text-amber-500'}`} />}
-                  <span className="font-arabic">واجهة الطالب</span>
-                  <ChevronLeft size={16} className="group-hover:-translate-x-0.5 transition-transform" />
+                  <span className="font-arabic">المزيد</span>
+                  <ChevronDown size={16} className={`transition-transform duration-150 ${headerMenuOpen ? 'rotate-180' : ''}`} />
                 </button>
-                <button
-                  type="button"
-                  onClick={() => openSubPanel('reportSettings')}
-                  title="تخصيص إعدادات التقرير والمصحف المخصص"
-                  className="relative flex items-center justify-between gap-1.5 text-sm font-bold text-gray-500 hover:text-emerald-700 hover:bg-emerald-50 px-3 py-1.5 rounded-xl transition-all border border-transparent hover:border-emerald-200 group shadow-sm bg-gray-50"
-                >
-                  {reportSettings.customMushafEnabled && <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />}
-                  <span className="font-arabic">تعديل التقرير</span>
-                  <ChevronLeft size={16} className="group-hover:-translate-x-0.5 transition-transform" />
-                </button>
+                {headerMenuOpen && (
+                  <div
+                    role="menu"
+                    dir="rtl"
+                    className="absolute right-0 top-full mt-2 w-48 rounded-2xl border border-gray-100 bg-white p-1.5 shadow-xl z-30 space-y-1"
+                  >
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => openSubPanel('studentWeb')}
+                      title={shortcutStatus || 'واجهة الطالب'}
+                      aria-label={shortcutStatus ? `واجهة الطالب — ${shortcutStatus}` : 'واجهة الطالب'}
+                      className="w-full flex items-center justify-between gap-2 text-base font-bold text-gray-600 hover:text-amber-700 hover:bg-amber-50/80 px-3 py-2.5 rounded-xl transition-colors group"
+                    >
+                      <span className="flex items-center gap-2 font-arabic">
+                        <span>واجهة الطالب</span>
+                        {shortcutStatus && (
+                          <Link
+                            aria-hidden="true"
+                            size={13}
+                            strokeWidth={2.5}
+                            className={shortcutLinked ? 'text-emerald-600' : 'text-amber-500'}
+                          />
+                        )}
+                      </span>
+                      <ChevronLeft size={16} className="text-gray-400 group-hover:-translate-x-0.5 transition-transform" />
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => openSubPanel('reportSettings')}
+                      title="تخصيص إعدادات التقرير والمصحف المخصص"
+                      className="w-full flex items-center justify-between gap-2 text-base font-bold text-gray-600 hover:text-emerald-700 hover:bg-emerald-50/80 px-3 py-2.5 rounded-xl transition-colors group"
+                    >
+                      <span className="flex items-center gap-2 font-arabic">
+                        <span>تعديل التقرير</span>
+                        {reportSettings.customMushafEnabled && (
+                          <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                        )}
+                      </span>
+                      <ChevronLeft size={16} className="text-gray-400 group-hover:-translate-x-0.5 transition-transform" />
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
 
