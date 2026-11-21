@@ -1,5 +1,6 @@
 const fs = require('fs');
 const http = require('http');
+const path = require('path');
 
 const SETTINGS_FILE = 'C:\\WhatsAppReminders\\.env';
 const UNCERTAIN = 'تعذر التأكد من نتيجة الإرسال. راجع المحادثة قبل إعادة المحاولة، وتأكد من تشغيل WAHA واتصال واتساب.';
@@ -35,20 +36,14 @@ function readApiKey(file = SETTINGS_FILE) {
     return value;
 }
 
-async function sendWahaMessage(target, text, options = {}) {
-    const chatId = normalizeTarget(target);
-    if (!chatId) return { success: false, error: 'أدخل رقم واتساب بمفتاح الدولة أو معرّف المحادثة الكامل.' };
-    if (typeof text !== 'string' || !text.trim()) return { success: false, error: 'بيانات الإرسال غير مكتملة.' };
-    let key;
-    try { key = readApiKey(options.settingsFile); }
-    catch { return { success: false, error: 'تعذر قراءة مفتاح WAHA من إعدادات برنامج التذكير.' }; }
-    const body = JSON.stringify({ chatId, text, session: 'default' });
+function postWahaJson(endpointUrl, payload, apiKey, timeout = 15000) {
+    const body = JSON.stringify(payload);
     return new Promise(resolve => {
         let settled = false;
         const finish = result => { if (!settled) { settled = true; resolve(result); } };
-        const req = http.request(options.url || 'http://127.0.0.1:3000/api/sendText', {
+        const req = http.request(endpointUrl, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body), 'X-Api-Key': key },
+            headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body), 'X-Api-Key': apiKey },
         }, res => {
             res.resume();
             res.on('error', () => finish({ success: false, error: UNCERTAIN }));
@@ -59,10 +54,57 @@ async function sendWahaMessage(target, text, options = {}) {
                 else finish({ success: false, error: `رفض WAHA الإرسال أو تعذر تأكيده (HTTP ${res.statusCode}). راجع المحادثة وحالة الخدمة قبل إعادة المحاولة.` });
             });
         });
-        req.setTimeout(options.timeout || 15000, () => req.destroy());
+        req.setTimeout(timeout, () => req.destroy());
         req.on('error', () => finish({ success: false, error: UNCERTAIN }));
         req.end(body);
     });
 }
 
-module.exports = { normalizeTarget, readApiKey, sendWahaMessage };
+async function sendWahaMessage(target, text, options = {}) {
+    const chatId = normalizeTarget(target);
+    if (!chatId) return { success: false, error: 'أدخل رقم واتساب بمفتاح الدولة أو معرّف المحادثة الكامل.' };
+    if (typeof text !== 'string' || !text.trim()) return { success: false, error: 'بيانات الإرسال غير مكتملة.' };
+    let key;
+    try { key = readApiKey(options.settingsFile); }
+    catch { return { success: false, error: 'تعذر قراءة مفتاح WAHA من إعدادات برنامج التذكير.' }; }
+    return postWahaJson(
+        options.url || 'http://127.0.0.1:3000/api/sendText',
+        { chatId, text, session: 'default' },
+        key,
+        options.timeout || 15000
+    );
+}
+
+async function sendWahaFile(target, filePath, caption = '', options = {}) {
+    const chatId = normalizeTarget(target);
+    if (!chatId) return { success: false, error: 'أدخل رقم واتساب بمفتاح الدولة أو معرّف المحادثة الكامل.' };
+    if (!filePath || typeof filePath !== 'string' || !fs.existsSync(filePath)) {
+        return { success: false, error: 'ملف المصحف غير موجود للإرسال.' };
+    }
+    let key;
+    try { key = readApiKey(options.settingsFile); }
+    catch { return { success: false, error: 'تعذر قراءة مفتاح WAHA من إعدادات برنامج التذكير.' }; }
+    let base64Data;
+    try {
+        base64Data = fs.readFileSync(filePath).toString('base64');
+    } catch {
+        return { success: false, error: 'تعذر قراءة ملف المصحف لإرساله عبر واتساب.' };
+    }
+    return postWahaJson(
+        options.url || 'http://127.0.0.1:3000/api/sendFile',
+        {
+            session: 'default',
+            chatId,
+            caption: typeof caption === 'string' ? caption : '',
+            file: {
+                mimetype: 'application/pdf',
+                filename: path.basename(filePath),
+                data: base64Data,
+            },
+        },
+        key,
+        options.timeout || 60000
+    );
+}
+
+module.exports = { normalizeTarget, readApiKey, sendWahaMessage, sendWahaFile };

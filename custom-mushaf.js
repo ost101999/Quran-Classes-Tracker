@@ -1,6 +1,53 @@
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const { PDFDocument } = require('pdf-lib');
+
+let cachedAmiriCss = null;
+
+function buildAmiriFontCss() {
+    if (cachedAmiriCss !== null) return cachedAmiriCss;
+    const dirs = [
+        path.join(__dirname, 'public', 'fonts'),
+        process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, 'Microsoft', 'Windows', 'Fonts') : '',
+        'C:\\Windows\\Fonts',
+        path.join(os.homedir(), 'Library', 'Fonts'),
+        '/Library/Fonts',
+    ].filter(Boolean);
+
+    const findFont = (names) => {
+        for (const dir of dirs) {
+            for (const name of names) {
+                const candidate = path.join(dir, name);
+                try {
+                    if (fs.existsSync(candidate)) return candidate;
+                } catch { /* skip */ }
+            }
+        }
+        return null;
+    };
+
+    const rules = [];
+    const regularPath = findFont(['Amiri-Regular.ttf', 'Amiri.ttf']);
+    const boldPath = findFont(['Amiri-Bold.ttf']);
+
+    try {
+        if (regularPath) {
+            const b64 = fs.readFileSync(regularPath).toString('base64');
+            rules.push(`@font-face { font-family: 'Amiri'; font-weight: 400; font-style: normal; src: url('data:font/ttf;base64,${b64}') format('truetype'); }`);
+            if (!boldPath) {
+                rules.push(`@font-face { font-family: 'Amiri'; font-weight: 700; font-style: normal; src: url('data:font/ttf;base64,${b64}') format('truetype'); }`);
+            }
+        }
+        if (boldPath) {
+            const b64Bold = fs.readFileSync(boldPath).toString('base64');
+            rules.push(`@font-face { font-family: 'Amiri'; font-weight: 700; font-style: normal; src: url('data:font/ttf;base64,${b64Bold}') format('truetype'); }`);
+        }
+    } catch { /* fall back to system/CSS Amiri font */ }
+
+    cachedAmiriCss = rules.join('\n');
+    return cachedAmiriCss;
+}
 
 const SECTION_THEMES = {
     rev: { accent: '#1d4ed8', bg: '#eff6ff', border: '#93c5fd', badge: '#dbeafe' },
@@ -85,19 +132,21 @@ function buildDividerHtml({ section, language, studentName, dateStr, pageCount, 
     const safeStudent = escapeHtml(studentName);
     const safeDate = escapeHtml(isAr ? toHindiDigits(dateStr) : dateStr);
 
+    const amiriCss = buildAmiriFontCss();
     return `<!DOCTYPE html>
 <html dir="${isAr ? 'rtl' : 'ltr'}" lang="${isAr ? 'ar' : 'en'}">
 <head>
 <meta charset="utf-8" />
 <style>
   @page { size: ${widthPt}pt ${heightPt}pt; margin: 0; }
+  ${amiriCss}
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body {
     width: ${widthPt}pt;
     height: ${heightPt}pt;
     overflow: hidden;
     background: #fdfbf4;
-    font-family: 'Segoe UI', 'Tahoma', 'Arial', sans-serif;
+    font-family: 'Amiri', 'Segoe UI', 'Tahoma', 'Arial', serif;
     color: #1f2937;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
@@ -130,32 +179,35 @@ function buildDividerHtml({ section, language, studentName, dateStr, pageCount, 
   }
   .pill {
     display: inline-block;
-    padding: 12pt 30pt;
+    padding: 14pt 34pt;
     border-radius: 999pt;
     background: ${theme.badge};
     border: 2pt solid ${theme.border};
     color: ${theme.accent};
-    font-size: 36pt;
-    font-weight: 800;
+    font-family: 'Amiri', serif;
+    font-size: 42pt;
+    font-weight: 700;
     letter-spacing: ${isAr ? '0' : '0.02em'};
     margin-bottom: 24pt;
     box-shadow: 0 4pt 14pt rgba(0,0,0,0.06);
   }
   .summary {
-    font-size: 21pt;
+    font-family: 'Amiri', serif;
+    font-size: 25pt;
     font-weight: 700;
     color: #111827;
-    line-height: 1.65;
+    line-height: 1.7;
     margin-bottom: 18pt;
     max-width: 90%;
   }
   .pages {
-    font-size: 14pt;
-    font-weight: 600;
+    font-family: 'Amiri', serif;
+    font-size: 16pt;
+    font-weight: 400;
     color: #4b5563;
     background: #ffffff;
     border: 1pt solid #e5e7eb;
-    padding: 7pt 18pt;
+    padding: 7pt 20pt;
     border-radius: 999pt;
   }
   .footer {
@@ -163,7 +215,8 @@ function buildDividerHtml({ section, language, studentName, dateStr, pageCount, 
     bottom: 22pt;
     left: 24pt;
     right: 24pt;
-    font-size: 12pt;
+    font-family: 'Amiri', serif;
+    font-size: 14pt;
     color: #6b7280;
     display: flex;
     justify-content: space-between;
@@ -194,19 +247,21 @@ function buildBannerHtml({ section, language, widthPt, bannerHeightPt = 28 }) {
     const theme = SECTION_THEMES[section.key] || SECTION_THEMES.new;
     const title = isAr ? section.titleAr : section.titleEn;
     const summary = isAr ? section.summaryAr : section.summaryEn;
+    const amiriCss = buildAmiriFontCss();
     return `<!DOCTYPE html>
 <html dir="${isAr ? 'rtl' : 'ltr'}" lang="${isAr ? 'ar' : 'en'}">
 <head>
 <meta charset="utf-8" />
 <style>
   @page { size: ${widthPt}pt ${bannerHeightPt}pt; margin: 0; }
+  ${amiriCss}
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body {
     width: ${widthPt}pt;
     height: ${bannerHeightPt}pt;
     overflow: hidden;
     background: ${theme.bg};
-    font-family: 'Segoe UI', 'Tahoma', 'Arial', sans-serif;
+    font-family: 'Amiri', 'Segoe UI', 'Tahoma', 'Arial', serif;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
@@ -218,14 +273,14 @@ function buildBannerHtml({ section, language, widthPt, bannerHeightPt = 28 }) {
     align-items: center;
     justify-content: space-between;
     padding: 0 18pt;
-    font-size: 11.5pt;
+    font-size: 13pt;
     font-weight: 700;
     color: ${theme.accent};
   }
   .sub {
     color: #374151;
     font-weight: 600;
-    font-size: 10pt;
+    font-size: 11pt;
   }
 </style>
 </head>

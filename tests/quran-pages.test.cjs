@@ -155,6 +155,8 @@ test('buildCustomMushafPlan orders reading sections as rev -> oldRev -> new -> t
 
   const plan = buildCustomMushafPlan({ reportData, sectionToggles });
   assert.deepEqual(plan.map(s => s.key), ['rev', 'oldRev', 'new', 'tilawa']);
+  assert.equal(plan[0].titleEn, 'Revision');
+  assert.equal(plan[1].titleEn, 'Old Revision');
   assert.deepEqual(plan.map(s => [s.startPage, s.endPage]), [
     [582, 604],
     [2, 3],

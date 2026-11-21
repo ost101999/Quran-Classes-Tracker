@@ -6,7 +6,7 @@ const path = require('node:path');
 const { PDFDocument, PDFName } = require('pdf-lib');
 
 const { resolveStudentMushafFile } = require('../shortcut-links');
-const { mapMushafPagesToPdfPages, generateCustomMushafPdf } = require('../custom-mushaf');
+const { mapMushafPagesToPdfPages, buildDividerHtml, buildBannerHtml, generateCustomMushafPdf } = require('../custom-mushaf');
 
 test('resolveStudentMushafFile uses ONLY the student Mushaf PDF without falling back to master', () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mushaf-shortcuts-'));
@@ -143,6 +143,24 @@ test('generateCustomMushafPdf extracts pages with divider pages while preserving
     // Copied p3 (index 1 in output) and p5 (index 4 in output) must keep /Annots
     assert.ok(outDoc.getPage(1).node.lookup(PDFName.of('Annots')), 'Expected error highlight annotation preserved on page 3');
     assert.ok(outDoc.getPage(4).node.lookup(PDFName.of('Annots')), 'Expected error highlight annotation preserved on page 5');
+
+    const divHtml = buildDividerHtml({
+      section: { key: 'rev', titleAr: 'المراجعة القريبة', titleEn: 'Revision', summaryAr: 'صفحة ١', summaryEn: 'Page 1', startPage: 1, endPage: 1 },
+      language: 'en',
+      studentName: 'Bilal',
+      dateStr: '2026-11-21',
+      pageCount: 1,
+      widthPt: 475,
+      heightPt: 885,
+    });
+    const banHtml = buildBannerHtml({
+      section: { key: 'rev', titleAr: 'المراجعة القريبة', titleEn: 'Revision', summaryAr: 'صفحة ١', summaryEn: 'Page 1', startPage: 1, endPage: 1 },
+      language: 'en',
+      widthPt: 475,
+    });
+    assert.match(divHtml, /font-family:\s*'Amiri'/);
+    assert.match(banHtml, /font-family:\s*'Amiri'/);
+    assert.match(divHtml, />Revision</);
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }

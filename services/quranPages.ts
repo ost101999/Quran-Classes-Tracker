@@ -62,8 +62,8 @@ export const MUSHAF_PAGE_STARTS: ReadonlyArray<readonly [number, number]> = [
 export const DEFAULT_MUSHAF_SECTION_ORDER: ReadonlyArray<MushafSectionKey> = ['rev', 'oldRev', 'new', 'tilawa'];
 
 export const MUSHAF_SECTION_LABELS: Record<MushafSectionKey, { ar: string; en: string }> = {
-  rev: { ar: 'المراجعة القريبة', en: 'Near Revision' },
-  oldRev: { ar: 'المراجعة البعيدة', en: 'Far Revision' },
+  rev: { ar: 'المراجعة القريبة', en: 'Revision' },
+  oldRev: { ar: 'المراجعة البعيدة', en: 'Old Revision' },
   new: { ar: 'الجديد', en: 'New Memorization' },
   tilawa: { ar: 'القراءة', en: 'Reading' },
 };

@@ -1,8 +1,8 @@
 const { app, BrowserWindow, ipcMain, shell, protocol, Menu, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const { spawn } = require('child_process');
-const { sendWahaMessage } = require('./waha-send');
+const { spawn, execFile } = require('child_process');
+const { sendWahaMessage, sendWahaFile } = require('./waha-send');
 const { createChromeTabBridge } = require('./chrome-tab-bridge');
 const { focusChromeWindow } = require('./chrome-window-focus');
 const { createSyncQueue } = require('./sync-queue');
@@ -113,6 +113,59 @@ ipcMain.handle('open-mushaf-file', async (_event, filePath) => {
         return { success: true };
     } catch (error) {
         return { success: false, error: error?.message || 'تعذر فتح الملف.' };
+    }
+});
+
+ipcMain.handle('copy-file-to-clipboard', async (_event, filePath) => {
+    try {
+        if (!filePath || typeof filePath !== 'string') return { success: false, error: 'مسار غير صالح.' };
+        const outputDir = path.resolve(getDefaultMushafOutputDir(app));
+        const resolvedTarget = path.resolve(filePath);
+        if (!resolvedTarget.startsWith(outputDir + path.sep) && resolvedTarget !== outputDir) {
+            return { success: false, error: 'مسار الملف خارج مجلد مصاحف الطلبة.' };
+        }
+        if (!fs.existsSync(resolvedTarget)) return { success: false, error: 'ملف المصحف غير موجود لنسخه.' };
+
+        if (process.platform === 'win32') {
+            return await new Promise((resolve) => {
+                execFile(
+                    'powershell.exe',
+                    [
+                        '-NoProfile',
+                        '-Sta',
+                        '-Command',
+                        'Add-Type -AssemblyName System.Windows.Forms; $list = New-Object System.Collections.Specialized.StringCollection; $list.Add($env:MUSHAF_CLIP_PATH) | Out-Null; [System.Windows.Forms.Clipboard]::SetFileDropList($list);',
+                    ],
+                    {
+                        windowsHide: true,
+                        timeout: 8000,
+                        env: { ...process.env, MUSHAF_CLIP_PATH: resolvedTarget },
+                    },
+                    (err) => {
+                        if (err) resolve({ success: false, error: err.message });
+                        else resolve({ success: true });
+                    }
+                );
+            });
+        }
+
+        if (process.platform === 'darwin') {
+            return await new Promise((resolve) => {
+                execFile(
+                    'osascript',
+                    ['-e', 'on run argv\nset the clipboard to POSIX file (item 1 of argv)\nend run', resolvedTarget],
+                    { timeout: 8000 },
+                    (err) => {
+                        if (err) resolve({ success: false, error: err.message });
+                        else resolve({ success: true });
+                    }
+                );
+            });
+        }
+
+        return { success: false, error: 'النسخ غير مدعوم على هذا النظام.' };
+    } catch (error) {
+        return { success: false, error: error?.message || 'تعذر نسخ ملف المصحف للحافظة.' };
     }
 });
 
@@ -230,6 +283,14 @@ ipcMain.handle('send-whatsapp-auto', async (event, data) => {
     }
     const { targetName, message } = data || {};
     return sendWahaMessage(targetName, message);
+});
+
+ipcMain.handle('send-whatsapp-file', async (_event, data) => {
+    const { targetName, filePath, caption } = data || {};
+    if (process.platform === 'darwin') {
+        return { success: false, unsupported: true, error: 'تم حفظ المصحف محلياً؛ إرسال المرفقات التلقائي متاح على ويندوز.' };
+    }
+    return sendWahaFile(targetName, filePath, caption || '');
 });
 
 // --- Open External Links ---

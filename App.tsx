@@ -5440,12 +5440,13 @@ function App() {
       cancelledInputsOverride?: Record<string, boolean>;
       exclusionsOverride?: Partial<Record<'rev' | 'oldRev' | 'new' | 'tilawa', boolean>>;
       dateStr?: string;
+      silentToast?: boolean;
     } = {}
-  ) => {
-    if (!targetStudent?.reportSettings?.customMushafEnabled) return;
+  ): Promise<{ success: boolean; filePath?: string; fileName?: string; error?: string } | null> => {
+    if (!targetStudent?.reportSettings?.customMushafEnabled) return null;
     if (!window.electronAPI?.generateCustomMushaf) {
-      showToast('ميزة إنشاء المصحف المخصص متاحة من تطبيق الكمبيوتر.');
-      return;
+      if (!options.silentToast) showToast('ميزة إنشاء المصحف المخصص متاحة من تطبيق الكمبيوتر.');
+      return null;
     }
 
     const settings = targetStudent.reportSettings;
@@ -5457,8 +5458,8 @@ function App() {
       settings,
     });
     if (sections.length === 0) {
-      showToast('لا توجد صفحات قرآن محددة في التقرير لإنشاء المصحف.');
-      return;
+      if (!options.silentToast) showToast('لا توجد صفحات قرآن محددة في التقرير لإنشاء المصحف.');
+      return null;
     }
 
     const resolvedLang: 'ar' | 'en' = settings.mushafLanguage === 'en'
@@ -5481,14 +5482,54 @@ function App() {
       });
 
       if (res.success) {
-        showToast(`تم إنشاء مصحف الطالب (${res.fileName}) 📖`);
+        if (!options.silentToast) showToast(`تم إنشاء مصحف الطالب (${res.fileName}) 📖`);
       } else {
         showToast(`⚠️ ${res.error || 'تعذّر إنشاء المصحف المخصص.'}`);
       }
+      return res;
     } catch {
       showToast('⚠️ حدث خطأ أثناء إنشاء المصحف المخصص.');
+      return null;
     }
   }, [lastReportLanguage]);
+
+  const deliverCustomMushafAfterReport = useCallback(async (
+    mushafPromise: Promise<{ success: boolean; filePath?: string; fileName?: string } | null>,
+    targetStudent: Student | undefined,
+    delivery:
+      | { mode: 'auto'; target: string; waitAuto: Promise<{ success: boolean; error?: string } | undefined> }
+      | { mode: 'manual'; lang: 'ar' | 'en' }
+  ) => {
+    if (!targetStudent?.reportSettings?.customMushafEnabled) return;
+    if (targetStudent.reportSettings.mushafAutoSendWhatsapp === false) return;
+
+    if (delivery.mode === 'auto') {
+      const [autoRes, mushafRes] = await Promise.all([delivery.waitAuto, mushafPromise]);
+      if (!autoRes?.success || !mushafRes?.success || !mushafRes.filePath) return;
+      if (!window.electronAPI?.sendWhatsAppFile) return;
+      const fileRes = await window.electronAPI.sendWhatsAppFile(delivery.target, mushafRes.filePath);
+      if (fileRes?.success) {
+        showToast(targetStudent.reportSettings.mushafLanguage === 'en'
+          ? 'Report & custom Mushaf sent via WhatsApp ✅'
+          : 'تم إرسال التقرير والمصحف عبر واتساب ✅');
+      } else if (fileRes?.unsupported) {
+        showToast('تم إرسال التقرير وحفظ المصحف محلياً 📖');
+      } else {
+        showToast(`تم إرسال التقرير؛ تعذر إرسال المصحف (${fileRes?.error || 'خطأ'})`);
+      }
+      return;
+    }
+
+    const mushafRes = await mushafPromise;
+    if (!mushafRes?.success || !mushafRes.filePath || !window.electronAPI?.copyFileToClipboard) return;
+    window.setTimeout(() => {
+      void window.electronAPI!.copyFileToClipboard!(mushafRes.filePath!).then(clipRes => {
+        if (clipRes?.success) {
+          showToast(delivery.lang === 'en' ? 'Custom Mushaf PDF copied to clipboard 📄' : 'تم نسخ ملف المصحف للحافظة 📄');
+        }
+      });
+    }, 450);
+  }, []);
 
   const initializeReportDraft = (studentId: string, dayNum: number, currentMonth: number, currentYear: number) => {
     // Check if the current report is already saved (Editing Mode)
@@ -16492,18 +16533,25 @@ function App() {
                             const _arStudentId = smartReportModal.studentId;
                             const _arDayNum = smartReportModal.dayNum;
                             closeAllModals(true);
-                            void triggerCustomMushafForStudent(_arMushafStudent, arReportSnapshot, {
+                            const arMushafPromise = triggerCustomMushafForStudent(_arMushafStudent, arReportSnapshot, {
                               lang: 'ar',
                               sectionTogglesOverride: arReportSnapshot.sectionToggles,
                               cancelledInputsOverride: arReportSnapshot.cancelledInputs,
                               exclusionsOverride: arMushafExclusions,
                               dateStr: arMushafDateStr,
+                              silentToast: _arMushafStudent?.reportSettings?.mushafAutoSendWhatsapp !== false,
                             });
                             // Copy + open link immediately alongside WhatsApp send
                             handleClipboardCopy(_arStudentId, report, () => checkAndOpenLink(_arStudentId));
 
                             showToast('جاري تشغيل واتساب وإرسال التقرير... ⏳', 0);
-                            window.electronAPI?.sendWhatsAppAuto(finalTarget, report).then((result: any) => {
+                            const arAutoSendPromise = window.electronAPI?.sendWhatsAppAuto(finalTarget, report);
+                            void deliverCustomMushafAfterReport(arMushafPromise, _arMushafStudent, {
+                              mode: 'auto',
+                              target: finalTarget,
+                              waitAuto: arAutoSendPromise || Promise.resolve(undefined),
+                            });
+                            arAutoSendPromise?.then((result: any) => {
                               if (result.success) {
                                 const reportKey = `${_arStudentId}_${_arDayNum}_${month}_${year}`;
 
@@ -16632,13 +16680,16 @@ function App() {
 
                               showToast('تم نسخ التقرير (عربي) ✨');
                               setSearchQuery('');
-                              void triggerCustomMushafForStudent(_arMushafStudent, arReportSnapshot, {
+                              const arManualMushafPromise = triggerCustomMushafForStudent(_arMushafStudent, arReportSnapshot, {
                                 lang: 'ar',
                                 sectionTogglesOverride: arReportSnapshot.sectionToggles,
                                 cancelledInputsOverride: arReportSnapshot.cancelledInputs,
                                 exclusionsOverride: arMushafExclusions,
                                 dateStr: arMushafDateStr,
                               });
+                              if (sendViaWhatsapp && whatsappMode === 'manual') {
+                                void deliverCustomMushafAfterReport(arManualMushafPromise, _arMushafStudent, { mode: 'manual', lang: 'ar' });
+                              }
                               checkAndOpenLink(_arCopyStudentId);
                             });
                           }
@@ -18061,18 +18112,25 @@ function App() {
 
                             // Send via Puppeteer automation using the resolved target
                             closeAllModals(true);
-                            void triggerCustomMushafForStudent(_enMushafStudent, enReportSnapshot, {
+                            const enMushafPromise = triggerCustomMushafForStudent(_enMushafStudent, enReportSnapshot, {
                               lang: 'en',
                               sectionTogglesOverride: enReportSnapshot.sectionToggles,
                               cancelledInputsOverride: enReportSnapshot.cancelledInputs,
                               exclusionsOverride: enMushafExclusions,
                               dateStr: enMushafDateStr,
+                              silentToast: _enMushafStudent?.reportSettings?.mushafAutoSendWhatsapp !== false,
                             });
                             // Copy + open link immediately alongside WhatsApp send
                             handleClipboardCopy(_engStudentId, report, () => checkAndOpenLink(_engStudentId));
 
                             showToast(`Starting WhatsApp & sending to ${finalTarget}... ⏳`, 0);
-                            window.electronAPI?.sendWhatsAppAuto(finalTarget, report).then((result: any) => {
+                            const enAutoSendPromise = window.electronAPI?.sendWhatsAppAuto(finalTarget, report);
+                            void deliverCustomMushafAfterReport(enMushafPromise, _enMushafStudent, {
+                              mode: 'auto',
+                              target: finalTarget,
+                              waitAuto: enAutoSendPromise || Promise.resolve(undefined),
+                            });
+                            enAutoSendPromise?.then((result: any) => {
                               if (result.success) {
                                 // Save report for later viewing
                                 const reportKey = `${_engStudentId}_${_engDayNum}_${month}_${year}`;
@@ -18194,13 +18252,16 @@ function App() {
 
                               closeAllModals(true);
                               showToast('Report Copied (English) ✨');
-                              void triggerCustomMushafForStudent(_enMushafStudent, enReportSnapshot, {
+                              const enManualMushafPromise = triggerCustomMushafForStudent(_enMushafStudent, enReportSnapshot, {
                                 lang: 'en',
                                 sectionTogglesOverride: enReportSnapshot.sectionToggles,
                                 cancelledInputsOverride: enReportSnapshot.cancelledInputs,
                                 exclusionsOverride: enMushafExclusions,
                                 dateStr: enMushafDateStr,
                               });
+                              if (sendViaWhatsapp && whatsappMode === 'manual') {
+                                void deliverCustomMushafAfterReport(enManualMushafPromise, _enMushafStudent, { mode: 'manual', lang: 'en' });
+                              }
                               checkAndOpenLink(_engStudentId);
 
                               // PERSISTENCE FIX: Force save to lastReports on Clipboard Copy (Match Arabic behavior)

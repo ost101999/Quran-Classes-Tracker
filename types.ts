@@ -130,6 +130,7 @@ export interface StudentReportSettings {
   mushafLanguage?: 'auto' | 'ar' | 'en';
   mushafPageOffset?: number;
   mushafAutoOpen?: boolean;
+  mushafAutoSendWhatsapp?: boolean;
 }
 
 export interface InactivePeriod {
