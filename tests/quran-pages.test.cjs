@@ -137,13 +137,14 @@ test('resolves all Smart Report modes (ayah, advanced ayah, page, juz, hizb, sur
   );
 });
 
-test('buildCustomMushafPlan orders reading sections as rev -> oldRev -> new -> tilawa by default and respects opt-in settings', () => {
+test('buildCustomMushafPlan defaults to homework sections ordered rev -> oldRev -> new -> tilawa and respects reading/custom settings', () => {
   const reportData = {
     readingNew: { mode: 'ayah', surah: 'الملك', fromAyah: '١', toAyah: '١٢' },
     readingRev: { mode: 'juz', fromJuz: '٣٠', toJuz: '٣٠' },
     readingOldRev: { mode: 'page', fromPage: '٢', toPage: '٣' },
     readingTilawa: { mode: 'surah', fromSurah: 'الفاتحة', toSurah: 'الفاتحة' },
     homeworkNew: { mode: 'ayah', surah: 'الملك', from: '١٣', to: '٣٠' },
+    homeworkRev: { mode: 'juz', from: '٢٩', to: '٢٩' },
   };
   const sectionToggles = {
     readingNew: true,
@@ -151,9 +152,20 @@ test('buildCustomMushafPlan orders reading sections as rev -> oldRev -> new -> t
     readingOldRev: true,
     readingTilawa: true,
     homeworkNew: true,
+    homeworkRev: true,
   };
 
-  const plan = buildCustomMushafPlan({ reportData, sectionToggles });
+  const defaultHwPlan = buildCustomMushafPlan({ reportData, sectionToggles });
+  assert.deepEqual(defaultHwPlan.map(s => [s.key, s.startPage, s.endPage]), [
+    ['rev', 562, 581],
+    ['new', 563, 564],
+  ]);
+
+  const plan = buildCustomMushafPlan({
+    reportData,
+    sectionToggles,
+    settings: { mushafTargetSection: 'reading' },
+  });
   assert.deepEqual(plan.map(s => s.key), ['rev', 'oldRev', 'new', 'tilawa']);
   assert.equal(plan[0].titleEn, 'Revision');
   assert.equal(plan[1].titleEn, 'Old Revision');
@@ -169,16 +181,10 @@ test('buildCustomMushafPlan orders reading sections as rev -> oldRev -> new -> t
     sectionToggles,
     exclusions: { tilawa: true },
     settings: {
+      mushafTargetSection: 'reading',
       mushafIncludedSections: { rev: true, oldRev: false, new: true, tilawa: true },
       mushafSectionOrder: ['new', 'rev', 'oldRev', 'tilawa'],
     },
   });
   assert.deepEqual(filteredPlan.map(s => s.key), ['new', 'rev']);
-
-  const hwPlan = buildCustomMushafPlan({
-    reportData,
-    sectionToggles,
-    settings: { mushafTargetSection: 'homework' },
-  });
-  assert.deepEqual(hwPlan.map(s => [s.key, s.startPage, s.endPage]), [['new', 563, 564]]);
 });

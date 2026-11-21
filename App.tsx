@@ -5462,11 +5462,11 @@ function App() {
       return null;
     }
 
-    const resolvedLang: 'ar' | 'en' = settings.mushafLanguage === 'en'
-      ? 'en'
-      : settings.mushafLanguage === 'ar'
-        ? 'ar'
-        : (options.lang || lastReportLanguage);
+    const resolvedLang: 'ar' | 'en' = settings.mushafLanguage === 'ar'
+      ? 'ar'
+      : settings.mushafLanguage === 'auto'
+        ? (options.lang || lastReportLanguage)
+        : 'en';
 
     try {
       const res = await window.electronAPI.generateCustomMushaf({
@@ -5474,7 +5474,7 @@ function App() {
         shortcutSourceId: targetStudent.shortcutSourceId,
         quranLink: targetStudent.quranLink,
         sections,
-        dividerStyle: settings.mushafDividerStyle || 'page',
+        dividerStyle: settings.mushafDividerStyle || 'both',
         language: resolvedLang,
         pageOffset: settings.mushafPageOffset || 0,
         dateStr: options.dateStr,
@@ -5509,7 +5509,12 @@ function App() {
       if (!window.electronAPI?.sendWhatsAppFile) return;
       const fileRes = await window.electronAPI.sendWhatsAppFile(delivery.target, mushafRes.filePath);
       if (fileRes?.success) {
-        showToast(targetStudent.reportSettings.mushafLanguage === 'en'
+        const msgLang = targetStudent.reportSettings.mushafLanguage === 'ar'
+          ? 'ar'
+          : targetStudent.reportSettings.mushafLanguage === 'auto'
+            ? lastReportLanguage
+            : 'en';
+        showToast(msgLang === 'en'
           ? 'Report & custom Mushaf sent via WhatsApp ✅'
           : 'تم إرسال التقرير والمصحف عبر واتساب ✅');
       } else if (fileRes?.unsupported) {
@@ -16497,7 +16502,7 @@ function App() {
                             cancelledInputs: { ...cancelledInputs }
                           };
 
-                          const arMushafTargetSection = student?.reportSettings?.mushafTargetSection === 'homework' ? 'homework' : 'reading';
+                          const arMushafTargetSection = student?.reportSettings?.mushafTargetSection === 'reading' ? 'reading' : 'homework';
                           const arMushafExclusions = arMushafTargetSection === 'homework'
                             ? { rev: excludeHomeworkRev, oldRev: excludeHomeworkOldRev, new: excludeHomeworkNew || excludeNewFromReport, tilawa: excludeHomeworkTilawa }
                             : { rev: excludeReadingRev, oldRev: excludeReadingOldRev, new: excludeReadingNew || prevReportHadExclusion, tilawa: excludeReadingTilawa };
@@ -18069,7 +18074,7 @@ function App() {
                             cancelledInputs: { ...cancelledInputs }
                           };
 
-                          const enMushafTargetSection = student?.reportSettings?.mushafTargetSection === 'homework' ? 'homework' : 'reading';
+                          const enMushafTargetSection = student?.reportSettings?.mushafTargetSection === 'reading' ? 'reading' : 'homework';
                           const enMushafExclusions = enMushafTargetSection === 'homework'
                             ? { rev: excludeHomeworkRev, oldRev: excludeHomeworkOldRev, new: excludeHomeworkNew || excludeNewFromReport, tilawa: excludeHomeworkTilawa }
                             : { rev: excludeReadingRev, oldRev: excludeReadingOldRev, new: excludeReadingNew || prevReportHadExclusion, tilawa: excludeReadingTilawa };

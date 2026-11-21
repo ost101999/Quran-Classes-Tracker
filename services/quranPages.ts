@@ -360,7 +360,7 @@ export function buildCustomMushafPlan(params: {
   const { reportData, sectionToggles, cancelledInputs = {}, exclusions = {}, settings, counts = SURAH_AYAH_COUNTS } = params;
   if (!reportData) return [];
 
-  const targetKind = settings?.mushafTargetSection === 'homework' ? 'homework' : 'reading';
+  const targetKind = settings?.mushafTargetSection === 'reading' ? 'reading' : 'homework';
   const order = normalizeSectionOrder(settings?.mushafSectionOrder);
   const includedMap = settings?.mushafIncludedSections;
 

@@ -202,7 +202,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
   }, [headerMenuOpen]);
   const [reportSettings, setReportSettings] = useState<StudentReportSettings>(() => ({
     customMushafEnabled: student?.reportSettings?.customMushafEnabled ?? false,
-    mushafTargetSection: student?.reportSettings?.mushafTargetSection || 'reading',
+    mushafTargetSection: student?.reportSettings?.mushafTargetSection || 'homework',
     mushafSectionOrder: normalizeSectionOrder(student?.reportSettings?.mushafSectionOrder),
     mushafIncludedSections: {
       rev: student?.reportSettings?.mushafIncludedSections?.rev !== false,
@@ -210,8 +210,8 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
       new: student?.reportSettings?.mushafIncludedSections?.new !== false,
       tilawa: student?.reportSettings?.mushafIncludedSections?.tilawa !== false,
     },
-    mushafDividerStyle: student?.reportSettings?.mushafDividerStyle || 'page',
-    mushafLanguage: student?.reportSettings?.mushafLanguage || 'auto',
+    mushafDividerStyle: student?.reportSettings?.mushafDividerStyle || 'both',
+    mushafLanguage: student?.reportSettings?.mushafLanguage || 'en',
     mushafPageOffset: student?.reportSettings?.mushafPageOffset ?? 0,
     mushafAutoOpen: student?.reportSettings?.mushafAutoOpen ?? false,
     mushafAutoSendWhatsapp: student?.reportSettings?.mushafAutoSendWhatsapp !== false,
@@ -519,7 +519,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
     if (!reportSettings.customMushafEnabled && !student?.reportSettings) return undefined;
     return {
       customMushafEnabled: !!reportSettings.customMushafEnabled,
-      mushafTargetSection: reportSettings.mushafTargetSection || 'reading',
+      mushafTargetSection: reportSettings.mushafTargetSection || 'homework',
       mushafSectionOrder: normalizeSectionOrder(reportSettings.mushafSectionOrder),
       mushafIncludedSections: {
         rev: reportSettings.mushafIncludedSections?.rev !== false,
@@ -527,8 +527,8 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
         new: reportSettings.mushafIncludedSections?.new !== false,
         tilawa: reportSettings.mushafIncludedSections?.tilawa !== false,
       },
-      mushafDividerStyle: reportSettings.mushafDividerStyle || 'page',
-      mushafLanguage: reportSettings.mushafLanguage || 'auto',
+      mushafDividerStyle: reportSettings.mushafDividerStyle || 'both',
+      mushafLanguage: reportSettings.mushafLanguage || 'en',
       mushafPageOffset: reportSettings.mushafPageOffset ?? 0,
       mushafAutoOpen: !!reportSettings.mushafAutoOpen,
       mushafAutoSendWhatsapp: reportSettings.mushafAutoSendWhatsapp !== false,
@@ -668,7 +668,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                   <div
                     role="menu"
                     dir="rtl"
-                    className="absolute right-0 top-full mt-2 w-64 rounded-2xl border border-gray-100 bg-white p-1.5 shadow-xl z-30 space-y-1"
+                    className="absolute right-0 top-full mt-2 w-max min-w-[17rem] max-w-xs rounded-2xl border border-gray-100 bg-white p-1.5 shadow-xl z-30 space-y-1"
                   >
                     <button
                       type="button"
@@ -676,7 +676,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                       onClick={() => openSubPanel('studentWeb')}
                       title={shortcutStatus || 'واجهة الطالب'}
                       aria-label={shortcutStatus ? `واجهة الطالب — ${shortcutStatus}` : 'واجهة الطالب'}
-                      className="w-full flex items-center justify-between gap-2 text-base font-bold text-gray-600 hover:text-amber-700 hover:bg-amber-50/80 px-3 py-2.5 rounded-xl transition-colors group"
+                      className="w-full flex items-center justify-between gap-2 text-base font-bold text-gray-600 hover:text-amber-700 hover:bg-amber-50/80 px-3 py-2.5 rounded-xl transition-colors group whitespace-nowrap"
                     >
                       <span className="flex items-center gap-2 font-arabic">
                         <span>واجهة الطالب</span>
@@ -696,19 +696,17 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                       role="menuitem"
                       onClick={() => openSubPanel('reportSettings')}
                       title={reportCustomizationItems.length ? `التعديلات النشطة: ${reportCustomizationItems.join(' · ')}` : 'تعديل التقرير'}
-                      className="w-full flex items-center justify-between gap-2 text-base font-bold text-gray-600 hover:text-emerald-700 hover:bg-emerald-50/80 px-3 py-2.5 rounded-xl transition-colors group text-right"
+                      className="w-full flex items-center justify-between gap-2 text-base font-bold text-gray-600 hover:text-emerald-700 hover:bg-emerald-50/80 px-3 py-2.5 rounded-xl transition-colors group whitespace-nowrap"
                     >
-                      <span className="flex flex-col items-start gap-1 min-w-0 flex-1 font-arabic">
-                        <span className="flex items-center gap-2">
-                          <span>تعديل التقرير</span>
-                          {reportCustomizationItems.length > 0 && (
-                            <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-                          )}
-                        </span>
+                      <span className="flex items-center gap-2 font-arabic">
+                        <span>تعديل التقرير</span>
                         {reportCustomizationItems.length > 0 && (
-                          <span className="text-lg font-normal text-emerald-700/90 leading-snug break-words w-full text-right">
-                            {reportCustomizationItems.join(' · ')}
-                          </span>
+                          <>
+                            <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                            <span className="text-base font-normal text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg">
+                              {reportCustomizationItems.join(' · ')}
+                            </span>
+                          </>
                         )}
                       </span>
                       <ChevronLeft size={16} className="text-gray-400 group-hover:-translate-x-0.5 transition-transform shrink-0" />
@@ -1157,7 +1155,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                       const includedLabels = orderedSections
                         .filter(k => reportSettings.mushafIncludedSections?.[k] !== false)
                         .map(k => MUSHAF_SECTION_LABELS[k].ar);
-                      const targetFullLabel = (reportSettings.mushafTargetSection || 'reading') === 'homework' ? 'الدرس القادم' : 'الدرس الحالي';
+                      const targetFullLabel = (reportSettings.mushafTargetSection || 'homework') === 'homework' ? 'الدرس القادم' : 'الدرس الحالي';
                       return (
                         <div className="rounded-2xl border border-slate-200/90 bg-white shadow-sm overflow-hidden">
                           <button
@@ -1189,7 +1187,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                                     { id: 'reading', label: 'الدرس الحالي' },
                                     { id: 'homework', label: 'الدرس القادم' },
                                   ] as const).map(opt => {
-                                    const active = (reportSettings.mushafTargetSection || 'reading') === opt.id;
+                                    const active = (reportSettings.mushafTargetSection || 'homework') === opt.id;
                                     return (
                                       <button
                                         key={opt.id}
@@ -1276,14 +1274,14 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                     {(() => {
                       const styleLabel = reportSettings.mushafDividerStyle === 'banner'
                         ? 'شريط أعلى الصفحة'
-                        : reportSettings.mushafDividerStyle === 'both'
-                          ? 'كلاهما'
-                          : 'صفحة فاصلة';
+                        : reportSettings.mushafDividerStyle === 'page'
+                          ? 'صفحة فاصلة'
+                          : 'كلاهما';
                       const langLabel = reportSettings.mushafLanguage === 'ar'
                         ? 'عربي'
-                        : reportSettings.mushafLanguage === 'en'
-                          ? 'English'
-                          : 'تلقائي';
+                        : reportSettings.mushafLanguage === 'auto'
+                          ? 'تلقائي'
+                          : 'English';
                       const offsetVal = reportSettings.mushafPageOffset ?? 0;
                       const offsetText = offsetVal === 0
                         ? 'بدون إزاحة'
@@ -1320,7 +1318,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                                     { id: 'banner', label: 'شريط أعلى الصفحة' },
                                     { id: 'both', label: 'كلاهما' },
                                   ] as const).map(opt => {
-                                    const active = (reportSettings.mushafDividerStyle || 'page') === opt.id;
+                                    const active = (reportSettings.mushafDividerStyle || 'both') === opt.id;
                                     return (
                                       <button
                                         key={opt.id}
@@ -1347,7 +1345,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                                       { id: 'ar', label: 'عربي', isEn: false },
                                       { id: 'en', label: 'English', isEn: true },
                                     ] as const).map(opt => {
-                                      const active = (reportSettings.mushafLanguage || 'auto') === opt.id;
+                                      const active = (reportSettings.mushafLanguage || 'en') === opt.id;
                                       return (
                                         <button
                                           key={opt.id}
@@ -1488,11 +1486,11 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                         cancelledInputs: lastReport.cancelledInputs,
                         settings: reportSettings,
                       });
-                      const currentLang = reportSettings.mushafLanguage === 'en'
-                        ? 'en'
-                        : reportSettings.mushafLanguage === 'ar'
-                          ? 'ar'
-                          : lastReportLanguage;
+                      const currentLang = reportSettings.mushafLanguage === 'ar'
+                        ? 'ar'
+                        : reportSettings.mushafLanguage === 'auto'
+                          ? lastReportLanguage
+                          : 'en';
 
                       return (
                         <div className="rounded-2xl border border-emerald-200 bg-white shadow-sm overflow-hidden">
