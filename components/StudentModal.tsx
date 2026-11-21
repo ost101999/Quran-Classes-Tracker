@@ -21,7 +21,7 @@ type ShortcutMatch = {
 
 interface Props {
   onClose: () => void;
-  onSave: (student: Student) => void;
+  onSave: (student: Student, options?: { keepOpen?: boolean }) => void;
   onDelete?: (id: string) => void;
   academies: string[];
   student?: Student;
@@ -50,6 +50,14 @@ const toHindiDigits = (str: string): string => {
 // Convert Hindi numerals back to Western for storage
 const toWesternDigits = (str: string): string => {
   return str.toString().replace(/[٠-٩]/g, (d) => "٠١٢٣٤٥٦٧٨٩".indexOf(d).toString());
+};
+
+const getReportCustomizationItems = (settings: StudentReportSettings): string[] => {
+  const items: string[] = [];
+  if (settings.customMushafEnabled) {
+    items.push('إنشاء مصحف');
+  }
+  return items;
 };
 
 const arabicCalendarDate = (value: string): string => {
@@ -210,15 +218,39 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
   }));
   const [mushafFileStatus, setMushafFileStatus] = useState<{ found: boolean; fileName?: string; error?: string; outputDir?: string } | null>(null);
   const [mushafGeneratingNow, setMushafGeneratingNow] = useState(false);
-  const [openReportGroups, setOpenReportGroups] = useState<Record<'sections' | 'format' | 'delivery' | 'preview', boolean>>({
-    sections: true,
-    format: false,
-    delivery: false,
-    preview: true,
+  const reportGroupsStorageKey = `quranTracker.reportGroupsOpen.${student?.id || 'draft'}`;
+  const [openReportGroups, setOpenReportGroups] = useState<Record<'sections' | 'format' | 'delivery' | 'preview', boolean>>(() => {
+    const defaults = {
+      sections: !(student?.reportSettings?.customMushafEnabled),
+      format: false,
+      delivery: false,
+      preview: true,
+    };
+    try {
+      const raw = window.localStorage.getItem(reportGroupsStorageKey);
+      if (!raw) return defaults;
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        return {
+          sections: typeof parsed.sections === 'boolean' ? parsed.sections : defaults.sections,
+          format: typeof parsed.format === 'boolean' ? parsed.format : defaults.format,
+          delivery: typeof parsed.delivery === 'boolean' ? parsed.delivery : defaults.delivery,
+          preview: typeof parsed.preview === 'boolean' ? parsed.preview : defaults.preview,
+        };
+      }
+    } catch { }
+    return defaults;
   });
   const toggleReportGroup = (key: 'sections' | 'format' | 'delivery' | 'preview') => {
-    setOpenReportGroups(prev => ({ ...prev, [key]: !prev[key] }));
+    setOpenReportGroups(prev => {
+      const next = { ...prev, [key]: !prev[key] };
+      try {
+        window.localStorage.setItem(reportGroupsStorageKey, JSON.stringify(next));
+      } catch { }
+      return next;
+    });
   };
+  const reportCustomizationItems = getReportCustomizationItems(reportSettings);
   const [isEndingEnrollment, setIsEndingEnrollment] = useState(!!student?.deletedAt);
   const [dayStartDates, setDayStartDates] = useState<Record<number, string>>(student?.dayStartDates || {});
   const [studyPlan, setStudyPlan] = useState<StudyPlan>(student?.studyPlan || {
@@ -503,18 +535,18 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
     };
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent, saveOptions?: { keepOpen?: boolean }): boolean => {
     e.preventDefault();
-    if (!name || !academy || !rate) return;
+    if (!name || !academy || !rate) return false;
     if (quranLink.trim() && !isDriveFileLink(quranLink)) {
       setQuranLinkError(true);
       openSubPanel('studentWeb');
-      return;
+      return false;
     }
     if (readingLink.trim() && !isDriveFileLink(readingLink)) {
       setReadingLinkError(true);
       openSubPanel('studentWeb');
-      return;
+      return false;
     }
 
     const savedStudent: Student = {
@@ -559,14 +591,28 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
         } else {
           alert('⚠️ هذا الاسم موجود مسبقاً لطالب آخر!');
         }
-        return;
+        return false;
       }
     }
+
+    try {
+      window.localStorage.setItem(`quranTracker.reportGroupsOpen.${savedStudent.id}`, JSON.stringify(openReportGroups));
+    } catch { }
 
     // Once a calendar-reviewed schedule has history, a later manual edit must
     // also preserve the earlier periods instead of silently rewriting them.
     const daysChanged = student?.scheduleHistory?.length && (JSON.stringify(student.days || []) !== JSON.stringify(savedStudent.days || []) || JSON.stringify(student.dayStartDates || {}) !== JSON.stringify(savedStudent.dayStartDates || {}));
-    onSave(daysChanged ? { ...savedStudent, scheduleHistory: replaceScheduleFrom(student!, savedStudent.days || [], cairoDate(new Date(), dayTransitionTime), savedStudent.dayStartDates).scheduleHistory } : savedStudent);
+    onSave(daysChanged ? { ...savedStudent, scheduleHistory: replaceScheduleFrom(student!, savedStudent.days || [], cairoDate(new Date(), dayTransitionTime), savedStudent.dayStartDates).scheduleHistory } : savedStudent, saveOptions);
+    return true;
+  };
+
+  const handleSaveReportSettings = () => {
+    if (name && academy && rate) {
+      const saved = handleSubmit({ preventDefault: () => { } } as React.FormEvent, { keepOpen: true });
+      if (saved) setActivePanel('main');
+      return;
+    }
+    setActivePanel('main');
   };
 
   const filteredAcademies = academies.filter(ac =>
@@ -622,7 +668,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                   <div
                     role="menu"
                     dir="rtl"
-                    className="absolute right-0 top-full mt-2 w-48 rounded-2xl border border-gray-100 bg-white p-1.5 shadow-xl z-30 space-y-1"
+                    className="absolute right-0 top-full mt-2 w-64 rounded-2xl border border-gray-100 bg-white p-1.5 shadow-xl z-30 space-y-1"
                   >
                     <button
                       type="button"
@@ -643,22 +689,29 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                           />
                         )}
                       </span>
-                      <ChevronLeft size={16} className="text-gray-400 group-hover:-translate-x-0.5 transition-transform" />
+                      <ChevronLeft size={16} className="text-gray-400 group-hover:-translate-x-0.5 transition-transform shrink-0" />
                     </button>
                     <button
                       type="button"
                       role="menuitem"
                       onClick={() => openSubPanel('reportSettings')}
-                      title="تخصيص إعدادات التقرير والمصحف المخصص"
-                      className="w-full flex items-center justify-between gap-2 text-base font-bold text-gray-600 hover:text-emerald-700 hover:bg-emerald-50/80 px-3 py-2.5 rounded-xl transition-colors group"
+                      title={reportCustomizationItems.length ? `التعديلات النشطة: ${reportCustomizationItems.join(' · ')}` : 'تعديل التقرير'}
+                      className="w-full flex items-center justify-between gap-2 text-base font-bold text-gray-600 hover:text-emerald-700 hover:bg-emerald-50/80 px-3 py-2.5 rounded-xl transition-colors group text-right"
                     >
-                      <span className="flex items-center gap-2 font-arabic">
-                        <span>تعديل التقرير</span>
-                        {reportSettings.customMushafEnabled && (
-                          <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                      <span className="flex flex-col items-start gap-1 min-w-0 flex-1 font-arabic">
+                        <span className="flex items-center gap-2">
+                          <span>تعديل التقرير</span>
+                          {reportCustomizationItems.length > 0 && (
+                            <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                          )}
+                        </span>
+                        {reportCustomizationItems.length > 0 && (
+                          <span className="text-lg font-normal text-emerald-700/90 leading-snug break-words w-full text-right">
+                            {reportCustomizationItems.join(' · ')}
+                          </span>
                         )}
                       </span>
-                      <ChevronLeft size={16} className="text-gray-400 group-hover:-translate-x-0.5 transition-transform" />
+                      <ChevronLeft size={16} className="text-gray-400 group-hover:-translate-x-0.5 transition-transform shrink-0" />
                     </button>
                   </div>
                 )}
@@ -1101,8 +1154,10 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                     {/* Accordion 1: Section Source & Order */}
                     {(() => {
                       const orderedSections = normalizeSectionOrder(reportSettings.mushafSectionOrder);
-                      const enabledCount = orderedSections.filter(k => reportSettings.mushafIncludedSections?.[k] !== false).length;
-                      const targetLabel = (reportSettings.mushafTargetSection || 'reading') === 'homework' ? 'القادم' : 'الحالي';
+                      const includedLabels = orderedSections
+                        .filter(k => reportSettings.mushafIncludedSections?.[k] !== false)
+                        .map(k => MUSHAF_SECTION_LABELS[k].ar);
+                      const targetFullLabel = (reportSettings.mushafTargetSection || 'reading') === 'homework' ? 'الدرس القادم' : 'الدرس الحالي';
                       return (
                         <div className="rounded-2xl border border-slate-200/90 bg-white shadow-sm overflow-hidden">
                           <button
@@ -1110,23 +1165,25 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                             onClick={() => toggleReportGroup('sections')}
                             className="w-full px-4 py-3.5 flex items-center justify-between gap-3 text-right hover:bg-slate-50/70 transition-colors"
                           >
-                            <span className="flex items-center gap-2.5">
+                            <span className="flex items-center gap-2.5 min-w-0 flex-1">
                               <span className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
                                 <Layers size={17} />
                               </span>
-                              <span className="text-xl font-bold text-slate-800 font-arabic">أقسام التقرير والترتيب</span>
-                            </span>
-                            <span className="flex items-center gap-2 shrink-0">
-                              <span className="text-sm font-arabic bg-slate-100 text-slate-600 px-2.5 py-0.5 rounded-full">
-                                {toHindiDigits(String(enabledCount))} أقسام · {targetLabel}
+                              <span className="min-w-0 flex-1">
+                                <span className="block text-2xl font-bold text-slate-800 font-arabic">أقسام التقرير والترتيب</span>
+                                {!openReportGroups.sections && (
+                                  <span className="block text-xl text-slate-600 font-arabic font-normal leading-snug mt-0.5">
+                                    {targetFullLabel}: {includedLabels.length ? includedLabels.join(' ← ') : 'بدون أقسام محددة'}
+                                  </span>
+                                )}
                               </span>
-                              <ChevronDown size={18} className={`text-slate-400 transition-transform duration-200 ${openReportGroups.sections ? 'rotate-180' : ''}`} />
                             </span>
+                            <ChevronDown size={18} className={`text-slate-400 transition-transform duration-200 shrink-0 ${openReportGroups.sections ? 'rotate-180' : ''}`} />
                           </button>
                           {openReportGroups.sections && (
                             <div className="px-4 pb-4 pt-3.5 space-y-4 border-t border-slate-100">
                               <div className="space-y-2">
-                                <label className="block text-base font-bold text-slate-600 font-arabic">القسم المعتمد من التقرير</label>
+                                <label className="block text-lg font-bold text-slate-600 font-arabic">القسم المعتمد من التقرير</label>
                                 <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
                                   {([
                                     { id: 'reading', label: 'الدرس الحالي' },
@@ -1151,7 +1208,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                               </div>
 
                               <div className="space-y-2">
-                                <label className="block text-base font-bold text-slate-600 font-arabic">ترتيب الأقسام في الملف</label>
+                                <label className="block text-lg font-bold text-slate-600 font-arabic">ترتيب الأقسام في الملف</label>
                                 <div className="rounded-xl border border-slate-200 divide-y divide-slate-100 bg-white overflow-hidden">
                                   {orderedSections.map((secKey, idx, arr) => {
                                     const included = reportSettings.mushafIncludedSections?.[secKey] !== false;
@@ -1228,6 +1285,9 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                           ? 'English'
                           : 'تلقائي';
                       const offsetVal = reportSettings.mushafPageOffset ?? 0;
+                      const offsetText = offsetVal === 0
+                        ? 'بدون إزاحة'
+                        : `إزاحة ${offsetVal > 0 ? `+${toHindiDigits(String(offsetVal))}` : `-${toHindiDigits(String(Math.abs(offsetVal)))}`}`;
                       return (
                         <div className="rounded-2xl border border-slate-200/90 bg-white shadow-sm overflow-hidden">
                           <button
@@ -1235,23 +1295,25 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                             onClick={() => toggleReportGroup('format')}
                             className="w-full px-4 py-3.5 flex items-center justify-between gap-3 text-right hover:bg-slate-50/70 transition-colors"
                           >
-                            <span className="flex items-center gap-2.5">
+                            <span className="flex items-center gap-2.5 min-w-0 flex-1">
                               <span className="w-8 h-8 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center shrink-0">
                                 <SlidersHorizontal size={17} />
                               </span>
-                              <span className="text-xl font-bold text-slate-800 font-arabic">شكل العناوين والصفحات</span>
-                            </span>
-                            <span className="flex items-center gap-2 shrink-0">
-                              <span className="text-sm font-arabic bg-slate-100 text-slate-600 px-2.5 py-0.5 rounded-full">
-                                {styleLabel} · {langLabel}{offsetVal !== 0 ? ` (${offsetVal > 0 ? `+${offsetVal}` : offsetVal})` : ''}
+                              <span className="min-w-0 flex-1">
+                                <span className="block text-2xl font-bold text-slate-800 font-arabic">شكل العناوين والصفحات</span>
+                                {!openReportGroups.format && (
+                                  <span className="block text-xl text-slate-600 font-arabic font-normal leading-snug mt-0.5">
+                                    {styleLabel} · لغة: <bdi className={langLabel === 'English' ? 'font-english text-base' : ''}>{langLabel}</bdi> · {offsetText}
+                                  </span>
+                                )}
                               </span>
-                              <ChevronDown size={18} className={`text-slate-400 transition-transform duration-200 ${openReportGroups.format ? 'rotate-180' : ''}`} />
                             </span>
+                            <ChevronDown size={18} className={`text-slate-400 transition-transform duration-200 shrink-0 ${openReportGroups.format ? 'rotate-180' : ''}`} />
                           </button>
                           {openReportGroups.format && (
                             <div className="px-4 pb-4 pt-3.5 space-y-4 border-t border-slate-100">
                               <div className="space-y-2">
-                                <label className="block text-base font-bold text-slate-600 font-arabic">شكل كتابة العنوان</label>
+                                <label className="block text-lg font-bold text-slate-600 font-arabic">شكل كتابة العنوان</label>
                                 <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
                                   {([
                                     { id: 'page', label: 'صفحة فاصلة' },
@@ -1278,7 +1340,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
 
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                  <label className="block text-base font-bold text-slate-600 font-arabic">لغة العناوين</label>
+                                  <label className="block text-lg font-bold text-slate-600 font-arabic">لغة العناوين</label>
                                   <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
                                     {([
                                       { id: 'auto', label: 'تلقائي', isEn: false },
@@ -1304,7 +1366,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                                 </div>
 
                                 <div className="space-y-2">
-                                  <label htmlFor="mushafPageOffset" className="block text-base font-bold text-slate-600 font-arabic">إزاحة ترقيم الصفحات</label>
+                                  <label htmlFor="mushafPageOffset" className="block text-lg font-bold text-slate-600 font-arabic">إزاحة ترقيم الصفحات</label>
                                   <div className="flex items-center justify-between bg-slate-100 rounded-xl p-1 gap-1">
                                     <button
                                       type="button"
@@ -1342,6 +1404,14 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                     {/* Accordion 3: Storage & WhatsApp Delivery */}
                     {(() => {
                       const rawOutputDir = mushafFileStatus?.outputDir || 'Z:\\مصاحف الطلبة';
+                      const whatsappSummary = reportSettings.mushafAutoSendWhatsapp !== false
+                        ? 'إرسال عبر واتساب (أو نسخ في اليدوي)'
+                        : 'حفظ في المجلد فقط';
+                      const renderFormattedPath = (pathText: string) => pathText.split(/([\\/])/).map((segment, i) =>
+                        /[^\u0000-\u007F]/.test(segment)
+                          ? <bdi key={i} dir="rtl" className="font-arabic text-base">{segment}</bdi>
+                          : <React.Fragment key={i}>{segment}</React.Fragment>
+                      );
                       return (
                         <div className="rounded-2xl border border-slate-200/90 bg-white shadow-sm overflow-hidden">
                           <button
@@ -1349,30 +1419,28 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                             onClick={() => toggleReportGroup('delivery')}
                             className="w-full px-4 py-3.5 flex items-center justify-between gap-3 text-right hover:bg-slate-50/70 transition-colors"
                           >
-                            <span className="flex items-center gap-2.5">
+                            <span className="flex items-center gap-2.5 min-w-0 flex-1">
                               <span className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
                                 <Send size={16} />
                               </span>
-                              <span className="text-xl font-bold text-slate-800 font-arabic">الحفظ والواتساب</span>
-                            </span>
-                            <span className="flex items-center gap-2 shrink-0">
-                              <span className="text-sm font-arabic bg-slate-100 text-slate-600 px-2.5 py-0.5 rounded-full">
-                                {reportSettings.mushafAutoSendWhatsapp !== false ? 'إرسال تلقائي' : 'حفظ فقط'}
+                              <span className="min-w-0 flex-1">
+                                <span className="block text-2xl font-bold text-slate-800 font-arabic">الحفظ والواتساب</span>
+                                {!openReportGroups.delivery && (
+                                  <span className="block text-xl text-slate-600 font-arabic font-normal leading-snug mt-0.5">
+                                    {whatsappSummary}{reportSettings.mushafAutoOpen ? ' · فتح تلقائي للملف' : ''} · <bdi dir="ltr" className="font-english text-base">{renderFormattedPath(rawOutputDir)}</bdi>
+                                  </span>
+                                )}
                               </span>
-                              <ChevronDown size={18} className={`text-slate-400 transition-transform duration-200 ${openReportGroups.delivery ? 'rotate-180' : ''}`} />
                             </span>
+                            <ChevronDown size={18} className={`text-slate-400 transition-transform duration-200 shrink-0 ${openReportGroups.delivery ? 'rotate-180' : ''}`} />
                           </button>
                           {openReportGroups.delivery && (
                             <div className="px-4 pb-4 pt-3.5 space-y-3 border-t border-slate-100">
                               <div className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3.5 py-2.5 border border-slate-200/70">
                                 <div className="space-y-0.5 min-w-0">
-                                  <span className="block text-base font-bold text-slate-600 font-arabic">مجلد الحفظ</span>
+                                  <span className="block text-lg font-bold text-slate-600 font-arabic">مجلد الحفظ</span>
                                   <span className="block text-sm text-slate-500 font-english truncate" dir="ltr">
-                                    {rawOutputDir.split(/([\\/])/).map((segment, i) =>
-                                      /[^\u0000-\u007F]/.test(segment)
-                                        ? <bdi key={i} dir="rtl" className="font-arabic text-base">{segment}</bdi>
-                                        : <React.Fragment key={i}>{segment}</React.Fragment>
-                                    )}
+                                    {renderFormattedPath(rawOutputDir)}
                                   </span>
                                 </div>
                                 <button
@@ -1433,18 +1501,22 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                             onClick={() => toggleReportGroup('preview')}
                             className="w-full px-4 py-3.5 flex items-center justify-between gap-2 text-right bg-emerald-50/50 hover:bg-emerald-50/80 transition-colors"
                           >
-                            <span className="flex items-center gap-2.5">
+                            <span className="flex items-center gap-2.5 min-w-0 flex-1">
                               <span className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
                                 <FileText size={17} />
                               </span>
-                              <span className="text-xl font-bold text-slate-800 font-arabic">مراجعة ومعاينة آخر تقرير</span>
-                            </span>
-                            <span className="flex items-center gap-2 shrink-0">
-                              <span className="text-sm font-arabic bg-emerald-100/80 text-emerald-800 px-2.5 py-0.5 rounded-full">
-                                {previewSections.length ? `${toHindiDigits(String(previewSections.length))} أقسام` : 'فارغ'}
+                              <span className="min-w-0 flex-1">
+                                <span className="block text-2xl font-bold text-slate-800 font-arabic">مراجعة ومعاينة آخر تقرير</span>
+                                {!openReportGroups.preview && (
+                                  <span className="block text-xl text-emerald-800/85 font-arabic font-normal leading-snug mt-0.5 truncate">
+                                    {previewSections.length
+                                      ? previewSections.map(sec => `${sec.titleAr} (ص ${toHindiDigits(String(sec.startPage))}–${toHindiDigits(String(sec.endPage))})`).join(' · ')
+                                      : 'لا توجد أقسام جاهزة في آخر تقرير'}
+                                  </span>
+                                )}
                               </span>
-                              <ChevronDown size={18} className={`text-emerald-600 transition-transform duration-200 ${openReportGroups.preview ? 'rotate-180' : ''}`} />
                             </span>
+                            <ChevronDown size={18} className={`text-emerald-600 transition-transform duration-200 shrink-0 ${openReportGroups.preview ? 'rotate-180' : ''}`} />
                           </button>
                           {openReportGroups.preview && (
                             <div className="p-4 space-y-3 border-t border-emerald-100">
@@ -1494,7 +1566,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
               <div className="shrink-0 px-6 py-4 border-t border-gray-100 bg-white">
                 <button
                   type="button"
-                  onClick={() => handleSubmit({ preventDefault: () => { } } as React.FormEvent)}
+                  onClick={handleSaveReportSettings}
                   className="w-full py-3 bg-[#ffe05d] text-gray-900 text-2xl font-bold font-arabic rounded-xl hover:bg-[#fcd030] hover:shadow-lg hover:shadow-[#ffe05d]/20 active:scale-[0.98] transition-all"
                 >
                   حفظ

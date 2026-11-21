@@ -6099,7 +6099,7 @@ function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [undo, redo, smartReportModal?.isOpen, isTajweedBankModalOpen, isTajweedGradingModalOpen, triggerCenterToday]);
 
-  const handleAddStudent = (student: Student) => {
+  const handleAddStudent = (student: Student, options?: { keepOpen?: boolean }) => {
     const existingStudent = students.find(s => s.id === student.id);
     const oldDays = existingStudent?.days || [];
     const savedStudent = existingStudent
@@ -6145,6 +6145,11 @@ function App() {
         }
         return hasChanges ? next : prev;
       });
+    }
+
+    if (options?.keepOpen) {
+      setEditingStudent(savedStudent);
+      return;
     }
 
     setIsModalOpen(false);
@@ -8360,7 +8365,7 @@ function App() {
               setEditingStudent(null);
               setPrefillAcademy(null);
             }}
-            onSave={(student) => { setOpenShortcutReview(false); handleAddStudent(student); }}
+            onSave={(student, options) => { setOpenShortcutReview(false); handleAddStudent(student, options); }}
             openStudentWebInitially={openShortcutReview}
             onAcknowledgeMissingReading={(studentId, ids) => setStudents(previous => previous.map(item => item.id === studentId
               ? { ...item, acknowledgedMissingReadingIds: [...new Set([...(item.acknowledgedMissingReadingIds || []), ...ids])] }
