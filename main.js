@@ -134,11 +134,11 @@ ipcMain.handle('copy-file-to-clipboard', async (_event, filePath) => {
                         '-NoProfile',
                         '-Sta',
                         '-Command',
-                        'Add-Type -AssemblyName System.Windows.Forms; $list = New-Object System.Collections.Specialized.StringCollection; $list.Add($env:MUSHAF_CLIP_PATH) | Out-Null; [System.Windows.Forms.Clipboard]::SetFileDropList($list);',
+                        'Add-Type -AssemblyName System.Windows.Forms; $list = New-Object System.Collections.Specialized.StringCollection; $list.Add($env:MUSHAF_CLIP_PATH) | Out-Null; $data = New-Object System.Windows.Forms.DataObject; $data.SetFileDropList($list); [System.Windows.Forms.Clipboard]::SetDataObject($data, $true, 10, 100);',
                     ],
                     {
                         windowsHide: true,
-                        timeout: 8000,
+                        timeout: 15000,
                         env: { ...process.env, MUSHAF_CLIP_PATH: resolvedTarget },
                     },
                     (err) => {

@@ -5525,15 +5525,27 @@ function App() {
       return;
     }
 
-    const mushafRes = await mushafPromise;
-    if (!mushafRes?.success || !mushafRes.filePath || !window.electronAPI?.copyFileToClipboard) return;
-    window.setTimeout(() => {
-      void window.electronAPI!.copyFileToClipboard!(mushafRes.filePath!).then(clipRes => {
-        if (clipRes?.success) {
-          showToast(delivery.lang === 'en' ? 'Custom Mushaf PDF copied to clipboard 📄' : 'تم نسخ ملف المصحف للحافظة 📄');
-        }
-      });
-    }, 450);
+    const [mushafRes] = await Promise.all([
+      mushafPromise,
+      new Promise<void>(resolve => window.setTimeout(resolve, 750)),
+    ]);
+    if (!mushafRes?.success || !mushafRes.filePath) return;
+    if (!window.electronAPI?.copyFileToClipboard) {
+      showToast('⚠️ نسخ ملف المصحف للحافظة يتطلب تشغيل أحدث نسخة من تطبيق الكمبيوتر.');
+      return;
+    }
+    try {
+      const clipRes = await window.electronAPI.copyFileToClipboard(mushafRes.filePath);
+      if (clipRes?.success) {
+        showToast(delivery.lang === 'en'
+          ? 'Custom Mushaf PDF copied to clipboard (Ctrl+V) 📄'
+          : 'تم نسخ ملف المصحف للحافظة (Ctrl+V) 📄');
+      } else {
+        showToast(`⚠️ تعذّر نسخ ملف المصحف (${clipRes?.error || 'خطأ غير معروف'})`);
+      }
+    } catch {
+      showToast('⚠️ حدث خطأ أثناء نسخ ملف المصحف للحافظة.');
+    }
   }, []);
 
   const initializeReportDraft = (studentId: string, dayNum: number, currentMonth: number, currentYear: number) => {
@@ -16674,6 +16686,14 @@ function App() {
                             const _arCopyStudentId = smartReportModal.studentId;
                             const _arCopyDayNum = smartReportModal.dayNum;
                             closeAllModals(true);
+                            const arManualMushafPromise = triggerCustomMushafForStudent(_arMushafStudent, arReportSnapshot, {
+                              lang: 'ar',
+                              sectionTogglesOverride: arReportSnapshot.sectionToggles,
+                              cancelledInputsOverride: arReportSnapshot.cancelledInputs,
+                              exclusionsOverride: arMushafExclusions,
+                              dateStr: arMushafDateStr,
+                              silentToast: _arMushafStudent?.reportSettings?.mushafAutoSendWhatsapp !== false,
+                            });
                             handleClipboardCopy(smartReportModal.studentId, report, () => {
                               saveReportForDay(_arCopyStudentId, _arCopyDayNum, report, {
                                 ...noorConfigPart,
@@ -16690,16 +16710,7 @@ function App() {
 
                               showToast('تم نسخ التقرير (عربي) ✨');
                               setSearchQuery('');
-                              const arManualMushafPromise = triggerCustomMushafForStudent(_arMushafStudent, arReportSnapshot, {
-                                lang: 'ar',
-                                sectionTogglesOverride: arReportSnapshot.sectionToggles,
-                                cancelledInputsOverride: arReportSnapshot.cancelledInputs,
-                                exclusionsOverride: arMushafExclusions,
-                                dateStr: arMushafDateStr,
-                              });
-                              if (sendViaWhatsapp && whatsappMode === 'manual') {
-                                void deliverCustomMushafAfterReport(arManualMushafPromise, _arMushafStudent, { mode: 'manual', lang: 'ar' });
-                              }
+                              void deliverCustomMushafAfterReport(arManualMushafPromise, _arMushafStudent, { mode: 'manual', lang: 'ar' });
                               checkAndOpenLink(_arCopyStudentId);
                             });
                           }
@@ -18249,6 +18260,14 @@ function App() {
                               showToast('Failed to send ❌');
                             });
                           } else {
+                            const enManualMushafPromise = triggerCustomMushafForStudent(_enMushafStudent, enReportSnapshot, {
+                              lang: 'en',
+                              sectionTogglesOverride: enReportSnapshot.sectionToggles,
+                              cancelledInputsOverride: enReportSnapshot.cancelledInputs,
+                              exclusionsOverride: enMushafExclusions,
+                              dateStr: enMushafDateStr,
+                              silentToast: _enMushafStudent?.reportSettings?.mushafAutoSendWhatsapp !== false,
+                            });
                             handleClipboardCopy(smartReportModal.studentId, report, () => {
                               saveReportForDay(_engStudentId, _engDayNum, report, {
                                 ...noorConfigPart,
@@ -18262,16 +18281,7 @@ function App() {
 
                               closeAllModals(true);
                               showToast('Report Copied (English) ✨');
-                              const enManualMushafPromise = triggerCustomMushafForStudent(_enMushafStudent, enReportSnapshot, {
-                                lang: 'en',
-                                sectionTogglesOverride: enReportSnapshot.sectionToggles,
-                                cancelledInputsOverride: enReportSnapshot.cancelledInputs,
-                                exclusionsOverride: enMushafExclusions,
-                                dateStr: enMushafDateStr,
-                              });
-                              if (sendViaWhatsapp && whatsappMode === 'manual') {
-                                void deliverCustomMushafAfterReport(enManualMushafPromise, _enMushafStudent, { mode: 'manual', lang: 'en' });
-                              }
+                              void deliverCustomMushafAfterReport(enManualMushafPromise, _enMushafStudent, { mode: 'manual', lang: 'en' });
                               checkAndOpenLink(_engStudentId);
 
                               // PERSISTENCE FIX: Force save to lastReports on Clipboard Copy (Match Arabic behavior)
