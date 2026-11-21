@@ -202,15 +202,25 @@ async function openExternalMaximized(url) {
 }
 
 // --- WhatsApp IPC Handler ---
+const macWhatsAppInFlight = new Set();
 ipcMain.handle('send-whatsapp-auto', async (event, data) => {
     if (process.platform === 'darwin') {
         const { targetName, message } = data || {};
         if (typeof targetName !== 'string' || typeof message !== 'string' || !targetName.trim() || !message.trim()) return { success: false, error: 'بيانات الإرسال غير مكتملة.' };
+        const flightKey = `${targetName.trim()}\n${message.trim()}`;
+        if (macWhatsAppInFlight.has(flightKey)) return { success: false, error: 'جاري إرسال هذه الرسالة بالفعل… انتظر قليلاً.' };
+        macWhatsAppInFlight.add(flightKey);
         const helper = path.join(app.getPath('home'), 'MyAutoScripts', '5- My Programs', '1- Google Calender Magic Opener', 'Support Files', 'whatsapp_mac.py');
         return await new Promise(resolve => {
             const child = spawn('/usr/bin/python3', [helper], { stdio: ['pipe', 'pipe', 'pipe'] });
             let out = '', settled = false;
-            const finish = result => { if (!settled) { settled = true; resolve(result); } };
+            const finish = result => {
+                if (!settled) {
+                    settled = true;
+                    macWhatsAppInFlight.delete(flightKey);
+                    resolve(result);
+                }
+            };
             child.stdout.on('data', chunk => { out += chunk; });
             child.on('error', () => finish({ success: false, error: 'تعذر تشغيل خدمة واتساب.' }));
             child.on('close', () => { try { const result = JSON.parse(out); finish({ success: !!result.ok, error: result.error }); } catch { finish({ success: false, error: 'تعذر التأكد من الإرسال. راجع المحادثة قبل إعادة المحاولة.' }); } });
