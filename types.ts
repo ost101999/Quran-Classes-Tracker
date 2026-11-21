@@ -124,7 +124,7 @@ export type MushafSectionKey = 'rev' | 'oldRev' | 'new' | 'tilawa';
 export interface StudentReportSettings {
   customMushafEnabled?: boolean;
   mushafOutputFormat?: 'pdf' | 'web_link' | 'html';
-  mushafTargetSection?: 'reading' | 'homework';
+  mushafTargetSection?: 'reading' | 'homework' | 'both';
   mushafSectionOrder?: MushafSectionKey[];
   mushafIncludedSections?: Partial<Record<MushafSectionKey, boolean>>;
   mushafDividerStyle?: 'page' | 'banner' | 'both';

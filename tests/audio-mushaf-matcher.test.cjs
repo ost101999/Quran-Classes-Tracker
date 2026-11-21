@@ -8,7 +8,7 @@ const {
   matchClipsToAnnotations,
   mergeReportAndAudioSections,
 } = require('../audio-mushaf/annotation-matcher');
-const { publishAudioSessionToCloud } = require('../audio-mushaf/publisher');
+const { publishAudioSessionToCloud, buildInteractiveHtml } = require('../audio-mushaf/publisher');
 const { EventEmitter } = require('node:events');
 
 test('extracts PDF annotations, matches audio timestamps invariant to zoom, and merges report sections', async () => {
@@ -83,4 +83,40 @@ test('publishAudioSessionToCloud keeps only newest 3 sessions per student', asyn
   assert.equal(res.prunedCount, 1);
   assert.equal(store['/audioMushafSessions/s1.json'], undefined);
   assert.equal(Object.keys(store['/audioMushafIndex/st1.json']).length, 3);
+});
+
+test('mergeReportAndAudioSections drops out-of-report pages when includeExtraPages is false and buildInteractiveHtml renders Acme animated tabs', () => {
+  const merged = mergeReportAndAudioSections({
+    reportSections: [
+      { key: 'rev', group: 'reading', groupTitleAr: 'الدرس الحالي', groupTitleEn: 'Current Lesson', titleAr: 'المراجعة القريبة', titleEn: 'Revision', startPage: 2, endPage: 3, pdfPages: [2, 3] },
+      { key: 'new', group: 'homework', groupTitleAr: 'الدرس القادم', groupTitleEn: 'Next Lesson', titleAr: 'الجديد', titleEn: 'New Memorization', startPage: 4, endPage: 4, pdfPages: [4] },
+    ],
+    markers: [
+      { clipId: 'in_rep', pdfPage: 2, xPercent: 40, yPercent: 30 },
+      { clipId: 'out_rep', pdfPage: 1, xPercent: 50, yPercent: 60 },
+    ],
+    includeExtraPages: false,
+    totalSourcePages: 10,
+  });
+
+  assert.deepEqual(merged.allPdfPages, [2, 3, 4]);
+  assert.equal(merged.sections.length, 2);
+
+  const html = buildInteractiveHtml({
+    studentName: 'Zohair Sayed',
+    dateStr: '2026-11-22',
+    language: 'en',
+    sections: merged.sections.map(sec => ({
+      ...sec,
+      pages: sec.pages.map(p => ({ ...p, imageDataUrl: 'data:image/jpeg;base64,AA==', markers: p.markers.map(m => ({ ...m, id: m.clipId, audioDataUrl: 'data:audio/mpeg;base64,AA==' })) })),
+    })),
+  });
+
+  assert.match(html, /font-family:\s*'Acme'/);
+  assert.match(html, /selectMushafSection/);
+  assert.match(html, /secPanelIn/);
+  assert.match(html, /Current Lesson/);
+  assert.match(html, /Next Lesson/);
+  assert.match(html, /Revision/);
+  assert.match(html, /New Memorization/);
 });

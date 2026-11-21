@@ -90,6 +90,9 @@ export interface ReportSectionInput {
 
 export interface ResolvedMushafSection {
   key: MushafSectionKey;
+  group?: 'reading' | 'homework';
+  groupTitleAr?: string;
+  groupTitleEn?: string;
   titleAr: string;
   titleEn: string;
   summaryAr: string;
@@ -354,72 +357,106 @@ export function buildCustomMushafPlan(params: {
   sectionToggles?: Record<string, boolean>;
   cancelledInputs?: Record<string, boolean>;
   exclusions?: Partial<Record<MushafSectionKey, boolean>>;
+  readingExclusions?: Partial<Record<MushafSectionKey, boolean>>;
+  homeworkExclusions?: Partial<Record<MushafSectionKey, boolean>>;
   settings?: StudentReportSettings;
   counts?: readonly number[];
 }): ResolvedMushafSection[] {
-  const { reportData, sectionToggles, cancelledInputs = {}, exclusions = {}, settings, counts = SURAH_AYAH_COUNTS } = params;
+  const {
+    reportData,
+    sectionToggles,
+    cancelledInputs = {},
+    exclusions = {},
+    readingExclusions,
+    homeworkExclusions,
+    settings,
+    counts = SURAH_AYAH_COUNTS,
+  } = params;
   if (!reportData) return [];
 
-  const targetKind = settings?.mushafTargetSection === 'reading' ? 'reading' : 'homework';
+  const targetMode = settings?.mushafTargetSection || 'homework';
   const order = normalizeSectionOrder(settings?.mushafSectionOrder);
   const includedMap = settings?.mushafIncludedSections;
+  const isBoth = targetMode === 'both';
 
-  const keyConfig: Record<MushafSectionKey, {
-    reportKey: string;
-    toggleKey: string;
-    fromCancelId: string;
-    toCancelId: string;
-  }> = targetKind === 'homework'
-    ? {
-        rev: { reportKey: 'homeworkRev', toggleKey: 'homeworkRev', fromCancelId: 'hw-rev-from', toCancelId: 'hw-rev-to' },
-        oldRev: { reportKey: 'homeworkOldRev', toggleKey: 'homeworkOldRev', fromCancelId: 'hw-oldrev-from', toCancelId: 'hw-oldrev-to' },
-        new: { reportKey: 'homeworkNew', toggleKey: 'homeworkNew', fromCancelId: 'hw-new-from', toCancelId: 'hw-new-to' },
-        tilawa: { reportKey: 'homeworkTilawa', toggleKey: 'homeworkTilawa', fromCancelId: 'hw-tilawa-from', toCancelId: 'hw-tilawa-to' },
-      }
-    : {
-        rev: { reportKey: 'readingRev', toggleKey: 'readingRev', fromCancelId: 'quran-rev-from-ayah', toCancelId: 'quran-rev-to-ayah' },
-        oldRev: { reportKey: 'readingOldRev', toggleKey: 'readingOldRev', fromCancelId: 'quran-oldrev-from-ayah', toCancelId: 'quran-oldrev-to-ayah' },
-        new: { reportKey: 'readingNew', toggleKey: 'readingNew', fromCancelId: 'quran-new-from-ayah', toCancelId: 'quran-new-to-ayah' },
-        tilawa: { reportKey: 'readingTilawa', toggleKey: 'readingTilawa', fromCancelId: 'quran-tilawa-from-ayah', toCancelId: 'quran-tilawa-to-ayah' },
-      };
+  const collectSectionsForKind = (
+    targetKind: 'reading' | 'homework',
+    kindExclusions: Partial<Record<MushafSectionKey, boolean>>
+  ): ResolvedMushafSection[] => {
+    const keyConfig: Record<MushafSectionKey, {
+      reportKey: string;
+      toggleKey: string;
+      fromCancelId: string;
+      toCancelId: string;
+    }> = targetKind === 'homework'
+      ? {
+          rev: { reportKey: 'homeworkRev', toggleKey: 'homeworkRev', fromCancelId: 'hw-rev-from', toCancelId: 'hw-rev-to' },
+          oldRev: { reportKey: 'homeworkOldRev', toggleKey: 'homeworkOldRev', fromCancelId: 'hw-oldrev-from', toCancelId: 'hw-oldrev-to' },
+          new: { reportKey: 'homeworkNew', toggleKey: 'homeworkNew', fromCancelId: 'hw-new-from', toCancelId: 'hw-new-to' },
+          tilawa: { reportKey: 'homeworkTilawa', toggleKey: 'homeworkTilawa', fromCancelId: 'hw-tilawa-from', toCancelId: 'hw-tilawa-to' },
+        }
+      : {
+          rev: { reportKey: 'readingRev', toggleKey: 'readingRev', fromCancelId: 'quran-rev-from-ayah', toCancelId: 'quran-rev-to-ayah' },
+          oldRev: { reportKey: 'readingOldRev', toggleKey: 'readingOldRev', fromCancelId: 'quran-oldrev-from-ayah', toCancelId: 'quran-oldrev-to-ayah' },
+          new: { reportKey: 'readingNew', toggleKey: 'readingNew', fromCancelId: 'quran-new-from-ayah', toCancelId: 'quran-new-to-ayah' },
+          tilawa: { reportKey: 'readingTilawa', toggleKey: 'readingTilawa', fromCancelId: 'quran-tilawa-from-ayah', toCancelId: 'quran-tilawa-to-ayah' },
+        };
 
-  const sections: ResolvedMushafSection[] = [];
-  for (const key of order) {
-    if (includedMap && includedMap[key] === false) continue;
-    if (exclusions[key]) continue;
+    const groupTitleAr = targetKind === 'reading' ? 'الدرس الحالي' : 'الدرس القادم';
+    const groupTitleEn = targetKind === 'reading' ? "Current Lesson" : 'Next Lesson';
+    const collected: ResolvedMushafSection[] = [];
 
-    const cfg = keyConfig[key];
-    const toggles = sectionToggles ?? reportData.sectionToggles;
-    if (toggles && toggles[cfg.toggleKey] === false) continue;
+    for (const key of order) {
+      if (includedMap && includedMap[key] === false) continue;
+      if (kindExclusions[key]) continue;
 
-    const raw = reportData[cfg.reportKey] as ReportSectionInput | undefined;
-    if (!raw) continue;
+      const cfg = keyConfig[key];
+      const toggles = sectionToggles ?? reportData.sectionToggles;
+      if (toggles && toggles[cfg.toggleKey] === false) continue;
 
-    const mode = raw.mode || 'ayah';
-    const fromCancelId = targetKind === 'reading' && mode !== 'ayah'
-      ? `quran-${key === 'oldRev' ? 'oldrev' : key}-from-${mode}`
-      : cfg.fromCancelId;
-    const toCancelId = targetKind === 'reading' && mode !== 'ayah'
-      ? `quran-${key === 'oldRev' ? 'oldrev' : key}-to-${mode}`
-      : cfg.toCancelId;
+      const raw = reportData[cfg.reportKey] as ReportSectionInput | undefined;
+      if (!raw) continue;
 
-    const resolved = resolveReportSectionPages(
-      {
-        ...raw,
-        fromCancelled: !!cancelledInputs[fromCancelId],
-        toCancelled: !!cancelledInputs[toCancelId],
-      },
-      counts
-    );
-    if (!resolved) continue;
+      const mode = raw.mode || 'ayah';
+      const fromCancelId = targetKind === 'reading' && mode !== 'ayah'
+        ? `quran-${key === 'oldRev' ? 'oldrev' : key}-from-${mode}`
+        : cfg.fromCancelId;
+      const toCancelId = targetKind === 'reading' && mode !== 'ayah'
+        ? `quran-${key === 'oldRev' ? 'oldrev' : key}-to-${mode}`
+        : cfg.toCancelId;
 
-    sections.push({
-      key,
-      titleAr: MUSHAF_SECTION_LABELS[key].ar,
-      titleEn: MUSHAF_SECTION_LABELS[key].en,
-      ...resolved,
-    });
+      const resolved = resolveReportSectionPages(
+        {
+          ...raw,
+          fromCancelled: !!cancelledInputs[fromCancelId],
+          toCancelled: !!cancelledInputs[toCancelId],
+        },
+        counts
+      );
+      if (!resolved) continue;
+
+      collected.push({
+        key,
+        group: targetKind,
+        groupTitleAr,
+        groupTitleEn,
+        titleAr: isBoth ? `${groupTitleAr}: ${MUSHAF_SECTION_LABELS[key].ar}` : MUSHAF_SECTION_LABELS[key].ar,
+        titleEn: MUSHAF_SECTION_LABELS[key].en,
+        ...resolved,
+      });
+    }
+    return collected;
+  };
+
+  if (isBoth) {
+    return [
+      ...collectSectionsForKind('reading', readingExclusions ?? exclusions),
+      ...collectSectionsForKind('homework', homeworkExclusions ?? exclusions),
+    ];
   }
-
-  return sections;
+  const singleKind = targetMode === 'reading' ? 'reading' : 'homework';
+  const singleExcl = singleKind === 'reading'
+    ? (readingExclusions ?? exclusions)
+    : (homeworkExclusions ?? exclusions);
+  return collectSectionsForKind(singleKind, singleExcl);
 }

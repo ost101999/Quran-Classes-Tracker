@@ -116,20 +116,19 @@ ipcMain.handle('generate-custom-mushaf', async (_event, payload) => {
             let markers = [];
             let unmatchedClips = [];
             let unmatchedNewAnnotations = [];
-            if (hasClips) {
-                const annotations = await extractPdfAnnotations(sourceDoc);
-                const matched = matchClipsToAnnotations(audioSession.clips, annotations, {
-                    sessionStartedAt: audioSession.startedAt || 0,
-                });
-                markers = matched.markers;
-                unmatchedClips = matched.unmatchedClips;
-                unmatchedNewAnnotations = matched.unmatchedNewAnnotations || [];
-            }
+            const annotations = await extractPdfAnnotations(sourceDoc);
+            const matched = matchClipsToAnnotations(hasClips ? audioSession.clips : [], annotations, {
+                sessionStartedAt: (audioSession && audioSession.startedAt) || (Date.now() - 4 * 3600 * 1000),
+            });
+            markers = matched.markers;
+            unmatchedClips = matched.unmatchedClips;
+            unmatchedNewAnnotations = matched.unmatchedNewAnnotations || [];
 
             const merged = mergeReportAndAudioSections({
                 reportSections: reportSectionsWithPages,
                 markers,
                 unmatchedNewAnnotations,
+                includeExtraPages: reportSectionsWithPages.length === 0,
                 totalSourcePages,
                 pageOffset: offsetNum,
                 mapPagesFn: mapMushafPagesToPdfPages,
@@ -138,7 +137,9 @@ ipcMain.handle('generate-custom-mushaf', async (_event, payload) => {
                 return { success: false, error: 'لا توجد صفحات محددة في التقرير لتوليد المصحف الصوتي.' };
             }
 
-            const renderBytes = await recolorAnnotationsToGreenInPdfBytes(sourceBytes, unmatchedNewAnnotations);
+            const allowedPageSet = new Set(merged.allPdfPages);
+            const filteredRecolor = unmatchedNewAnnotations.filter(a => allowedPageSet.has(a.pdfPage));
+            const renderBytes = await recolorAnnotationsToGreenInPdfBytes(sourceBytes, filteredRecolor);
             const renderedImages = await renderPdfPagesToImages({
                 BrowserWindow,
                 pdfPath: resolved.path,

@@ -273,11 +273,13 @@ function AudioMushafViewer({ sessionId }: { sessionId: string }) {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
   const [playingId, setPlayingId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<number | 'all'>(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    setActiveTab(0);
     axios
       .get(`${API_BASE}/audioMushafSessions/${encodeURIComponent(sessionId)}.json`)
       .then(res => {
@@ -294,16 +296,25 @@ function AudioMushafViewer({ sessionId }: { sessionId: string }) {
     return () => { cancelled = true; };
   }, [sessionId]);
 
-  const togglePin = (pin: { id: string; audioDataUrl: string }) => {
-    if (playingId === pin.id && audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-      setPlayingId(null);
-      return;
-    }
+  const stopAudio = () => {
     if (audioRef.current) {
       audioRef.current.pause();
+      audioRef.current.currentTime = 0;
     }
+    setPlayingId(null);
+  };
+
+  const selectTab = (target: number | 'all') => {
+    stopAudio();
+    setActiveTab(target);
+  };
+
+  const togglePin = (pin: { id: string; audioDataUrl: string }) => {
+    if (playingId === pin.id && audioRef.current) {
+      stopAudio();
+      return;
+    }
+    stopAudio();
     const audio = new Audio(pin.audioDataUrl);
     audioRef.current = audio;
     setPlayingId(pin.id);
@@ -331,41 +342,137 @@ function AudioMushafViewer({ sessionId }: { sessionId: string }) {
 
   const isAr = sessionData.language !== 'en';
   const sections = Array.isArray(sessionData.sections) ? sessionData.sections : [];
+  const secAccents: Record<string, { dot: string; activeBg: string }> = {
+    rev: { dot: 'bg-blue-400', activeBg: 'bg-blue-500/20 border-blue-400 text-white shadow-lg shadow-blue-500/20' },
+    oldRev: { dot: 'bg-amber-400', activeBg: 'bg-amber-500/20 border-amber-400 text-white shadow-lg shadow-amber-500/20' },
+    new: { dot: 'bg-emerald-400', activeBg: 'bg-emerald-500/20 border-emerald-400 text-white shadow-lg shadow-emerald-500/20' },
+    tilawa: { dot: 'bg-violet-400', activeBg: 'bg-violet-500/20 border-violet-400 text-white shadow-lg shadow-violet-500/20' },
+    corrections: { dot: 'bg-teal-400', activeBg: 'bg-teal-500/20 border-teal-400 text-white shadow-lg shadow-teal-500/20' },
+  };
+  const cleanLabel = (sec: any) => {
+    const rawAr = String(sec.titleAr || '').replace(/^(?:الدرس الحالي|الدرس القادم)\s*:\s*/u, '').trim();
+    const rawEn = String(sec.titleEn || rawAr || sec.key || '').trim();
+    return isAr ? (rawAr || rawEn) : (rawEn || rawAr);
+  };
+  const hasReading = sections.some((s: any) => s.group === 'reading');
+  const hasHomework = sections.some((s: any) => s.group === 'homework');
+  const grouped = hasReading && hasHomework;
+  const visibleSections = activeTab === 'all'
+    ? sections.map((sec: any, idx: number) => ({ sec, idx }))
+    : sections.map((sec: any, idx: number) => ({ sec, idx })).filter((x: any) => x.idx === activeTab);
+
+  const renderTabBtn = (sec: any, idx: number) => {
+    const isActive = activeTab === idx;
+    const sty = secAccents[sec.key] || secAccents.new;
+    const pinsCount = (sec.pages || []).reduce((sum: number, p: any) => sum + (p.markers || []).length, 0);
+    return (
+      <button
+        key={idx}
+        type="button"
+        onClick={() => selectTab(idx)}
+        className={`font-acme px-3.5 py-2 rounded-xl border text-sm md:text-base flex items-center gap-2 transition-all duration-200 hover:-translate-y-0.5 active:scale-95 ${
+          isActive ? sty.activeBg : 'bg-slate-800/70 border-white/10 text-slate-300 hover:text-white hover:border-white/25'
+        }`}
+      >
+        <span className={`w-2.5 h-2.5 rounded-full ${sty.dot}`} />
+        <span>{cleanLabel(sec)}</span>
+        <span className="text-xs px-1.5 py-0.5 rounded-full bg-white/10 text-slate-200">
+          {isAr ? `${toHindiDigits(String((sec.pages || []).length))} ص` : `${(sec.pages || []).length}p`}
+        </span>
+        {pinsCount > 0 && (
+          <span className="text-xs px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300">
+            🔊 {isAr ? toHindiDigits(String(pinsCount)) : pinsCount}
+          </span>
+        )}
+      </button>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 px-3 py-5 pb-16" dir={isAr ? 'rtl' : 'ltr'}>
-      <div className="max-w-3xl mx-auto space-y-6">
-        <header className="rounded-2xl bg-slate-900 border border-white/10 px-5 py-4 flex flex-wrap items-center justify-between gap-2 shadow-xl">
+      <div className="max-w-3xl mx-auto space-y-5">
+        <header className="rounded-2xl bg-slate-900/95 border border-white/10 px-5 py-4 flex flex-wrap items-center justify-between gap-2 shadow-xl">
           <div>
-            <h1 className="text-xl font-bold text-emerald-400">
+            <h1 className="font-acme text-2xl text-emerald-400">
               {isAr ? `المصحف الصوتي — ${sessionData.studentName}` : `Audio Mushaf — ${sessionData.studentName}`}
             </h1>
             <p className="text-sm text-slate-400 mt-1">
-              {isAr ? 'اضغط على علامة الصوت 🔊 فوق الكلمة للاستماع إلى التصحيح' : 'Tap any 🔊 pin above a word to listen to the correction'}
+              {isAr ? 'اختر القسم لعرض صفحاته، واضغط على 🔊 للاستماع أو شاهد التظليل الأخضر للحفظ.' : 'Select a section to view its pages, tap 🔊 to listen, or review green memorization highlights.'}
             </p>
           </div>
-          <span className="px-3 py-1 rounded-full bg-white/10 text-xs font-bold text-slate-200">
+          <span className="font-acme px-3 py-1 rounded-full bg-white/10 text-xs text-slate-200">
             {isAr ? toHindiDigits(sessionData.dateStr || '') : sessionData.dateStr}
           </span>
         </header>
 
-        {sections.map((sec: any, sIdx: number) => (
-          <section key={`${sec.key}_${sIdx}`} className="space-y-4">
+        {sections.length > 0 && (
+          <div className="sticky top-2.5 z-40 rounded-2xl bg-slate-900/90 backdrop-blur-md border border-white/10 p-3 shadow-2xl space-y-2.5">
+            {grouped ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                <div className="rounded-xl bg-white/[0.03] border border-white/10 p-2.5 space-y-2">
+                  <div className="font-acme text-xs text-slate-400 px-1">{isAr ? 'الدرس الحالي' : 'Current Lesson'}</div>
+                  <div className="flex flex-wrap gap-2">
+                    {sections.map((sec: any, idx: number) => ({ sec, idx })).filter((x: any) => x.sec.group === 'reading').map((x: any) => renderTabBtn(x.sec, x.idx))}
+                  </div>
+                </div>
+                <div className="rounded-xl bg-white/[0.03] border border-white/10 p-2.5 space-y-2">
+                  <div className="font-acme text-xs text-slate-400 px-1">{isAr ? 'الدرس القادم' : 'Next Lesson'}</div>
+                  <div className="flex flex-wrap gap-2">
+                    {sections.map((sec: any, idx: number) => ({ sec, idx })).filter((x: any) => x.sec.group === 'homework').map((x: any) => renderTabBtn(x.sec, x.idx))}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-2 items-center">
+                {sections.map((sec: any, idx: number) => renderTabBtn(sec, idx))}
+                {sections.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => selectTab('all')}
+                    className={`font-acme px-3 py-1.5 rounded-xl border text-xs transition-all ${
+                      activeTab === 'all' ? 'bg-sky-500/20 border-sky-400 text-white' : 'bg-slate-800/70 border-white/10 text-slate-300 hover:text-white'
+                    }`}
+                  >
+                    {isAr ? 'الكل' : 'All'}
+                  </button>
+                )}
+              </div>
+            )}
+            {grouped && (
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => selectTab('all')}
+                  className={`font-acme px-3 py-1 rounded-lg border text-xs transition-all ${
+                    activeTab === 'all' ? 'bg-sky-500/20 border-sky-400 text-white' : 'bg-slate-800/70 border-white/10 text-slate-300 hover:text-white'
+                  }`}
+                >
+                  {isAr ? 'عرض الكل' : 'Show All'}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {visibleSections.map(({ sec, idx }: { sec: any; idx: number }) => (
+          <section key={`${sec.key}_${idx}_${activeTab}`} className="space-y-4 animate-in fade-in slide-in-from-bottom-3 duration-300">
             <div className="rounded-xl bg-emerald-950/60 border border-emerald-500/30 px-4 py-3 flex items-center justify-between gap-3">
-              <span className="font-bold text-emerald-300 text-base">{isAr ? (sec.titleAr || sec.titleEn) : (sec.titleEn || sec.titleAr)}</span>
+              <span className="font-acme text-emerald-300 text-lg">
+                {isAr ? (sec.titleAr || sec.titleEn) : (sec.groupTitleEn ? `${sec.groupTitleEn} · ${cleanLabel(sec)}` : (sec.titleEn || sec.titleAr))}
+              </span>
               {(sec.summaryAr || sec.summaryEn) && (
-                <span className="text-xs font-semibold text-slate-300">{isAr ? (sec.summaryAr || sec.summaryEn) : (sec.summaryEn || sec.summaryAr)}</span>
+                <span className="font-acme text-xs text-slate-300">{isAr ? (sec.summaryAr || sec.summaryEn) : (sec.summaryEn || sec.summaryAr)}</span>
               )}
             </div>
 
             {(sec.pages || []).map((p: any) => (
               <div key={p.pdfPage} className="space-y-1.5">
                 <div className="text-center">
-                  <span className="inline-block px-3 py-0.5 rounded-full bg-white/10 text-xs font-bold text-slate-300">
-                    {isAr ? `صفحة ${toHindiDigits(p.pdfPage)}` : `Page ${p.pdfPage}`}
+                  <span className="font-acme inline-block px-3 py-0.5 rounded-full bg-white/10 text-xs text-slate-300">
+                    {isAr ? `صفحة ${toHindiDigits(String(p.pdfPage))}` : `Page ${p.pdfPage}`}
                   </span>
                 </div>
-                <div className="relative w-full rounded-xl overflow-hidden border border-white/15 bg-white shadow-2xl">
+                <div className="relative w-full rounded-2xl overflow-hidden border border-white/15 bg-white shadow-2xl">
                   <img src={p.imageDataUrl} alt={`Page ${p.pdfPage}`} className="w-full h-auto block" />
                   {(p.markers || []).map((pin: any) => {
                     const active = playingId === pin.id;
@@ -376,7 +483,7 @@ function AudioMushafViewer({ sessionId }: { sessionId: string }) {
                         onClick={() => togglePin(pin)}
                         style={{ left: `${pin.xPercent}%`, top: `${pin.yPercent}%`, transform: 'translate(-50%, -85%)' }}
                         className={`absolute w-8 h-8 md:w-9 md:h-9 rounded-full border-2 border-white flex items-center justify-center shadow-lg transition-transform active:scale-95 ${
-                          active ? 'bg-rose-500 scale-125 ring-4 ring-rose-500/40 z-30' : 'bg-emerald-500 hover:scale-110 z-20'
+                          active ? 'bg-rose-500 scale-125 ring-4 ring-rose-500/40 z-30 animate-pulse' : 'bg-emerald-500 hover:scale-110 z-20'
                         }`}
                         title={isAr ? 'استماع للتصحيح' : 'Play correction'}
                       >

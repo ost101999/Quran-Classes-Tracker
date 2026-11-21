@@ -1168,7 +1168,11 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                       const includedLabels = orderedSections
                         .filter(k => reportSettings.mushafIncludedSections?.[k] !== false)
                         .map(k => MUSHAF_SECTION_LABELS[k].ar);
-                      const targetFullLabel = (reportSettings.mushafTargetSection || 'homework') === 'homework' ? 'الدرس القادم' : 'الدرس الحالي';
+                      const targetFullLabel = reportSettings.mushafTargetSection === 'both'
+                        ? 'الحالي والقادم'
+                        : reportSettings.mushafTargetSection === 'reading'
+                          ? 'الدرس الحالي'
+                          : 'الدرس القادم';
                       return (
                         <div className="rounded-2xl border border-slate-200/90 bg-white shadow-sm overflow-hidden">
                           <button
@@ -1199,6 +1203,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                                   {([
                                     { id: 'reading', label: 'الدرس الحالي' },
                                     { id: 'homework', label: 'الدرس القادم' },
+                                    { id: 'both', label: 'الاثنان معاً' },
                                   ] as const).map(opt => {
                                     const active = (reportSettings.mushafTargetSection || 'homework') === opt.id;
                                     return (

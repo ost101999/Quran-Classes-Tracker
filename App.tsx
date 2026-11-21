@@ -5471,6 +5471,8 @@ function App() {
       sectionTogglesOverride?: Record<string, boolean>;
       cancelledInputsOverride?: Record<string, boolean>;
       exclusionsOverride?: Partial<Record<'rev' | 'oldRev' | 'new' | 'tilawa', boolean>>;
+      readingExclusionsOverride?: Partial<Record<'rev' | 'oldRev' | 'new' | 'tilawa', boolean>>;
+      homeworkExclusionsOverride?: Partial<Record<'rev' | 'oldRev' | 'new' | 'tilawa', boolean>>;
       dateStr?: string;
       silentToast?: boolean;
     } = {}
@@ -5488,6 +5490,8 @@ function App() {
       sectionToggles: options.sectionTogglesOverride ?? reportData?.sectionToggles,
       cancelledInputs: options.cancelledInputsOverride ?? reportData?.cancelledInputs,
       exclusions: options.exclusionsOverride,
+      readingExclusions: options.readingExclusionsOverride,
+      homeworkExclusions: options.homeworkExclusionsOverride,
       settings,
     });
     if (sections.length === 0 && outputFormat === 'pdf') {
@@ -16611,10 +16615,10 @@ function App() {
                             cancelledInputs: { ...cancelledInputs }
                           };
 
-                          const arMushafTargetSection = student?.reportSettings?.mushafTargetSection === 'reading' ? 'reading' : 'homework';
-                          const arMushafExclusions = arMushafTargetSection === 'homework'
-                            ? { rev: excludeHomeworkRev, oldRev: excludeHomeworkOldRev, new: excludeHomeworkNew || excludeNewFromReport, tilawa: excludeHomeworkTilawa }
-                            : { rev: excludeReadingRev, oldRev: excludeReadingOldRev, new: excludeReadingNew || prevReportHadExclusion, tilawa: excludeReadingTilawa };
+                          const arMushafTargetSection = student?.reportSettings?.mushafTargetSection || 'homework';
+                          const arReadingExclusions = { rev: excludeReadingRev, oldRev: excludeReadingOldRev, new: excludeReadingNew || prevReportHadExclusion, tilawa: excludeReadingTilawa };
+                          const arHomeworkExclusions = { rev: excludeHomeworkRev, oldRev: excludeHomeworkOldRev, new: excludeHomeworkNew || excludeNewFromReport, tilawa: excludeHomeworkTilawa };
+                          const arMushafExclusions = arMushafTargetSection === 'reading' ? arReadingExclusions : arHomeworkExclusions;
                           const arMushafDateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(smartReportModal.dayNum).padStart(2, '0')}`;
                           const _arMushafStudent = student;
                           const arIsWebLinkMode = Boolean(_arMushafStudent?.reportSettings?.customMushafEnabled && (_arMushafStudent.reportSettings.mushafOutputFormat || 'pdf') === 'web_link');
@@ -16625,6 +16629,8 @@ function App() {
                               sectionTogglesOverride: arReportSnapshot.sectionToggles,
                               cancelledInputsOverride: arReportSnapshot.cancelledInputs,
                               exclusionsOverride: arMushafExclusions,
+                              readingExclusionsOverride: arReadingExclusions,
+                              homeworkExclusionsOverride: arHomeworkExclusions,
                               dateStr: arMushafDateStr,
                               silentToast: true,
                             });
@@ -16674,6 +16680,8 @@ function App() {
                                 sectionTogglesOverride: arReportSnapshot.sectionToggles,
                                 cancelledInputsOverride: arReportSnapshot.cancelledInputs,
                                 exclusionsOverride: arMushafExclusions,
+                                readingExclusionsOverride: arReadingExclusions,
+                                homeworkExclusionsOverride: arHomeworkExclusions,
                                 dateStr: arMushafDateStr,
                                 silentToast: _arMushafStudent?.reportSettings?.mushafAutoSendWhatsapp !== false,
                               });
@@ -16808,6 +16816,8 @@ function App() {
                                 sectionTogglesOverride: arReportSnapshot.sectionToggles,
                                 cancelledInputsOverride: arReportSnapshot.cancelledInputs,
                                 exclusionsOverride: arMushafExclusions,
+                                readingExclusionsOverride: arReadingExclusions,
+                                homeworkExclusionsOverride: arHomeworkExclusions,
                                 dateStr: arMushafDateStr,
                                 silentToast: _arMushafStudent?.reportSettings?.mushafAutoSendWhatsapp !== false,
                               });
@@ -18202,10 +18212,10 @@ function App() {
                             cancelledInputs: { ...cancelledInputs }
                           };
 
-                          const enMushafTargetSection = student?.reportSettings?.mushafTargetSection === 'reading' ? 'reading' : 'homework';
-                          const enMushafExclusions = enMushafTargetSection === 'homework'
-                            ? { rev: excludeHomeworkRev, oldRev: excludeHomeworkOldRev, new: excludeHomeworkNew || excludeNewFromReport, tilawa: excludeHomeworkTilawa }
-                            : { rev: excludeReadingRev, oldRev: excludeReadingOldRev, new: excludeReadingNew || prevReportHadExclusion, tilawa: excludeReadingTilawa };
+                          const enMushafTargetSection = student?.reportSettings?.mushafTargetSection || 'homework';
+                          const enReadingExclusions = { rev: excludeReadingRev, oldRev: excludeReadingOldRev, new: excludeReadingNew || prevReportHadExclusion, tilawa: excludeReadingTilawa };
+                          const enHomeworkExclusions = { rev: excludeHomeworkRev, oldRev: excludeHomeworkOldRev, new: excludeHomeworkNew || excludeNewFromReport, tilawa: excludeHomeworkTilawa };
+                          const enMushafExclusions = enMushafTargetSection === 'reading' ? enReadingExclusions : enHomeworkExclusions;
                           const enMushafDateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(smartReportModal.dayNum).padStart(2, '0')}`;
                           const _enMushafStudent = student;
                           const enIsWebLinkMode = Boolean(_enMushafStudent?.reportSettings?.customMushafEnabled && (_enMushafStudent.reportSettings.mushafOutputFormat || 'pdf') === 'web_link');
@@ -18216,6 +18226,8 @@ function App() {
                               sectionTogglesOverride: enReportSnapshot.sectionToggles,
                               cancelledInputsOverride: enReportSnapshot.cancelledInputs,
                               exclusionsOverride: enMushafExclusions,
+                              readingExclusionsOverride: enReadingExclusions,
+                              homeworkExclusionsOverride: enHomeworkExclusions,
                               dateStr: enMushafDateStr,
                               silentToast: true,
                             });
@@ -18272,6 +18284,8 @@ function App() {
                                 sectionTogglesOverride: enReportSnapshot.sectionToggles,
                                 cancelledInputsOverride: enReportSnapshot.cancelledInputs,
                                 exclusionsOverride: enMushafExclusions,
+                                readingExclusionsOverride: enReadingExclusions,
+                                homeworkExclusionsOverride: enHomeworkExclusions,
                                 dateStr: enMushafDateStr,
                                 silentToast: _enMushafStudent?.reportSettings?.mushafAutoSendWhatsapp !== false,
                               });
@@ -18402,6 +18416,8 @@ function App() {
                                 sectionTogglesOverride: enReportSnapshot.sectionToggles,
                                 cancelledInputsOverride: enReportSnapshot.cancelledInputs,
                                 exclusionsOverride: enMushafExclusions,
+                                readingExclusionsOverride: enReadingExclusions,
+                                homeworkExclusionsOverride: enHomeworkExclusions,
                                 dateStr: enMushafDateStr,
                                 silentToast: _enMushafStudent?.reportSettings?.mushafAutoSendWhatsapp !== false,
                               });
