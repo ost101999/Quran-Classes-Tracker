@@ -73,6 +73,7 @@ ipcMain.handle('generate-custom-mushaf', async (_event, payload) => {
             pageOffset,
             dateStr,
             outputDir,
+            maxFilesToKeep: process.platform === 'darwin' ? 3 : null,
             BrowserWindow,
         });
 

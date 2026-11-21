@@ -355,6 +355,32 @@ async function embedSinglePageNormalized(outputPdf, rawPdfBytes, targetWidth, ta
     return page;
 }
 
+function pruneOldMushafPdfs(outputDir, maxFilesToKeep, keepFilePath) {
+    const limit = Number(maxFilesToKeep);
+    if (!Number.isInteger(limit) || limit < 1 || !outputDir || !fs.existsSync(outputDir)) return 0;
+    const resolvedKeep = keepFilePath ? path.resolve(keepFilePath) : '';
+    const candidates = [];
+    for (const entry of fs.readdirSync(outputDir, { withFileTypes: true })) {
+        if (!entry.isFile() || path.extname(entry.name).toLowerCase() !== '.pdf') continue;
+        const fullPath = path.join(outputDir, entry.name);
+        if (resolvedKeep && path.resolve(fullPath) === resolvedKeep) continue;
+        try {
+            const stat = fs.statSync(fullPath);
+            candidates.push({ path: fullPath, mtimeMs: stat.mtimeMs });
+        } catch { /* skip unreadable entry */ }
+    }
+    candidates.sort((a, b) => b.mtimeMs - a.mtimeMs);
+    const maxOthers = Math.max(0, limit - (resolvedKeep ? 1 : 0));
+    let deleted = 0;
+    for (const oldFile of candidates.slice(maxOthers)) {
+        try {
+            fs.unlinkSync(oldFile.path);
+            deleted++;
+        } catch { /* best-effort cleanup */ }
+    }
+    return deleted;
+}
+
 async function generateCustomMushafPdf({
     studentName,
     sourcePdfPath,
@@ -364,6 +390,7 @@ async function generateCustomMushafPdf({
     pageOffset = 0,
     dateStr,
     outputDir,
+    maxFilesToKeep = null,
     renderHtmlToPdf,
     BrowserWindow,
 }) {
@@ -465,6 +492,7 @@ async function generateCustomMushafPdf({
     const tempPath = `${outputFilePath}.tmp`;
     fs.writeFileSync(tempPath, pdfBytes);
     fs.renameSync(tempPath, outputFilePath);
+    pruneOldMushafPdfs(resolvedOutDir, maxFilesToKeep, outputFilePath);
 
     return {
         success: true,
@@ -478,6 +506,7 @@ async function generateCustomMushafPdf({
 
 module.exports = {
     getDefaultMushafOutputDir,
+    pruneOldMushafPdfs,
     sanitizeFileSegment,
     mapMushafPagesToPdfPages,
     buildDividerHtml,

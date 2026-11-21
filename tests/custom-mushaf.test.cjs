@@ -6,7 +6,7 @@ const path = require('node:path');
 const { PDFDocument, PDFName } = require('pdf-lib');
 
 const { resolveStudentMushafFile } = require('../shortcut-links');
-const { mapMushafPagesToPdfPages, buildDividerHtml, buildBannerHtml, generateCustomMushafPdf } = require('../custom-mushaf');
+const { mapMushafPagesToPdfPages, buildDividerHtml, buildBannerHtml, generateCustomMushafPdf, pruneOldMushafPdfs } = require('../custom-mushaf');
 
 test('resolveStudentMushafFile uses ONLY the student Mushaf PDF without falling back to master', () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mushaf-shortcuts-'));
@@ -161,6 +161,29 @@ test('generateCustomMushafPdf extracts pages with divider pages while preserving
     assert.match(divHtml, /font-family:\s*'Amiri'/);
     assert.match(banHtml, /font-family:\s*'Amiri'/);
     assert.match(divHtml, />Revision</);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('pruneOldMushafPdfs keeps the newest 3 PDFs including the newly generated file and leaves non-PDF files', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mushaf-prune-'));
+  try {
+    const names = ['old1.pdf', 'old2.pdf', 'recent1.pdf', 'recent2.pdf', 'newest.pdf'];
+    const baseTime = 1700000000;
+    names.forEach((name, idx) => {
+      const p = path.join(tmpDir, name);
+      fs.writeFileSync(p, `%PDF-1.4\n${name}`);
+      const ts = baseTime + idx * 100;
+      fs.utimesSync(p, ts, ts);
+    });
+    fs.writeFileSync(path.join(tmpDir, 'notes.txt'), 'keep me');
+
+    const deleted = pruneOldMushafPdfs(tmpDir, 3, path.join(tmpDir, 'newest.pdf'));
+    assert.equal(deleted, 2);
+
+    const remaining = fs.readdirSync(tmpDir).sort();
+    assert.deepEqual(remaining, ['newest.pdf', 'notes.txt', 'recent1.pdf', 'recent2.pdf']);
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
