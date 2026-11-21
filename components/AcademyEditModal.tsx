@@ -57,7 +57,7 @@ const isValidUrl = (url: string): boolean => {
 
 const AcademyEditModal: React.FC<Props> = ({ academyName, academyRate, onClose, onSave, onDelete, onArchive, isAdd }) => {
     const [name, setName] = useState(isAdd ? '' : academyName);
-    const [rate, setRate] = useState(academyRate?.rate ? toHindiDigits(academyRate.rate.toString()) : '');
+    const [rate, setRate] = useState(academyRate?.rate !== undefined && academyRate?.rate !== null ? toHindiDigits(academyRate.rate.toString()) : '');
     const [currency, setCurrency] = useState(academyRate?.currency || 'جنيه');
     const [billingStartDay, setBillingStartDay] = useState<string>(academyRate?.billingStartDay ? toHindiDigits(academyRate.billingStartDay.toString()) : '١');
     const [externalLink, setExternalLink] = useState(academyRate?.externalLink || '');

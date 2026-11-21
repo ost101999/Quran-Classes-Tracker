@@ -122,7 +122,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
   const [academy, setAcademy] = useState(student?.academy || prefillAcademy || '');
   const [studentTargetAge, setStudentTargetAge] = useState<'kids' | 'adults'>(student?.targetAge || 'adults');
   const [currency, setCurrency] = useState(student?.location || 'جنيه');
-  const [rate, setRate] = useState(student?.rate ? toHindiDigits(student.rate.toString()) : '');
+  const [rate, setRate] = useState(student?.rate !== undefined && student?.rate !== null ? toHindiDigits(student.rate.toString()) : '');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedDays, setSelectedDays] = useState<number[]>(student?.days || []);
   const [duration, setDuration] = useState(student?.duration || '٣٠');
@@ -537,7 +537,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
 
   const handleSubmit = (e: React.FormEvent, saveOptions?: { keepOpen?: boolean }): boolean => {
     e.preventDefault();
-    if (!name || !academy || !rate) return false;
+    if (!name || !academy) return false;
     if (quranLink.trim() && !isDriveFileLink(quranLink)) {
       setQuranLinkError(true);
       openSubPanel('studentWeb');
@@ -556,7 +556,10 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
       academy,
       targetAge: studentTargetAge,
       location: currency,
-      rate: Number(toWesternDigits(rate).replace(',', '.')),
+      rate: (() => {
+        const parsedRate = Number(toWesternDigits(rate || '0').replace(',', '.'));
+        return Number.isFinite(parsedRate) ? parsedRate : 0;
+      })(),
       duration,
       paymentBasis,
       useAcademyRate,
@@ -607,7 +610,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
   };
 
   const handleSaveReportSettings = () => {
-    if (name && academy && rate) {
+    if (name && academy) {
       const saved = handleSubmit({ preventDefault: () => { } } as React.FormEvent, { keepOpen: true });
       if (saved) setActivePanel('main');
       return;
@@ -836,7 +839,6 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                   </label>
                   <input
                     type="text"
-                    required
                     inputMode="decimal"
                     value={rate}
                     readOnly={useAcademyRate}
