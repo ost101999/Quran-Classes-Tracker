@@ -2421,10 +2421,11 @@ function App() {
   const [toast, setToast] = useState<{ message: string; show: boolean }>({ message: '', show: false });
 
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const showToast = (msg: string) => {
+  const showToast = (msg: string, duration: number = 4500) => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
     setToast({ message: msg, show: true });
-    toastTimer.current = setTimeout(() => setToast(prev => ({ ...prev, show: false })), 4500);
+    const ms = duration === 0 ? 180000 : duration;
+    toastTimer.current = setTimeout(() => setToast(prev => ({ ...prev, show: false })), ms);
   };
 
   const handleOpenLink = (url: string, title: string = '') => {
@@ -8440,7 +8441,7 @@ function App() {
                 const target = monthlyCurriculumModal.student.whatsappNumber || academyRates[monthlyCurriculumModal.student.academy]?.whatsappNumber;
                 if (!target) return;
                 navigator.clipboard.writeText(reportText).catch(() => { });
-                showToast('جاري إرسال التقرير الشهري عبر واتساب... ⏳');
+                showToast('جاري تشغيل واتساب وإرسال التقرير الشهري... ⏳', 0);
                 window.electronAPI?.sendWhatsAppAuto(target, reportText).then((result: any) => {
                   if (result?.success) {
                     showToast('تم إرسال التقرير الشهري عبر واتساب ✅');
@@ -15530,7 +15531,7 @@ function App() {
                               closeAllModals(true);
                               handleClipboardCopy(_tajweedStudentId, report, () => checkAndOpenLink(_tajweedStudentId));
 
-                              showToast('جاري الإرسال عبر واتساب... ⏳');
+                              showToast('جاري تشغيل واتساب وإرسال التقرير... ⏳', 0);
                               window.electronAPI?.sendWhatsAppAuto(finalTarget, report).then((result: any) => {
                                 if (result.success) {
 
@@ -15680,7 +15681,7 @@ function App() {
                               // Copy + open link immediately alongside WhatsApp send
                               handleClipboardCopy(_studentIdNoor1, report, () => checkAndOpenLink(_studentIdNoor1));
 
-                              showToast('جاري الإرسال عبر واتساب... ⏳');
+                              showToast('جاري تشغيل واتساب وإرسال التقرير... ⏳', 0);
                               window.electronAPI?.sendWhatsAppAuto(finalTarget, report).then((result: any) => {
                                 if (result.success) {
 
@@ -16413,7 +16414,7 @@ function App() {
                             // Copy + open link immediately alongside WhatsApp send
                             handleClipboardCopy(_arStudentId, report, () => checkAndOpenLink(_arStudentId));
 
-                            showToast('جاري الإرسال عبر واتساب... ⏳');
+                            showToast('جاري تشغيل واتساب وإرسال التقرير... ⏳', 0);
                             window.electronAPI?.sendWhatsAppAuto(finalTarget, report).then((result: any) => {
                               if (result.success) {
                                 const reportKey = `${_arStudentId}_${_arDayNum}_${month}_${year}`;
@@ -16828,7 +16829,7 @@ function App() {
                                 // Copy + open link immediately alongside WhatsApp send
                                 handleClipboardCopy(_noorEngStudentId, report, () => checkAndOpenLink(_noorEngStudentId));
 
-                                showToast('Sending via WhatsApp... ⏳');
+                                showToast('Starting WhatsApp & sending... ⏳', 0);
                                 window.electronAPI?.sendWhatsAppAuto(finalTarget, report).then((result: any) => {
                                   if (result.success) {
 
@@ -17956,7 +17957,7 @@ function App() {
                             // Copy + open link immediately alongside WhatsApp send
                             handleClipboardCopy(_engStudentId, report, () => checkAndOpenLink(_engStudentId));
 
-                            showToast(`Sending to ${finalTarget}... ⏳`);
+                            showToast(`Starting WhatsApp & sending to ${finalTarget}... ⏳`, 0);
                             window.electronAPI?.sendWhatsAppAuto(finalTarget, report).then((result: any) => {
                               if (result.success) {
                                 // Save report for later viewing
