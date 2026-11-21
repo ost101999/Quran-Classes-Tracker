@@ -22,8 +22,9 @@ declare global {
             loadZoom?: () => Promise<number | null>;
             saveTajweedAudio: (base64Data: string, fileName: string) => Promise<{ success: boolean; localPath?: string; error?: string }>;
             openExternal: (url: string, options?: { background?: boolean; reuseExisting?: boolean }) => Promise<{ success: boolean; reused?: boolean; error?: string }>;
-            sendWhatsAppAuto: (targetName: string, message: string) => Promise<{ success: boolean; error?: string }>;
+            sendWhatsAppAuto: (targetName: string, message: string, options?: { expectAttachment?: boolean }) => Promise<{ success: boolean; error?: string }>;
             sendWhatsAppFile?: (targetName: string, filePath: string, caption?: string) => Promise<{ success: boolean; unsupported?: boolean; error?: string }>;
+            releaseWhatsAppSession?: () => Promise<{ success: boolean }>;
             selectBackupFolder: () => Promise<string | null>;
             saveBackupToPath: (folderPath: string, data: any, maxFiles?: number) => Promise<{ success: boolean; filePath?: string; totalFiles?: number; error?: string }>;
             exportMonthlyPdf?: (htmlContent: string, defaultFileName?: string) => Promise<{ success: boolean; filePath?: string; canceled?: boolean; error?: string }>;

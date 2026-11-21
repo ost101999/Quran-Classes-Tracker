@@ -5537,8 +5537,16 @@ function App() {
 
     if (delivery.mode === 'auto') {
       const [autoRes, mushafRes] = await Promise.all([delivery.waitAuto, mushafPromise]);
-      if (!autoRes?.success || !mushafRes?.success || !mushafRes.filePath) return;
-      if (!window.electronAPI?.sendWhatsAppFile) return;
+      if (!autoRes?.success || !mushafRes?.success || !mushafRes.filePath) {
+        if (autoRes?.success) {
+          void window.electronAPI?.releaseWhatsAppSession?.();
+        }
+        return;
+      }
+      if (!window.electronAPI?.sendWhatsAppFile) {
+        void window.electronAPI?.releaseWhatsAppSession?.();
+        return;
+      }
       const fileRes = await window.electronAPI.sendWhatsAppFile(delivery.target, mushafRes.filePath);
       if (fileRes?.success) {
         const msgLang = targetStudent.reportSettings.mushafLanguage === 'ar'
@@ -5557,9 +5565,10 @@ function App() {
       return;
     }
 
+    const isMac = window.electronAPI?.platform === 'darwin';
     const [mushafRes] = await Promise.all([
       mushafPromise,
-      new Promise<void>(resolve => window.setTimeout(resolve, 750)),
+      new Promise<void>(resolve => window.setTimeout(resolve, isMac ? 900 : 750)),
     ]);
     if (!mushafRes?.success || !mushafRes.filePath) return;
     if (!window.electronAPI?.copyFileToClipboard) {
@@ -5569,9 +5578,10 @@ function App() {
     try {
       const clipRes = await window.electronAPI.copyFileToClipboard(mushafRes.filePath);
       if (clipRes?.success) {
+        const pasteKey = isMac ? 'Cmd+V' : 'Ctrl+V';
         showToast(delivery.lang === 'en'
-          ? 'Custom Mushaf PDF copied to clipboard (Ctrl+V) 📄'
-          : 'تم نسخ ملف المصحف للحافظة (Ctrl+V) 📄');
+          ? `Custom Mushaf PDF copied to clipboard (${pasteKey}) 📄`
+          : `تم نسخ ملف المصحف للحافظة (${pasteKey}) 📄`);
       } else {
         showToast(`⚠️ تعذّر نسخ ملف المصحف (${clipRes?.error || 'خطأ غير معروف'})`);
       }
@@ -16643,7 +16653,8 @@ function App() {
                             handleClipboardCopy(_arStudentId, report, () => checkAndOpenLink(_arStudentId));
 
                             showToast('جاري تشغيل واتساب وإرسال التقرير... ⏳', 0);
-                            const arAutoSendPromise = window.electronAPI?.sendWhatsAppAuto(finalTarget, report);
+                            const arExpectAttachment = Boolean(_arMushafStudent?.reportSettings?.customMushafEnabled && _arMushafStudent.reportSettings.mushafAutoSendWhatsapp !== false);
+                            const arAutoSendPromise = window.electronAPI?.sendWhatsAppAuto(finalTarget, report, { expectAttachment: arExpectAttachment });
                             void deliverCustomMushafAfterReport(arMushafPromise, _arMushafStudent, {
                               mode: 'auto',
                               target: finalTarget,
@@ -18221,7 +18232,8 @@ function App() {
                             handleClipboardCopy(_engStudentId, report, () => checkAndOpenLink(_engStudentId));
 
                             showToast(`Starting WhatsApp & sending to ${finalTarget}... ⏳`, 0);
-                            const enAutoSendPromise = window.electronAPI?.sendWhatsAppAuto(finalTarget, report);
+                            const enExpectAttachment = Boolean(_enMushafStudent?.reportSettings?.customMushafEnabled && _enMushafStudent.reportSettings.mushafAutoSendWhatsapp !== false);
+                            const enAutoSendPromise = window.electronAPI?.sendWhatsAppAuto(finalTarget, report, { expectAttachment: enExpectAttachment });
                             void deliverCustomMushafAfterReport(enMushafPromise, _enMushafStudent, {
                               mode: 'auto',
                               target: finalTarget,

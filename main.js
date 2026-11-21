@@ -153,13 +153,25 @@ ipcMain.handle('copy-file-to-clipboard', async (_event, filePath) => {
 
         if (process.platform === 'darwin') {
             return await new Promise((resolve) => {
+                const jxaScript = [
+                    'ObjC.import("AppKit");',
+                    'function run(argv) {',
+                    '  const pb = $.NSPasteboard.generalPasteboard;',
+                    '  pb.clearContents;',
+                    '  const url = $.NSURL.fileURLWithPath(argv[0]);',
+                    '  return pb.writeObjects($.NSArray.arrayWithObject(url)) ? "OK" : "FAIL";',
+                    '}',
+                ].join('\n');
                 execFile(
                     'osascript',
-                    ['-e', 'on run argv\nset the clipboard to POSIX file (item 1 of argv)\nend run', resolvedTarget],
+                    ['-l', 'JavaScript', '-e', jxaScript, resolvedTarget],
                     { timeout: 8000 },
-                    (err) => {
-                        if (err) resolve({ success: false, error: err.message });
-                        else resolve({ success: true });
+                    (err, stdout) => {
+                        if (err || String(stdout || '').trim() !== 'OK') {
+                            resolve({ success: false, error: err?.message || 'تعذر وضع ملف المصحف في الحافظة.' });
+                        } else {
+                            resolve({ success: true });
+                        }
                     }
                 );
             });
@@ -258,30 +270,83 @@ async function openExternalMaximized(url) {
 
 // --- WhatsApp IPC Handler ---
 const macWhatsAppInFlight = new Set();
+let macPendingWahaState = null;
+let macPendingShutdownTimer = null;
+
+function getMacWhatsAppHelperPath() {
+    return path.join(app.getPath('home'), 'MyAutoScripts', '5- My Programs', '1- Google Calender Magic Opener', 'Support Files', 'whatsapp_mac.py');
+}
+
+function clearMacPendingShutdownTimer() {
+    if (macPendingShutdownTimer) {
+        clearTimeout(macPendingShutdownTimer);
+        macPendingShutdownTimer = null;
+    }
+}
+
+function runMacWhatsAppHelper(args, payload, flightKey = null) {
+    const helper = getMacWhatsAppHelperPath();
+    if (!fs.existsSync(helper)) {
+        return Promise.resolve({ success: false, error: 'تعذر العثور على خدمة واتساب المحلية على الماك.' });
+    }
+    return new Promise(resolve => {
+        const child = spawn('/usr/bin/python3', [helper, ...args], { stdio: ['pipe', 'pipe', 'pipe'] });
+        let out = '', settled = false;
+        const finish = result => {
+            if (!settled) {
+                settled = true;
+                if (flightKey) macWhatsAppInFlight.delete(flightKey);
+                resolve(result);
+            }
+        };
+        child.stdout.on('data', chunk => { out += chunk; });
+        child.on('error', () => finish({ success: false, error: 'تعذر تشغيل خدمة واتساب.' }));
+        child.on('close', () => {
+            try {
+                const result = JSON.parse(out);
+                finish({ success: !!result.ok, error: result.error, wahaState: result.waha_state || null });
+            } catch {
+                finish({ success: false, error: 'تعذر التأكد من الإرسال. راجع المحادثة قبل إعادة المحاولة.' });
+            }
+        });
+        child.stdin.on('error', () => {});
+        child.stdin.end(JSON.stringify(payload) + '\n');
+    });
+}
+
+function releaseMacPendingWahaSession() {
+    clearMacPendingShutdownTimer();
+    const stateToRelease = macPendingWahaState;
+    macPendingWahaState = null;
+    if (!stateToRelease || !stateToRelease.started_by_us) return Promise.resolve({ success: true });
+    return runMacWhatsAppHelper(['shutdown'], { waha_state: stateToRelease }).catch(() => ({ success: false }));
+}
+
+app.on('will-quit', () => {
+    clearMacPendingShutdownTimer();
+    macPendingWahaState = null;
+});
+
 ipcMain.handle('send-whatsapp-auto', async (event, data) => {
     if (process.platform === 'darwin') {
-        const { targetName, message } = data || {};
+        const { targetName, message, expectAttachment } = data || {};
         if (typeof targetName !== 'string' || typeof message !== 'string' || !targetName.trim() || !message.trim()) return { success: false, error: 'بيانات الإرسال غير مكتملة.' };
         const flightKey = `${targetName.trim()}\n${message.trim()}`;
         if (macWhatsAppInFlight.has(flightKey)) return { success: false, error: 'جاري إرسال هذه الرسالة بالفعل… انتظر قليلاً.' };
         macWhatsAppInFlight.add(flightKey);
-        const helper = path.join(app.getPath('home'), 'MyAutoScripts', '5- My Programs', '1- Google Calender Magic Opener', 'Support Files', 'whatsapp_mac.py');
-        return await new Promise(resolve => {
-            const child = spawn('/usr/bin/python3', [helper], { stdio: ['pipe', 'pipe', 'pipe'] });
-            let out = '', settled = false;
-            const finish = result => {
-                if (!settled) {
-                    settled = true;
-                    macWhatsAppInFlight.delete(flightKey);
-                    resolve(result);
-                }
-            };
-            child.stdout.on('data', chunk => { out += chunk; });
-            child.on('error', () => finish({ success: false, error: 'تعذر تشغيل خدمة واتساب.' }));
-            child.on('close', () => { try { const result = JSON.parse(out); finish({ success: !!result.ok, error: result.error }); } catch { finish({ success: false, error: 'تعذر التأكد من الإرسال. راجع المحادثة قبل إعادة المحاولة.' }); } });
-            child.stdin.on('error', () => {});
-            child.stdin.end(JSON.stringify({ target: targetName, text: message }) + '\n');
-        });
+        await releaseMacPendingWahaSession();
+        const result = await runMacWhatsAppHelper([], {
+            target: targetName,
+            text: message,
+            defer_shutdown: !!expectAttachment,
+        }, flightKey);
+        if (result.success && expectAttachment && result.wahaState?.started_by_us) {
+            macPendingWahaState = result.wahaState;
+            macPendingShutdownTimer = setTimeout(() => {
+                void releaseMacPendingWahaSession();
+            }, 30000);
+        }
+        return { success: result.success, error: result.error };
     }
     const { targetName, message } = data || {};
     return sendWahaMessage(targetName, message);
@@ -290,9 +355,38 @@ ipcMain.handle('send-whatsapp-auto', async (event, data) => {
 ipcMain.handle('send-whatsapp-file', async (_event, data) => {
     const { targetName, filePath, caption } = data || {};
     if (process.platform === 'darwin') {
-        return { success: false, unsupported: true, error: 'تم حفظ المصحف محلياً؛ إرسال المرفقات التلقائي متاح على ويندوز.' };
+        clearMacPendingShutdownTimer();
+        const priorState = macPendingWahaState;
+        macPendingWahaState = null;
+        const releasePrior = async () => {
+            if (priorState?.started_by_us) {
+                await runMacWhatsAppHelper(['shutdown'], { waha_state: priorState }).catch(() => {});
+            }
+        };
+        if (typeof targetName !== 'string' || !targetName.trim()) {
+            await releasePrior();
+            return { success: false, error: 'بيانات جهة الاتصال غير مكتملة.' };
+        }
+        if (!filePath || typeof filePath !== 'string' || !fs.existsSync(filePath)) {
+            await releasePrior();
+            return { success: false, error: 'ملف المصحف غير موجود للإرسال.' };
+        }
+        const result = await runMacWhatsAppHelper(['send-file'], {
+            target: targetName,
+            filePath,
+            caption: caption || '',
+            prior_waha_state: priorState,
+        });
+        return { success: result.success, error: result.error };
     }
     return sendWahaFile(targetName, filePath, caption || '');
+});
+
+ipcMain.handle('release-whatsapp-session', async () => {
+    if (process.platform === 'darwin') {
+        return await releaseMacPendingWahaSession();
+    }
+    return { success: true };
 });
 
 // --- Open External Links ---

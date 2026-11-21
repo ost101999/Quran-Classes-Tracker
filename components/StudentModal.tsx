@@ -1403,7 +1403,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
 
                     {/* Accordion 3: Storage & WhatsApp Delivery */}
                     {(() => {
-                      const rawOutputDir = mushafFileStatus?.outputDir || 'Z:\\مصاحف الطلبة';
+                      const rawOutputDir = mushafFileStatus?.outputDir || (window.electronAPI?.platform === 'darwin' ? 'مجلد مصاحف الطلبة' : 'Z:\\مصاحف الطلبة');
                       const whatsappSummary = reportSettings.mushafAutoSendWhatsapp !== false
                         ? 'إرسال عبر واتساب (أو نسخ في اليدوي)'
                         : 'حفظ في المجلد فقط';
