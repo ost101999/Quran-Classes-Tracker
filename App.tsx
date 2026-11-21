@@ -2057,7 +2057,25 @@ function App() {
   useEffect(() => {
     window.electronAPI?.onSyncStatus?.(setUploadStatus);
     window.electronAPI?.getSyncStatus?.().then(setUploadStatus);
-    return () => window.electronAPI?.offSyncStatus?.();
+    window.electronAPI?.onCloudMergedFields?.((fields) => {
+      if (!fields || typeof fields !== 'object') return;
+      const normalized = desanitizeStateKeys({ ...fields }, students, academyOrder);
+      applyingCloudRef.current = true;
+      try {
+        if (Array.isArray(normalized.students)) setStudents(normalized.students);
+        if (Array.isArray(normalized.academyOrder)) setAcademyOrder(normalized.academyOrder);
+        if (Array.isArray(normalized.makeupLinks)) setMakeupLinks(normalized.makeupLinks);
+        if (Array.isArray(normalized.seenUngradedTajweedAssignmentIds)) {
+          setSeenUngradedTajweedAssignmentIds(new Set(normalized.seenUngradedTajweedAssignmentIds));
+        }
+      } finally {
+        applyingCloudRef.current = false;
+      }
+    });
+    return () => {
+      window.electronAPI?.offSyncStatus?.();
+      window.electronAPI?.offCloudMergedFields?.();
+    };
   }, []);
 
   useEffect(() => {
@@ -2307,14 +2325,22 @@ function App() {
       }
     };
 
-    // Run first check immediately, then poll every 30 seconds
+    // Run first check immediately, then poll every 30 seconds and whenever returning to the app
     pollCloudChanges();
     const pollInterval = window.setInterval(pollCloudChanges, 30_000);
+    const onFocusOrOnline = () => { void pollCloudChanges(); };
+    const onVisibility = () => { if (!document.hidden) void pollCloudChanges(); };
+    window.addEventListener('focus', onFocusOrOnline);
+    window.addEventListener('online', onFocusOrOnline);
+    document.addEventListener('visibilitychange', onVisibility);
 
     return () => {
       isCancelled = true;
       downloadController.abort();
       window.clearInterval(pollInterval);
+      window.removeEventListener('focus', onFocusOrOnline);
+      window.removeEventListener('online', onFocusOrOnline);
+      document.removeEventListener('visibilitychange', onVisibility);
       if (retryTimer !== undefined) window.clearTimeout(retryTimer);
     };
   }, [isLoaded, lastUpdated, students, attendance, month, year, dayOff, academyOrder, academyRates,
@@ -4800,13 +4826,19 @@ function App() {
     };
     void refresh();
     const timer = window.setInterval(refresh, 60000);
-    window.addEventListener('focus', refresh);
-    window.addEventListener('online', refresh);
+    let resumeTimer: number | undefined;
+    const scheduleResumeRefresh = () => {
+      if (resumeTimer !== undefined) window.clearTimeout(resumeTimer);
+      resumeTimer = window.setTimeout(() => { resumeTimer = undefined; void refresh(); }, 2000);
+    };
+    window.addEventListener('focus', scheduleResumeRefresh);
+    window.addEventListener('online', scheduleResumeRefresh);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
-      window.removeEventListener('focus', refresh);
-      window.removeEventListener('online', refresh);
+      if (resumeTimer !== undefined) window.clearTimeout(resumeTimer);
+      window.removeEventListener('focus', scheduleResumeRefresh);
+      window.removeEventListener('online', scheduleResumeRefresh);
     };
   }, [students, isLoaded, initialSyncReady, isModalOpen, syncConflicts.length, resolvingConflict, calendarRefresh, dayTransitionTime]);
 
@@ -6541,19 +6573,63 @@ function App() {
     const [field, recordId] = conflict.path.split('/');
     const fieldNames: Record<string, string> = { savedReports: 'التقرير', savedReportDrafts: 'مسودة التقرير', lastReports: 'بيانات آخر تقرير', attendance: 'الحضور', students: 'قائمة الطلاب', tajweedBank: 'بنك التجويد' };
     const student = students.find(item => recordId?.includes(item.id));
+    const studentFieldLabels: Record<string, string> = {
+      name: 'الاسم', academy: 'الأكاديمية', rate: 'السعر', paymentBasis: 'نظام الحساب',
+      duration: 'المدة', days: 'أيام الحصص', location: 'العملة', prepaidCurrent: 'رصيد الحصص المدفوعة',
+      quranLink: 'رابط المصحف', readingLink: 'رابط القراءة', zoomLink: 'رابط الزوم',
+      externalLink: 'رابط إضافي', whatsappNumber: 'جهة الواتساب', targetAge: 'الفئة العمرية',
+      useAcademyRate: 'استخدام سعر الأكاديمية', disableReport: 'تعطيل التقرير',
+      reportSettings: 'إعدادات التقرير والمصحف', studyPlan: 'خطة الحفظ', startedAt: 'تاريخ البدء',
+      deletedAt: 'تاريخ الإيقاف', color: 'اللون', __deleted__: 'حالة الطالب',
+    };
+    const formatStudentFieldValue = (val: any) => {
+      if (val === undefined || val === null || val === '') return 'غير محدد';
+      if (typeof val === 'boolean') return val ? 'نعم' : 'لا';
+      if (typeof val === 'string' || typeof val === 'number') return String(val);
+      return JSON.stringify(val, null, 2);
+    };
+    const studentConflicts = field === 'students' && Array.isArray(conflict.studentConflicts) ? conflict.studentConflicts : null;
     const preview = (value: any) => value == null ? 'تم الحذف' : typeof value === 'string' ? value : JSON.stringify(value, null, 2);
     return <div className="min-h-screen bg-gray-900 p-6 text-white font-arabic" dir="rtl">
       <div className="max-w-5xl mx-auto">
         <h1 className="text-2xl text-amber-300">فيه تعديلان مختلفان يحتاجان مراجعتك</h1>
         <p className="my-3">{fieldNames[field] || 'البيانات'}{student ? ` — ${student.name}` : ''} · {syncConflicts.length} اختلاف متبقٍ</p>
-        <p className="text-gray-300 mb-4">النسختان محفوظتان في نسخة احتياطية. اختَر النسخة التي تريد استخدامها ومزامنتها.</p>
-        <div className="grid md:grid-cols-2 gap-4">
-          {(['local', 'remote'] as const).map(choice => <section key={choice} className="rounded-xl bg-gray-800 p-4">
-            <h2 className="text-lg mb-2">{choice === 'local' ? 'نسخة هذا الجهاز' : 'النسخة السحابية'}</h2>
-            <pre className="whitespace-pre-wrap break-words max-h-[55vh] overflow-auto text-sm" dir="auto">{preview(choice === 'local' ? conflict.localValue : conflict.remoteValue)}</pre>
-            <button disabled={resolvingConflict} className="mt-4 bg-amber-400 text-gray-900 rounded-xl px-4 py-2 disabled:opacity-50" onClick={() => void resolveSyncConflict(choice)}>{choice === 'local' ? 'استخدام نسخة هذا الجهاز' : 'استخدام النسخة السحابية'}</button>
-          </section>)}
-        </div>
+        <p className="text-gray-300 mb-4">{studentConflicts?.length ? 'كل التعديلات والإضافات غير المتعارضة من الجهازين سيتم دمجها وحفظها تلقائياً. اختَر فقط القيمة التي تريد اعتمادها للاختلافات التالية:' : 'النسختان محفوظتان في نسخة احتياطية. اختَر النسخة التي تريد استخدامها ومزامنتها.'}</p>
+        {studentConflicts?.length ? (
+          <div className="space-y-4">
+            <div className="space-y-3 max-h-[55vh] overflow-auto">
+              {studentConflicts.map((sc: any) => (
+                <div key={sc.studentId} className="rounded-xl bg-gray-800 p-4 border border-gray-700">
+                  <h2 className="text-lg text-amber-200 mb-2">{sc.studentName}</h2>
+                  <div className="space-y-2">
+                    {(sc.fields || []).map((f: any) => (
+                      <div key={f.field} className="grid md:grid-cols-3 gap-2 text-sm bg-gray-900/60 rounded-lg p-3">
+                        <div className="font-bold text-gray-200">{studentFieldLabels[f.field] || f.field}</div>
+                        <div><span className="text-gray-400">هذا الجهاز: </span><span dir="auto">{formatStudentFieldValue(f.localValue)}</span></div>
+                        <div><span className="text-gray-400">الجهاز الآخر: </span><span dir="auto">{formatStudentFieldValue(f.remoteValue)}</span></div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-3">
+              {(['local', 'remote'] as const).map(choice => (
+                <button key={choice} disabled={resolvingConflict} className="bg-amber-400 text-gray-900 font-bold rounded-xl px-4 py-2 disabled:opacity-50" onClick={() => void resolveSyncConflict(choice)}>
+                  {choice === 'local' ? 'دمج واعتماد تعديلات هذا الجهاز' : 'دمج واعتماد تعديلات الجهاز الآخر'}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="grid md:grid-cols-2 gap-4">
+            {(['local', 'remote'] as const).map(choice => <section key={choice} className="rounded-xl bg-gray-800 p-4">
+              <h2 className="text-lg mb-2">{choice === 'local' ? 'نسخة هذا الجهاز' : 'النسخة السحابية'}</h2>
+              <pre className="whitespace-pre-wrap break-words max-h-[55vh] overflow-auto text-sm" dir="auto">{preview(choice === 'local' ? conflict.localValue : conflict.remoteValue)}</pre>
+              <button disabled={resolvingConflict} className="mt-4 bg-amber-400 text-gray-900 rounded-xl px-4 py-2 disabled:opacity-50" onClick={() => void resolveSyncConflict(choice)}>{choice === 'local' ? 'استخدام نسخة هذا الجهاز' : 'استخدام النسخة السحابية'}</button>
+            </section>)}
+          </div>
+        )}
         {conflictMessage && <p role="alert" className="mt-4 text-amber-300">{conflictMessage}</p>}
       </div>
     </div>;

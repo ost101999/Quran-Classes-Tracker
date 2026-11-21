@@ -8,6 +8,7 @@ const { createSyncQueue } = require('../sync-queue');
 const { createSelectiveSync, cloudProjection, get, set } = require('../selective-sync');
 const { sanitizeKeys } = require('../firebase-patch');
 const { firebaseHash } = require('../firebase-hash');
+const { mergeStudents } = require('../sync-merge');
 const copy = value => JSON.parse(JSON.stringify(value));
 const etag = value => `"${firebaseHash(value) || 'null_etag'}"`;
 function harness(t) {
@@ -33,7 +34,7 @@ function harness(t) {
         fs, path, process, console, require, setTimeout, clearTimeout, setImmediate,
         app: { getPath: () => folder }, mainWindow: null,
         ipcMain: { handle: (key, handler) => handlers.set(key, handler) },
-        createSyncQueue, createSelectiveSync, cloudProjection, get, sanitizeKeys,
+        createSyncQueue, createSelectiveSync, cloudProjection, get, sanitizeKeys, firebaseHash, mergeStudents,
         localizeAudioModule: import('../localize-audio.mjs'),
         createFirebaseClient: () => client,
     });

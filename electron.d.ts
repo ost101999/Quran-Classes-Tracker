@@ -37,6 +37,8 @@ declare global {
             offSyncStatus?: () => void;
             onCloudSyncSuccess?: (callback: (timestamp: number) => void) => void;
             offCloudSyncSuccess?: () => void;
+            onCloudMergedFields?: (callback: (fields: Record<string, any>) => void) => void;
+            offCloudMergedFields?: () => void;
             checkForUpdates?: () => Promise<{ status: 'available' | 'up-to-date' | 'error'; current?: string; latest?: string; error?: string }>;
             startUpdate?: () => Promise<{ started: boolean }>;
         };

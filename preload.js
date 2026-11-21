@@ -38,6 +38,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     offSyncStatus: () => ipcRenderer.removeAllListeners('sync-status'),
     onCloudSyncSuccess: (callback) => ipcRenderer.on('cloud-sync-success', (_event, timestamp) => callback(timestamp)),
     offCloudSyncSuccess: () => ipcRenderer.removeAllListeners('cloud-sync-success'),
+    onCloudMergedFields: (callback) => ipcRenderer.on('cloud-merged-fields', (_event, fields) => callback(fields)),
+    offCloudMergedFields: () => ipcRenderer.removeAllListeners('cloud-merged-fields'),
     checkForUpdates: () => ipcRenderer.invoke('app-update:check'),
     startUpdate: () => ipcRenderer.invoke('app-update:start'),
 });

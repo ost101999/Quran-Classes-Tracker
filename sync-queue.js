@@ -66,7 +66,15 @@ function createSyncQueue({ send, savePending, clearPending, onChange = () => {},
         if (pending) await run();
         return status();
     };
-    return { enqueue, flush, status };
+    const patchPending = (fields) => {
+        if (!pending || !fields || typeof fields !== 'object') return false;
+        pending = { ...pending, ...fields };
+        try { savePending(pending); } catch (err) {
+            console.error('Could not update pending sync:', err);
+        }
+        return true;
+    };
+    return { enqueue, flush, patchPending, status };
 }
 
 module.exports = { createSyncQueue };

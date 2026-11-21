@@ -1,6 +1,7 @@
 const { firebaseHash, hashChildren, normalizeEtag } = require('./firebase-hash');
 const { buildFirebasePatch, sanitizeKeys } = require('./firebase-patch');
 const { CORE_FIELDS, MAP_FIELDS } = require('./sync-schema');
+const { canAutoMerge, mergePath } = require('./sync-merge');
 const clone = value => JSON.parse(JSON.stringify(value));
 const get = (data, path) => path.split('/').reduce((node, key) => node && Object.hasOwn(node, key) ? node[key] : undefined, data) ?? null;
 function set(data, path, value) {
@@ -58,42 +59,72 @@ function createSelectiveSync({ client, baseline = {}, metadata = {}, saveBaselin
         const [field, id] = path.split('/');
         if (id && MAP_FIELDS.has(field)) await client.put(`__syncIndex/${field}/${id}`, firebaseHash(value) || null);
     }
-    async function push(data) {
+    async function push(data, { onMerge = () => {} } = {}) {
         if (conflicts().length) throw conflictError();
         const patch = patchFor(data);
+        const originalPatch = clone(patch);
         const paths = Object.keys(patch);
         const probes = {};
+        const mergedUpdates = {};
         await mapLimit(paths, async path => {
             const remote = await client.probe(path);
             probes[path] = remote;
             const hash = normalizeEtag(remote.etag);
             if (hash !== firebaseHash(patch[path]) && hash !== firebaseHash(get(base, path))) {
-                await rememberConflict(path, patch[path], await client.read(path));
+                const remoteRead = await client.read(path);
+                if (canAutoMerge(path)) {
+                    const res = mergePath(path, get(base, path), patch[path], remoteRead.value);
+                    if (!res.conflicts.length) {
+                        patch[path] = res.merged;
+                        probes[path] = remoteRead;
+                        mergedUpdates[path] = res.merged;
+                        return;
+                    }
+                }
+                await rememberConflict(path, patch[path], remoteRead);
             }
         });
         if (conflicts().length) throw conflictError();
         if (paths.length) { meta.needsNotify = true; persist(); }
         const next = clone(base);
+        const committedMerged = {};
         try {
             for (const path of paths) {
                 if (normalizeEtag(probes[path].etag) !== firebaseHash(patch[path])) {
-                    try { await client.put(path, patch[path], probes[path].etag); }
-                    catch (error) {
-                        if (error.status === 412) {
-                            await rememberConflict(path, patch[path], await client.read(path));
+                    let attempts = 0;
+                    while (true) {
+                        try {
+                            await client.put(path, patch[path], probes[path].etag);
+                            break;
+                        } catch (error) {
+                            if (error.status !== 412) throw error;
+                            const freshRemote = await client.read(path);
+                            if (canAutoMerge(path) && attempts < 2) {
+                                attempts++;
+                                const res = mergePath(path, get(base, path), originalPatch[path], freshRemote.value);
+                                if (!res.conflicts.length) {
+                                    patch[path] = res.merged;
+                                    probes[path] = freshRemote;
+                                    mergedUpdates[path] = res.merged;
+                                    if (normalizeEtag(freshRemote.etag) === firebaseHash(patch[path])) break;
+                                    continue;
+                                }
+                            }
+                            await rememberConflict(path, originalPatch[path], freshRemote);
                             throw conflictError();
                         }
-                        throw error;
                     }
                 }
                 // If this fails, leave the old baseline so retry repairs the index too.
                 await updateIndex(path, patch[path]);
                 set(next, path, patch[path]);
+                if (Object.hasOwn(mergedUpdates, path)) committedMerged[path] = mergedUpdates[path];
             }
         } finally {
             // Remember acknowledged records even if a later record fails.
             if (firebaseHash(next) !== firebaseHash(base)) commit(next);
         }
+        if (Object.keys(committedMerged).length) onMerge(clone(committedMerged));
         if (meta.needsNotify) {
             await client.put('lastUpdated', { '.sv': 'timestamp' });
             meta.needsNotify = false;
@@ -164,12 +195,17 @@ function createSelectiveSync({ client, baseline = {}, metadata = {}, saveBaselin
             return { changed: true };
         }
         if (!['local', 'remote'].includes(choice)) throw new Error('Invalid conflict choice');
-        archiveConflict({ ...item, localValue: get(cloudProjection(localData, base), path), resolvedAt: Date.now(), choice });
+        const localProjected = get(cloudProjection(localData, base), path);
+        archiveConflict({ ...item, localValue: localProjected, resolvedAt: Date.now(), choice });
+        let resolvedValue = choice === 'remote' ? remote.value : localProjected;
+        if (canAutoMerge(path)) {
+            resolvedValue = mergePath(path, get(base, path), localProjected, remote.value, { prefer: choice }).merged;
+        }
         const next = clone(base);
         set(next, path, remote.value);
         commit(next);
         // Caller persists chosen local snapshot before clearing the durable conflict.
-        return { changed: false, path, value: choice === 'remote' ? remote.value : get(cloudProjection(localData, base), path) };
+        return { changed: false, path, value: resolvedValue };
     }
     function finishResolution(path) { delete meta.conflicts[path]; persist(); }
     return { push, pull, commit, patchFor, conflicts, resolve, finishResolution, baseline: () => clone(base), hasNotification: () => meta.needsNotify };

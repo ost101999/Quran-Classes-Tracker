@@ -7,6 +7,8 @@ const { createChromeTabBridge } = require('./chrome-tab-bridge');
 const { focusChromeWindow } = require('./chrome-window-focus');
 const { createSyncQueue } = require('./sync-queue');
 const { sanitizeKeys } = require('./firebase-patch');
+const { firebaseHash } = require('./firebase-hash');
+const { mergeStudents } = require('./sync-merge');
 const { createFirebaseClient } = require('./firebase-client');
 const { createSelectiveSync, cloudProjection, get } = require('./selective-sync');
 const { readMatches, resolveStudentMushafFile } = require('./shortcut-links');
@@ -614,12 +616,42 @@ const initializeLastSyncedState = () => {
 };
 const performFirebaseSync = data => withSyncLock(async () => {
     stagedPull = null;
-    const timestamp = await syncEngine.push(data);
+    const revisionAtStart = localRevision;
+    let mergedFields = null;
+    const timestamp = await syncEngine.push(data, {
+        onMerge: fields => { mergedFields = fields; },
+    });
+    if (mergedFields && Object.keys(mergedFields).length) {
+        const current = readJson(DATA_PATH, null);
+        if (current && typeof current === 'object') {
+            if (revisionAtStart === localRevision) {
+                writeLocalData({ ...current, ...mergedFields });
+                localRevision++;
+                if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('cloud-merged-fields', mergedFields);
+            } else {
+                const applied = {};
+                const currentProjected = cloudProjection(current, {});
+                const pushedProjected = cloudProjection(data, {});
+                for (const [field, mergedValue] of Object.entries(mergedFields)) {
+                    if (firebaseHash(currentProjected[field]) === firebaseHash(pushedProjected[field])) {
+                        applied[field] = mergedValue;
+                    }
+                }
+                if (Object.keys(applied).length) {
+                    writeLocalData({ ...current, ...applied });
+                    localRevision++;
+                    syncQueue.patchPending(applied);
+                    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('cloud-merged-fields', applied);
+                }
+            }
+        }
+    }
     if (timestamp && mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('cloud-sync-success', timestamp);
     return timestamp;
 });
 
 const syncQueue = createSyncQueue({
+    debounceMs: 1500,
     send: performFirebaseSync,
     savePending: (data) => {
         const tempPath = `${PENDING_SYNC_PATH}.tmp`;
@@ -656,7 +688,14 @@ ipcMain.handle('get-sync-conflicts', () => {
     const conflicts = syncEngine.conflicts();
     if (!conflicts.length) return [];
     const local = cloudProjection(readJson(DATA_PATH), syncEngine.baseline());
-    return conflicts.map(item => ({ ...item, localValue: get(local, item.path) }));
+    return conflicts.map(item => {
+        const localValue = get(local, item.path);
+        const enriched = { ...item, localValue };
+        if (item.path === 'students') {
+            enriched.studentConflicts = mergeStudents(item.baseValue || [], localValue || [], item.remoteValue || []).conflicts;
+        }
+        return enriched;
+    });
 });
 ipcMain.handle('resolve-sync-conflict', (_event, conflictPath, choice, etag) => withSyncLock(async () => {
     const { localizeAudioPaths } = await import('./localize-audio.mjs');
