@@ -7,6 +7,25 @@ const SHORTCUTS_PATH = process.platform === 'darwin'
     ? path.join(os.homedir(), 'Library', 'Mobile Documents', 'iCloud~dk~simonbs~Scriptable', 'Documents', 'MyShortcuts.ini')
     : path.join(os.homedir(), 'iCloudDrive', 'iCloud~dk~simonbs~Scriptable', 'MyShortcuts.ini');
 const MAC_GOOGLE_DRIVE_ROOT = path.join(os.homedir(), 'Library', 'CloudStorage', 'GoogleDrive-ost101999@gmail.com');
+const DRIVE_SHORTCUTS_PATH = process.platform === 'darwin'
+    ? path.join(MAC_GOOGLE_DRIVE_ROOT, 'ملفاتي', 'Scripts', 'MyShortcuts.ini')
+    : 'G:\\ملفاتي\\Scripts\\MyShortcuts.ini';
+
+function resolveActiveShortcutsPath(candidates = [DRIVE_SHORTCUTS_PATH, SHORTCUTS_PATH]) {
+    let newestPath = null;
+    let newestMtime = -Infinity;
+    for (const candidate of candidates) {
+        if (!candidate) continue;
+        try {
+            const stat = fs.statSync(candidate);
+            if (stat.isFile() && stat.mtimeMs > newestMtime) {
+                newestMtime = stat.mtimeMs;
+                newestPath = candidate;
+            }
+        } catch { /* Ignore missing candidate. */ }
+    }
+    return newestPath || candidates.find(Boolean) || SHORTCUTS_PATH;
+}
 
 function localFilePath(filePath) {
     if (process.platform !== 'darwin') return filePath;
@@ -147,7 +166,7 @@ function isExistingFile(filePath) {
 function readMatches(students) {
     try {
         const requestedNames = new Set(students.map(student => normalizeName(student.name)).filter(Boolean));
-        const allGroups = parseShortcuts(fs.readFileSync(SHORTCUTS_PATH, 'utf8'));
+        const allGroups = parseShortcuts(fs.readFileSync(resolveActiveShortcutsPath(), 'utf8'));
         const relevant = allGroups
             .filter(group => (group.isQuran || group.isReading) && requestedNames.has(folderName(group.path)));
         const groups = [], missing = [];
@@ -158,9 +177,10 @@ function readMatches(students) {
     }
 }
 
-function resolveStudentMushafFile({ studentName, shortcutSourceId, quranLink, shortcutsPath = SHORTCUTS_PATH, exists = isExistingFile } = {}) {
+function resolveStudentMushafFile({ studentName, shortcutSourceId, quranLink, shortcutsPath, exists = isExistingFile } = {}) {
     try {
-        const allGroups = parseShortcuts(fs.readFileSync(shortcutsPath, 'utf8'));
+        const targetShortcutsPath = shortcutsPath || resolveActiveShortcutsPath();
+        const allGroups = parseShortcuts(fs.readFileSync(targetShortcutsPath, 'utf8'));
         const quranGroups = allGroups.filter(group => group.isQuran);
 
         let matched = shortcutSourceId
@@ -230,4 +250,4 @@ function resolveStudentMushafFile({ studentName, shortcutSourceId, quranLink, sh
     }
 }
 
-module.exports = { normalizeName, folderName, zoomLink, driveLink, titleStudentName, findFolderHints, parseShortcuts, findMatches, findReadingMatches, isExistingFile, readMatches, resolveStudentMushafFile };
+module.exports = { normalizeName, folderName, zoomLink, driveLink, titleStudentName, findFolderHints, parseShortcuts, findMatches, findReadingMatches, isExistingFile, readMatches, resolveStudentMushafFile, resolveActiveShortcutsPath };

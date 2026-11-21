@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { parseShortcuts, findMatches, findReadingMatches, findFolderHints, isExistingFile, zoomLink, driveLink, folderName } = require('../shortcut-links');
+const { parseShortcuts, findMatches, findReadingMatches, findFolderHints, isExistingFile, zoomLink, driveLink, folderName, resolveActiveShortcutsPath } = require('../shortcut-links');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const ts = require('typescript');
@@ -358,4 +358,21 @@ test('suggests one differently named folder only for an exact full student name,
     assert.equal(findShortcutDifferences([student], request, result)[0].folderHint, '83 Yousef');
     const another = { ...groups[0], id: 'other', folderId: 'other', path: 'C:\\Other\\84 Youssef\\Yousuf Hassan Quran book.pdf' };
     assert.equal(findFolderHints([...groups, another], 'Yousuf Hassan', () => true).length, 0);
+});
+
+test('resolveActiveShortcutsPath prefers whichever shortcuts file is newest', t => {
+    const os = require('node:os');
+    const path = require('node:path');
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'shortcuts-sync-'));
+    t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+    const older = path.join(dir, 'icloud.ini');
+    const newer = path.join(dir, 'drive.ini');
+    fs.writeFileSync(older, '[Files]\n');
+    fs.writeFileSync(newer, '[Files]\n');
+    fs.utimesSync(older, new Date(1000000), new Date(1000000));
+    fs.utimesSync(newer, new Date(2000000), new Date(2000000));
+    assert.equal(resolveActiveShortcutsPath([older, newer]), newer);
+    fs.utimesSync(older, new Date(3000000), new Date(3000000));
+    assert.equal(resolveActiveShortcutsPath([older, newer]), older);
+    assert.equal(resolveActiveShortcutsPath([path.join(dir, 'missing.ini'), newer]), newer);
 });
