@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { X, Trash2, Clock, Link, Check, Phone, ChevronDown, ChevronUp, ChevronLeft, ArchiveRestore, FileText, FolderOpen, BookOpen, AlertTriangle, Loader2 } from 'lucide-react';
+import { X, Trash2, Clock, Link, Check, Phone, ChevronDown, ChevronUp, ChevronLeft, ArchiveRestore, FileText, FolderOpen, BookOpen, AlertTriangle, Loader2, Layers, SlidersHorizontal, Send, Minus, Plus } from 'lucide-react';
 import { Student, StudyPlan, CalendarSchedule, StudentReportSettings, MushafSectionKey } from '../types';
 import { DAYS_OF_WEEK } from '../constants';
 import { linksEquivalent } from '../services/shortcutStudentSync';
@@ -1040,8 +1040,8 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
 
           {/* ─── Panel 1 / Panel 2: Subpanel ─── */}
           {lastSubPanel === 'reportSettings' ? (
-            <section ref={reportSettingsPanelRef} className="w-full flex-shrink-0 font-arabic">
-              <div className="relative p-6 text-center border-b border-gray-100">
+            <section ref={reportSettingsPanelRef} className="w-full flex-shrink-0 font-arabic flex flex-col max-h-[92vh]">
+              <div className="shrink-0 relative px-6 py-5 text-center border-b border-gray-100 bg-white">
                 <button
                   type="button"
                   onClick={() => setActivePanel('main')}
@@ -1050,35 +1050,41 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                 >
                   <ChevronLeft size={24} style={{ transform: 'scaleX(-1)' }} />
                 </button>
-                <h2 className="text-4xl font-arabic font-bold text-gray-800 pt-2">تعديل التقرير</h2>
+                <h2 className="text-3xl font-arabic font-bold text-gray-800 pt-1">تعديل التقرير</h2>
               </div>
 
-              <div className="report-settings-scroll p-7 space-y-5 overflow-y-auto overscroll-contain max-h-[calc(95vh-90px)] font-arabic">
-                {/* Main Toggle */}
-                <div className={`rounded-2xl border p-5 transition-colors ${reportSettings.customMushafEnabled ? 'bg-emerald-50/40 border-emerald-200' : 'bg-gray-50/70 border-gray-200'}`}>
-                  <label className="flex items-center gap-3.5 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      id="customMushafEnabled"
-                      checked={!!reportSettings.customMushafEnabled}
-                      onChange={e => setReportSettings(prev => ({ ...prev, customMushafEnabled: e.target.checked }))}
-                      className="w-5 h-5 accent-emerald-600 cursor-pointer shrink-0"
-                    />
-                    <span className="block text-2xl font-bold text-gray-800 font-arabic">إنشاء ملف مصحف مخصص من التقرير</span>
-                  </label>
-                </div>
+              <div className="report-settings-scroll flex-1 min-h-0 overflow-y-auto overscroll-contain bg-slate-50/70 px-6 py-5 space-y-4 font-arabic">
+                {/* Main Toggle & Student Mushaf Source Card */}
+                <div className={`rounded-2xl border bg-white p-4 shadow-sm transition-colors ${reportSettings.customMushafEnabled ? 'border-emerald-200' : 'border-slate-200'}`}>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={!!reportSettings.customMushafEnabled}
+                    onClick={() => setReportSettings(prev => ({ ...prev, customMushafEnabled: !prev.customMushafEnabled }))}
+                    className="w-full flex items-center justify-between gap-4 text-right cursor-pointer"
+                  >
+                    <span className="text-xl font-bold text-slate-800 font-arabic">إنشاء ملف مصحف مخصص من التقرير</span>
+                    <span
+                      dir="rtl"
+                      aria-hidden="true"
+                      className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors duration-200 ${reportSettings.customMushafEnabled ? 'bg-emerald-600' : 'bg-slate-300'}`}
+                    >
+                      <span
+                        className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform duration-200 ${reportSettings.customMushafEnabled ? '-translate-x-6' : '-translate-x-1'}`}
+                      />
+                    </span>
+                  </button>
 
-                {/* Student Mushaf Settings */}
-                {reportSettings.customMushafEnabled && (
-                  <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
-                    {/* Student Mushaf Source Status */}
-                    <div className={`rounded-2xl border px-4 py-3.5 flex items-center gap-3 ${mushafFileStatus?.found ? 'bg-white border-emerald-200 text-emerald-900' : 'bg-amber-50 border-amber-200 text-amber-900'}`}>
-                      {mushafFileStatus?.found ? (
-                        <BookOpen size={22} className="text-emerald-600 shrink-0" />
+                  {reportSettings.customMushafEnabled && (
+                    <div className={`mt-3 pt-3 border-t border-slate-100 flex items-center gap-2.5 text-lg font-arabic ${mushafFileStatus?.found ? 'text-emerald-800' : mushafFileStatus === null ? 'text-slate-600' : 'text-amber-800'}`}>
+                      {mushafFileStatus === null ? (
+                        <Loader2 size={18} className="text-slate-400 animate-spin shrink-0" />
+                      ) : mushafFileStatus.found ? (
+                        <BookOpen size={18} className="text-emerald-600 shrink-0" />
                       ) : (
-                        <AlertTriangle size={22} className="text-amber-600 shrink-0" />
+                        <AlertTriangle size={18} className="text-amber-600 shrink-0" />
                       )}
-                      <p className="font-bold text-xl font-arabic flex-1 min-w-0 truncate">
+                      <p className="font-bold flex-1 min-w-0 truncate">
                         {mushafFileStatus === null
                           ? 'جاري التحقق من مصحف الطالب...'
                           : mushafFileStatus.found
@@ -1086,227 +1092,325 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                             : (mushafFileStatus.error || 'لا يوجد ملف مصحف خاص مرتبط بهذا الطالب.')}
                       </p>
                     </div>
+                  )}
+                </div>
 
+                {/* Student Mushaf Settings */}
+                {reportSettings.customMushafEnabled && (
+                  <div className="space-y-3.5 animate-in fade-in slide-in-from-top-2">
                     {/* Accordion 1: Section Source & Order */}
-                    <div className="rounded-2xl border border-gray-200 bg-white overflow-hidden">
-                      <button
-                        type="button"
-                        onClick={() => toggleReportGroup('sections')}
-                        className="w-full px-5 py-3.5 flex items-center justify-between text-right bg-gray-50/70 hover:bg-gray-100/70 transition-colors"
-                      >
-                        <span className="text-2xl font-bold text-gray-800 font-arabic">أقسام التقرير والترتيب</span>
-                        <ChevronDown size={20} className={`text-gray-500 transition-transform duration-200 ${openReportGroups.sections ? 'rotate-180' : ''}`} />
-                      </button>
-                      {openReportGroups.sections && (
-                        <div className="p-4 space-y-4 border-t border-gray-100">
-                          <div className="space-y-2">
-                            <label className="block text-xl font-bold text-gray-700 font-arabic">القسم المعتمد من التقرير</label>
-                            <div className="flex bg-gray-50 p-1 rounded-xl border border-gray-200 gap-1">
-                              {([
-                                { id: 'reading', label: 'الدرس الحالي' },
-                                { id: 'homework', label: 'الدرس القادم' },
-                              ] as const).map(opt => (
-                                <button
-                                  key={opt.id}
-                                  type="button"
-                                  onClick={() => setReportSettings(prev => ({ ...prev, mushafTargetSection: opt.id }))}
-                                  className={`flex-1 py-2.5 rounded-lg text-xl font-arabic transition-all ${(reportSettings.mushafTargetSection || 'reading') === opt.id
-                                    ? 'bg-white text-emerald-700 shadow-sm border border-emerald-200 font-bold'
-                                    : 'text-gray-500 hover:text-gray-700'
-                                    }`}
-                                >
-                                  {opt.label}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-
-                          <div className="space-y-2">
-                            <label className="block text-xl font-bold text-gray-700 font-arabic">ترتيب الأقسام في الملف</label>
-                            <div className="space-y-2 bg-gray-50 p-3 rounded-2xl border border-gray-200">
-                              {normalizeSectionOrder(reportSettings.mushafSectionOrder).map((secKey, idx, arr) => {
-                                const included = reportSettings.mushafIncludedSections?.[secKey] !== false;
-                                const move = (dir: -1 | 1) => {
-                                  const nextOrder = [...arr];
-                                  const targetIdx = idx + dir;
-                                  if (targetIdx < 0 || targetIdx >= nextOrder.length) return;
-                                  [nextOrder[idx], nextOrder[targetIdx]] = [nextOrder[targetIdx], nextOrder[idx]];
-                                  setReportSettings(prev => ({ ...prev, mushafSectionOrder: nextOrder }));
-                                };
-                                return (
-                                  <div key={secKey} className="flex items-center justify-between gap-3 bg-white px-4 py-2.5 rounded-xl border border-gray-100 shadow-sm">
-                                    <label className="flex items-center gap-3 cursor-pointer flex-1">
-                                      <input
-                                        type="checkbox"
-                                        checked={included}
-                                        onChange={e => setReportSettings(prev => ({
-                                          ...prev,
-                                          mushafIncludedSections: {
-                                            ...prev.mushafIncludedSections,
-                                            [secKey]: e.target.checked,
-                                          },
-                                        }))}
-                                        className="w-5 h-5 accent-emerald-600 cursor-pointer"
-                                      />
-                                      <span className={`text-xl font-arabic font-bold ${included ? 'text-gray-800' : 'text-gray-400 line-through'}`}>
-                                        {toHindiDigits(String(idx + 1))}. {MUSHAF_SECTION_LABELS[secKey].ar}
-                                      </span>
-                                    </label>
-                                    <div className="flex items-center gap-1">
+                    {(() => {
+                      const orderedSections = normalizeSectionOrder(reportSettings.mushafSectionOrder);
+                      const enabledCount = orderedSections.filter(k => reportSettings.mushafIncludedSections?.[k] !== false).length;
+                      const targetLabel = (reportSettings.mushafTargetSection || 'reading') === 'homework' ? 'القادم' : 'الحالي';
+                      return (
+                        <div className="rounded-2xl border border-slate-200/90 bg-white shadow-sm overflow-hidden">
+                          <button
+                            type="button"
+                            onClick={() => toggleReportGroup('sections')}
+                            className="w-full px-4 py-3.5 flex items-center justify-between gap-3 text-right hover:bg-slate-50/70 transition-colors"
+                          >
+                            <span className="flex items-center gap-2.5">
+                              <span className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                                <Layers size={17} />
+                              </span>
+                              <span className="text-xl font-bold text-slate-800 font-arabic">أقسام التقرير والترتيب</span>
+                            </span>
+                            <span className="flex items-center gap-2 shrink-0">
+                              <span className="text-sm font-arabic bg-slate-100 text-slate-600 px-2.5 py-0.5 rounded-full">
+                                {toHindiDigits(String(enabledCount))} أقسام · {targetLabel}
+                              </span>
+                              <ChevronDown size={18} className={`text-slate-400 transition-transform duration-200 ${openReportGroups.sections ? 'rotate-180' : ''}`} />
+                            </span>
+                          </button>
+                          {openReportGroups.sections && (
+                            <div className="px-4 pb-4 pt-3.5 space-y-4 border-t border-slate-100">
+                              <div className="space-y-2">
+                                <label className="block text-base font-bold text-slate-600 font-arabic">القسم المعتمد من التقرير</label>
+                                <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
+                                  {([
+                                    { id: 'reading', label: 'الدرس الحالي' },
+                                    { id: 'homework', label: 'الدرس القادم' },
+                                  ] as const).map(opt => {
+                                    const active = (reportSettings.mushafTargetSection || 'reading') === opt.id;
+                                    return (
                                       <button
+                                        key={opt.id}
                                         type="button"
-                                        disabled={idx === 0}
-                                        onClick={() => move(-1)}
-                                        className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-25"
-                                        title="تحريك لأعلى"
+                                        onClick={() => setReportSettings(prev => ({ ...prev, mushafTargetSection: opt.id }))}
+                                        className={`flex-1 py-2 rounded-lg text-lg font-arabic transition-all ${active
+                                          ? 'bg-emerald-600 text-white shadow-sm font-bold'
+                                          : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                                          }`}
                                       >
-                                        <ChevronUp size={20} />
+                                        {opt.label}
                                       </button>
-                                      <button
-                                        type="button"
-                                        disabled={idx === arr.length - 1}
-                                        onClick={() => move(1)}
-                                        className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-25"
-                                        title="تحريك لأسفل"
-                                      >
-                                        <ChevronDown size={20} />
-                                      </button>
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
 
-                    {/* Accordion 2: Divider Style, Language & Offset */}
-                    <div className="rounded-2xl border border-gray-200 bg-white overflow-hidden">
-                      <button
-                        type="button"
-                        onClick={() => toggleReportGroup('format')}
-                        className="w-full px-5 py-3.5 flex items-center justify-between text-right bg-gray-50/70 hover:bg-gray-100/70 transition-colors"
-                      >
-                        <span className="text-2xl font-bold text-gray-800 font-arabic">شكل العناوين والصفحات</span>
-                        <ChevronDown size={20} className={`text-gray-500 transition-transform duration-200 ${openReportGroups.format ? 'rotate-180' : ''}`} />
-                      </button>
-                      {openReportGroups.format && (
-                        <div className="p-4 space-y-4 border-t border-gray-100">
-                          <div className="space-y-2">
-                            <label className="block text-xl font-bold text-gray-700 font-arabic">شكل كتابة العنوان</label>
-                            <div className="flex bg-gray-50 p-1 rounded-xl border border-gray-200 gap-1">
-                              {([
-                                { id: 'page', label: 'صفحة فاصلة' },
-                                { id: 'banner', label: 'شريط أعلى الصفحة' },
-                                { id: 'both', label: 'كلاهما' },
-                              ] as const).map(opt => (
-                                <button
-                                  key={opt.id}
-                                  type="button"
-                                  onClick={() => setReportSettings(prev => ({ ...prev, mushafDividerStyle: opt.id }))}
-                                  className={`flex-1 py-2.5 rounded-lg text-lg font-arabic transition-all ${(reportSettings.mushafDividerStyle || 'page') === opt.id
-                                    ? 'bg-white text-emerald-700 shadow-sm border border-emerald-200 font-bold'
-                                    : 'text-gray-500 hover:text-gray-700'
-                                    }`}
-                                >
-                                  {opt.label}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <label className="block text-xl font-bold text-gray-700 font-arabic">لغة العناوين</label>
-                              <div className="flex bg-gray-50 p-1 rounded-xl border border-gray-200 gap-1">
-                                {([
-                                  { id: 'auto', label: 'تلقائي' },
-                                  { id: 'ar', label: 'عربي' },
-                                  { id: 'en', label: 'English' },
-                                ] as const).map(opt => (
-                                  <button
-                                    key={opt.id}
-                                    type="button"
-                                    onClick={() => setReportSettings(prev => ({ ...prev, mushafLanguage: opt.id }))}
-                                    className={`flex-1 py-2 rounded-lg text-lg font-arabic transition-all ${(reportSettings.mushafLanguage || 'auto') === opt.id
-                                      ? 'bg-white text-emerald-700 shadow-sm border border-emerald-200 font-bold'
-                                      : 'text-gray-500 hover:text-gray-700'
-                                      }`}
-                                  >
-                                    {opt.label}
-                                  </button>
-                                ))}
+                              <div className="space-y-2">
+                                <label className="block text-base font-bold text-slate-600 font-arabic">ترتيب الأقسام في الملف</label>
+                                <div className="rounded-xl border border-slate-200 divide-y divide-slate-100 bg-white overflow-hidden">
+                                  {orderedSections.map((secKey, idx, arr) => {
+                                    const included = reportSettings.mushafIncludedSections?.[secKey] !== false;
+                                    const move = (dir: -1 | 1) => {
+                                      const nextOrder = [...arr];
+                                      const targetIdx = idx + dir;
+                                      if (targetIdx < 0 || targetIdx >= nextOrder.length) return;
+                                      [nextOrder[idx], nextOrder[targetIdx]] = [nextOrder[targetIdx], nextOrder[idx]];
+                                      setReportSettings(prev => ({ ...prev, mushafSectionOrder: nextOrder }));
+                                    };
+                                    return (
+                                      <div key={secKey} className="flex items-center justify-between gap-3 px-3.5 py-2.5 hover:bg-slate-50/70 transition-colors">
+                                        <label className="flex items-center gap-3 cursor-pointer flex-1 min-w-0">
+                                          <input
+                                            type="checkbox"
+                                            checked={included}
+                                            onChange={e => setReportSettings(prev => ({
+                                              ...prev,
+                                              mushafIncludedSections: {
+                                                ...prev.mushafIncludedSections,
+                                                [secKey]: e.target.checked,
+                                              },
+                                            }))}
+                                            className="w-4 h-4 accent-emerald-600 cursor-pointer shrink-0"
+                                          />
+                                          <span className={`w-6 h-6 rounded-full text-sm font-bold flex items-center justify-center shrink-0 ${included ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>
+                                            {toHindiDigits(String(idx + 1))}
+                                          </span>
+                                          <span className={`text-lg font-arabic font-bold truncate ${included ? 'text-slate-800' : 'text-slate-400 line-through'}`}>
+                                            {MUSHAF_SECTION_LABELS[secKey].ar}
+                                          </span>
+                                        </label>
+                                        <div className="flex items-center gap-0.5 shrink-0">
+                                          <button
+                                            type="button"
+                                            disabled={idx === 0}
+                                            onClick={() => move(-1)}
+                                            className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-25 transition-colors"
+                                            title="تحريك لأعلى"
+                                          >
+                                            <ChevronUp size={18} />
+                                          </button>
+                                          <button
+                                            type="button"
+                                            disabled={idx === arr.length - 1}
+                                            onClick={() => move(1)}
+                                            className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-25 transition-colors"
+                                            title="تحريك لأسفل"
+                                          >
+                                            <ChevronDown size={18} />
+                                          </button>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
                               </div>
                             </div>
-
-                            <div className="space-y-2">
-                              <label htmlFor="mushafPageOffset" className="block text-xl font-bold text-gray-700 font-arabic">إزاحة ترقيم الصفحات</label>
-                              <input
-                                id="mushafPageOffset"
-                                type="number"
-                                value={reportSettings.mushafPageOffset ?? 0}
-                                onChange={e => setReportSettings(prev => ({ ...prev, mushafPageOffset: Number(e.target.value) || 0 }))}
-                                className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-center font-english text-lg focus:outline-none focus:border-[#ffe05d] focus:bg-white"
-                                dir="ltr"
-                              />
-                            </div>
-                          </div>
+                          )}
                         </div>
-                      )}
-                    </div>
+                      );
+                    })()}
+
+                    {/* Accordion 2: Divider Style, Language & Offset */}
+                    {(() => {
+                      const styleLabel = reportSettings.mushafDividerStyle === 'banner'
+                        ? 'شريط أعلى الصفحة'
+                        : reportSettings.mushafDividerStyle === 'both'
+                          ? 'كلاهما'
+                          : 'صفحة فاصلة';
+                      const langLabel = reportSettings.mushafLanguage === 'ar'
+                        ? 'عربي'
+                        : reportSettings.mushafLanguage === 'en'
+                          ? 'English'
+                          : 'تلقائي';
+                      const offsetVal = reportSettings.mushafPageOffset ?? 0;
+                      return (
+                        <div className="rounded-2xl border border-slate-200/90 bg-white shadow-sm overflow-hidden">
+                          <button
+                            type="button"
+                            onClick={() => toggleReportGroup('format')}
+                            className="w-full px-4 py-3.5 flex items-center justify-between gap-3 text-right hover:bg-slate-50/70 transition-colors"
+                          >
+                            <span className="flex items-center gap-2.5">
+                              <span className="w-8 h-8 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center shrink-0">
+                                <SlidersHorizontal size={17} />
+                              </span>
+                              <span className="text-xl font-bold text-slate-800 font-arabic">شكل العناوين والصفحات</span>
+                            </span>
+                            <span className="flex items-center gap-2 shrink-0">
+                              <span className="text-sm font-arabic bg-slate-100 text-slate-600 px-2.5 py-0.5 rounded-full">
+                                {styleLabel} · {langLabel}{offsetVal !== 0 ? ` (${offsetVal > 0 ? `+${offsetVal}` : offsetVal})` : ''}
+                              </span>
+                              <ChevronDown size={18} className={`text-slate-400 transition-transform duration-200 ${openReportGroups.format ? 'rotate-180' : ''}`} />
+                            </span>
+                          </button>
+                          {openReportGroups.format && (
+                            <div className="px-4 pb-4 pt-3.5 space-y-4 border-t border-slate-100">
+                              <div className="space-y-2">
+                                <label className="block text-base font-bold text-slate-600 font-arabic">شكل كتابة العنوان</label>
+                                <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
+                                  {([
+                                    { id: 'page', label: 'صفحة فاصلة' },
+                                    { id: 'banner', label: 'شريط أعلى الصفحة' },
+                                    { id: 'both', label: 'كلاهما' },
+                                  ] as const).map(opt => {
+                                    const active = (reportSettings.mushafDividerStyle || 'page') === opt.id;
+                                    return (
+                                      <button
+                                        key={opt.id}
+                                        type="button"
+                                        onClick={() => setReportSettings(prev => ({ ...prev, mushafDividerStyle: opt.id }))}
+                                        className={`flex-1 py-2 rounded-lg text-lg font-arabic transition-all ${active
+                                          ? 'bg-emerald-600 text-white shadow-sm font-bold'
+                                          : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                                          }`}
+                                      >
+                                        {opt.label}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                  <label className="block text-base font-bold text-slate-600 font-arabic">لغة العناوين</label>
+                                  <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
+                                    {([
+                                      { id: 'auto', label: 'تلقائي', isEn: false },
+                                      { id: 'ar', label: 'عربي', isEn: false },
+                                      { id: 'en', label: 'English', isEn: true },
+                                    ] as const).map(opt => {
+                                      const active = (reportSettings.mushafLanguage || 'auto') === opt.id;
+                                      return (
+                                        <button
+                                          key={opt.id}
+                                          type="button"
+                                          onClick={() => setReportSettings(prev => ({ ...prev, mushafLanguage: opt.id }))}
+                                          className={`flex-1 py-2 rounded-lg transition-all ${opt.isEn ? 'font-english text-sm' : 'font-arabic text-lg'} ${active
+                                            ? 'bg-emerald-600 text-white shadow-sm font-bold'
+                                            : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                                            }`}
+                                        >
+                                          {opt.label}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                  <label htmlFor="mushafPageOffset" className="block text-base font-bold text-slate-600 font-arabic">إزاحة ترقيم الصفحات</label>
+                                  <div className="flex items-center justify-between bg-slate-100 rounded-xl p-1 gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => setReportSettings(prev => ({ ...prev, mushafPageOffset: (prev.mushafPageOffset ?? 0) - 1 }))}
+                                      className="p-2 rounded-lg bg-white text-slate-600 hover:text-slate-900 shadow-sm transition-colors"
+                                      title="إنقاص الإزاحة"
+                                    >
+                                      <Minus size={16} />
+                                    </button>
+                                    <input
+                                      id="mushafPageOffset"
+                                      type="number"
+                                      value={offsetVal}
+                                      onChange={e => setReportSettings(prev => ({ ...prev, mushafPageOffset: Number(e.target.value) || 0 }))}
+                                      className="w-full bg-transparent text-center font-english text-base font-bold text-slate-800 focus:outline-none"
+                                      dir="ltr"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => setReportSettings(prev => ({ ...prev, mushafPageOffset: (prev.mushafPageOffset ?? 0) + 1 }))}
+                                      className="p-2 rounded-lg bg-white text-slate-600 hover:text-slate-900 shadow-sm transition-colors"
+                                      title="زيادة الإزاحة"
+                                    >
+                                      <Plus size={16} />
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
 
                     {/* Accordion 3: Storage & WhatsApp Delivery */}
-                    <div className="rounded-2xl border border-gray-200 bg-white overflow-hidden">
-                      <button
-                        type="button"
-                        onClick={() => toggleReportGroup('delivery')}
-                        className="w-full px-5 py-3.5 flex items-center justify-between text-right bg-gray-50/70 hover:bg-gray-100/70 transition-colors"
-                      >
-                        <span className="text-2xl font-bold text-gray-800 font-arabic">الحفظ والواتساب</span>
-                        <ChevronDown size={20} className={`text-gray-500 transition-transform duration-200 ${openReportGroups.delivery ? 'rotate-180' : ''}`} />
-                      </button>
-                      {openReportGroups.delivery && (
-                        <div className="p-4 space-y-3 border-t border-gray-100">
-                          <div className="flex items-center justify-between gap-3 bg-gray-50/80 rounded-xl p-3 border border-gray-100">
-                            <div className="space-y-0.5 min-w-0">
-                              <span className="block text-xl font-bold text-gray-700 font-arabic">مجلد الحفظ</span>
-                              <span className="block text-base text-gray-500 font-english truncate" dir="ltr">
-                                {mushafFileStatus?.outputDir || 'Z:\\مصاحف الطلبة'}
+                    {(() => {
+                      const rawOutputDir = mushafFileStatus?.outputDir || 'Z:\\مصاحف الطلبة';
+                      return (
+                        <div className="rounded-2xl border border-slate-200/90 bg-white shadow-sm overflow-hidden">
+                          <button
+                            type="button"
+                            onClick={() => toggleReportGroup('delivery')}
+                            className="w-full px-4 py-3.5 flex items-center justify-between gap-3 text-right hover:bg-slate-50/70 transition-colors"
+                          >
+                            <span className="flex items-center gap-2.5">
+                              <span className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                                <Send size={16} />
                               </span>
+                              <span className="text-xl font-bold text-slate-800 font-arabic">الحفظ والواتساب</span>
+                            </span>
+                            <span className="flex items-center gap-2 shrink-0">
+                              <span className="text-sm font-arabic bg-slate-100 text-slate-600 px-2.5 py-0.5 rounded-full">
+                                {reportSettings.mushafAutoSendWhatsapp !== false ? 'إرسال تلقائي' : 'حفظ فقط'}
+                              </span>
+                              <ChevronDown size={18} className={`text-slate-400 transition-transform duration-200 ${openReportGroups.delivery ? 'rotate-180' : ''}`} />
+                            </span>
+                          </button>
+                          {openReportGroups.delivery && (
+                            <div className="px-4 pb-4 pt-3.5 space-y-3 border-t border-slate-100">
+                              <div className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3.5 py-2.5 border border-slate-200/70">
+                                <div className="space-y-0.5 min-w-0">
+                                  <span className="block text-base font-bold text-slate-600 font-arabic">مجلد الحفظ</span>
+                                  <span className="block text-sm text-slate-500 font-english truncate" dir="ltr">
+                                    {rawOutputDir.split(/([\\/])/).map((segment, i) =>
+                                      /[^\u0000-\u007F]/.test(segment)
+                                        ? <bdi key={i} dir="rtl" className="font-arabic text-base">{segment}</bdi>
+                                        : <React.Fragment key={i}>{segment}</React.Fragment>
+                                    )}
+                                  </span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => void window.electronAPI?.openMushafFolder?.()}
+                                  className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-700 hover:border-emerald-400 hover:text-emerald-700 text-base font-bold font-arabic shadow-sm transition-colors"
+                                >
+                                  <FolderOpen size={16} />
+                                  <span>فتح المجلد</span>
+                                </button>
+                              </div>
+
+                              <div className="rounded-xl border border-slate-200/80 divide-y divide-slate-100 bg-white overflow-hidden">
+                                <label className="flex items-center gap-3 px-3.5 py-2.5 text-lg text-slate-800 font-arabic cursor-pointer hover:bg-slate-50/60 transition-colors">
+                                  <input
+                                    type="checkbox"
+                                    checked={reportSettings.mushafAutoSendWhatsapp !== false}
+                                    onChange={e => setReportSettings(prev => ({ ...prev, mushafAutoSendWhatsapp: e.target.checked }))}
+                                    className="w-4 h-4 accent-emerald-600 cursor-pointer shrink-0"
+                                  />
+                                  <span>إرسال المصحف بعد التقرير عبر واتساب (أو نسخه في اليدوي)</span>
+                                </label>
+
+                                <label className="flex items-center gap-3 px-3.5 py-2.5 text-lg text-slate-800 font-arabic cursor-pointer hover:bg-slate-50/60 transition-colors">
+                                  <input
+                                    type="checkbox"
+                                    checked={!!reportSettings.mushafAutoOpen}
+                                    onChange={e => setReportSettings(prev => ({ ...prev, mushafAutoOpen: e.target.checked }))}
+                                    className="w-4 h-4 accent-emerald-600 cursor-pointer shrink-0"
+                                  />
+                                  <span>فتح ملف المصحف تلقائيًا بعد الإنشاء</span>
+                                </label>
+                              </div>
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => void window.electronAPI?.openMushafFolder?.()}
-                              className="shrink-0 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white border border-gray-200 text-gray-700 hover:border-emerald-300 hover:text-emerald-700 text-lg font-bold font-arabic shadow-sm transition-colors"
-                            >
-                              <FolderOpen size={18} />
-                              <span>فتح المجلد</span>
-                            </button>
-                          </div>
-
-                          <label className="flex items-center gap-3 text-xl text-gray-800 font-arabic cursor-pointer pt-1">
-                            <input
-                              type="checkbox"
-                              checked={reportSettings.mushafAutoSendWhatsapp !== false}
-                              onChange={e => setReportSettings(prev => ({ ...prev, mushafAutoSendWhatsapp: e.target.checked }))}
-                              className="w-5 h-5 accent-emerald-600 cursor-pointer shrink-0"
-                            />
-                            <span>إرسال المصحف بعد التقرير عبر واتساب (أو نسخه في اليدوي)</span>
-                          </label>
-
-                          <label className="flex items-center gap-3 text-xl text-gray-800 font-arabic cursor-pointer pt-1">
-                            <input
-                              type="checkbox"
-                              checked={!!reportSettings.mushafAutoOpen}
-                              onChange={e => setReportSettings(prev => ({ ...prev, mushafAutoOpen: e.target.checked }))}
-                              className="w-5 h-5 accent-emerald-600 cursor-pointer shrink-0"
-                            />
-                            <span>فتح ملف المصحف تلقائيًا بعد الإنشاء</span>
-                          </label>
+                          )}
                         </div>
-                      )}
-                    </div>
+                      );
+                    })()}
 
                     {/* Accordion 4: Report Review / Preview + Generate Now */}
                     {student && lastReport && onGenerateCustomMushafNow && (() => {
@@ -1323,31 +1427,33 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                           : lastReportLanguage;
 
                       return (
-                        <div className="rounded-2xl border border-emerald-200 bg-white overflow-hidden">
+                        <div className="rounded-2xl border border-emerald-200 bg-white shadow-sm overflow-hidden">
                           <button
                             type="button"
                             onClick={() => toggleReportGroup('preview')}
-                            className="w-full px-5 py-3.5 flex items-center justify-between gap-2 text-right bg-emerald-50/40 hover:bg-emerald-50/70 transition-colors"
+                            className="w-full px-4 py-3.5 flex items-center justify-between gap-2 text-right bg-emerald-50/50 hover:bg-emerald-50/80 transition-colors"
                           >
-                            <span className="text-2xl font-bold text-gray-800 font-arabic flex items-center gap-2">
-                              <FileText size={20} className="text-emerald-600" />
-                              <span>مراجعة ومعاينة آخر تقرير</span>
+                            <span className="flex items-center gap-2.5">
+                              <span className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                                <FileText size={17} />
+                              </span>
+                              <span className="text-xl font-bold text-slate-800 font-arabic">مراجعة ومعاينة آخر تقرير</span>
                             </span>
-                            <div className="flex items-center gap-2">
-                              <span className="text-base font-arabic text-gray-500">
+                            <span className="flex items-center gap-2 shrink-0">
+                              <span className="text-sm font-arabic bg-emerald-100/80 text-emerald-800 px-2.5 py-0.5 rounded-full">
                                 {previewSections.length ? `${toHindiDigits(String(previewSections.length))} أقسام` : 'فارغ'}
                               </span>
-                              <ChevronDown size={20} className={`text-gray-500 transition-transform duration-200 ${openReportGroups.preview ? 'rotate-180' : ''}`} />
-                            </div>
+                              <ChevronDown size={18} className={`text-emerald-600 transition-transform duration-200 ${openReportGroups.preview ? 'rotate-180' : ''}`} />
+                            </span>
                           </button>
                           {openReportGroups.preview && (
                             <div className="p-4 space-y-3 border-t border-emerald-100">
                               {previewSections.length > 0 && (
-                                <div className="space-y-2 text-lg font-arabic text-gray-700">
+                                <div className="rounded-xl border border-slate-200/80 divide-y divide-slate-100 bg-slate-50/60 overflow-hidden text-lg font-arabic text-slate-700">
                                   {previewSections.map(sec => (
-                                    <div key={sec.key} className="flex items-center justify-between gap-3 bg-gray-50 px-4 py-2 rounded-xl">
-                                      <span className="font-bold text-gray-900">{currentLang === 'en' ? sec.titleEn : sec.titleAr}</span>
-                                      <span className="text-gray-600 truncate">{currentLang === 'en' ? sec.summaryEn : sec.summaryAr} (ص {toHindiDigits(String(sec.startPage))}–{toHindiDigits(String(sec.endPage))})</span>
+                                    <div key={sec.key} className="flex items-center justify-between gap-3 px-3.5 py-2.5">
+                                      <span className={`font-bold text-slate-900 shrink-0 ${currentLang === 'en' ? 'font-english text-sm' : ''}`}>{currentLang === 'en' ? sec.titleEn : sec.titleAr}</span>
+                                      <bdi className={`text-slate-600 truncate ${currentLang === 'en' ? 'font-english text-sm' : 'text-base'}`}>{currentLang === 'en' ? sec.summaryEn : sec.summaryAr} (ص {toHindiDigits(String(sec.startPage))}–{toHindiDigits(String(sec.endPage))})</bdi>
                                     </div>
                                   ))}
                                 </div>
@@ -1370,9 +1476,9 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                                     setMushafGeneratingNow(false);
                                   }
                                 }}
-                                className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-200 disabled:text-gray-400 text-white font-arabic font-bold text-2xl transition-colors flex items-center justify-center gap-2 shadow-sm"
+                                className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-200 disabled:text-slate-400 text-white font-arabic font-bold text-xl transition-colors flex items-center justify-center gap-2 shadow-sm"
                               >
-                                {mushafGeneratingNow ? <Loader2 size={20} className="animate-spin" /> : <BookOpen size={20} />}
+                                {mushafGeneratingNow ? <Loader2 size={18} className="animate-spin" /> : <BookOpen size={18} />}
                                 <span>{mushafGeneratingNow ? 'جاري إنشاء ملف المصحف...' : 'توليد مصحف هذا التقرير الآن'}</span>
                               </button>
                             </div>
@@ -1382,12 +1488,14 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                     })()}
                   </div>
                 )}
+              </div>
 
-                {/* Save */}
+              {/* Sticky Footer Save */}
+              <div className="shrink-0 px-6 py-4 border-t border-gray-100 bg-white">
                 <button
                   type="button"
                   onClick={() => handleSubmit({ preventDefault: () => { } } as React.FormEvent)}
-                  className="w-full py-3.5 bg-[#ffe05d] text-gray-900 text-2xl font-bold font-arabic rounded-xl hover:bg-[#fcd030] hover:shadow-lg hover:shadow-[#ffe05d]/20 active:scale-[0.98] transition-all"
+                  className="w-full py-3 bg-[#ffe05d] text-gray-900 text-2xl font-bold font-arabic rounded-xl hover:bg-[#fcd030] hover:shadow-lg hover:shadow-[#ffe05d]/20 active:scale-[0.98] transition-all"
                 >
                   حفظ
                 </button>
