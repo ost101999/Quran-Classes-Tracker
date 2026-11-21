@@ -83,8 +83,8 @@ async function renderPdfPagesToImages({
     if (uniquePages.length === 0) return {};
 
     const pdfBase64 = Buffer.from(pdfBytes || fs.readFileSync(pdfPath)).toString('base64');
-    const resolvedPdfJs = pdfjsModulePath || require.resolve('pdfjs-dist/legacy/build/pdf.mjs');
-    const resolvedWorker = pdfjsWorkerPath || require.resolve('pdfjs-dist/legacy/build/pdf.worker.mjs');
+    const resolvedPdfJs = (pdfjsModulePath || require.resolve('pdfjs-dist/legacy/build/pdf.mjs')).replace('app.asar', 'app.asar.unpacked');
+    const resolvedWorker = (pdfjsWorkerPath || require.resolve('pdfjs-dist/legacy/build/pdf.worker.mjs')).replace('app.asar', 'app.asar.unpacked');
 
     const win = new BrowserWindow({
         width: 1000,
@@ -98,7 +98,7 @@ async function renderPdfPagesToImages({
     });
 
     try {
-        const helperHtml = path.join(__dirname, 'pdf-render-helper.html');
+        const helperHtml = path.join(__dirname, 'pdf-render-helper.html').replace('app.asar', 'app.asar.unpacked');
         if (fs.existsSync(helperHtml)) {
             await win.loadFile(helperHtml);
         } else {
