@@ -1,12 +1,18 @@
 import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { X, Trash2, Clock, Link, Check, Phone, ChevronDown, ChevronLeft, ArchiveRestore } from 'lucide-react';
-import { Student, StudyPlan, CalendarSchedule } from '../types';
+import { X, Trash2, Clock, Link, Check, Phone, ChevronDown, ChevronUp, ChevronLeft, ArchiveRestore, FileText, FolderOpen, BookOpen, AlertTriangle, Loader2 } from 'lucide-react';
+import { Student, StudyPlan, CalendarSchedule, StudentReportSettings, MushafSectionKey } from '../types';
 import { DAYS_OF_WEEK } from '../constants';
 import { linksEquivalent } from '../services/shortcutStudentSync';
 import { whatsappTargetsEquivalent } from '../services/whatsappStudentSync';
 import { isCurrentSchedule } from '../services/calendarStudentSync';
 import { cairoDate, replaceScheduleFrom } from '../services/studentSchedule';
 import { isStudentInactiveInMonth, isStudentPausedInMonth, nextMonthYear } from '../services/studentVisibility';
+import {
+  DEFAULT_MUSHAF_SECTION_ORDER,
+  MUSHAF_SECTION_LABELS,
+  normalizeSectionOrder,
+  buildCustomMushafPlan,
+} from '../services/quranPages';
 
 type ShortcutMatch = {
   id: string; folderId: string; path: string; titles: string[]; isQuran: boolean; isReading: boolean;
@@ -31,6 +37,9 @@ interface Props {
   openStudentWebInitially?: boolean;
   onAcknowledgeMissingReading?: (studentId: string, ids: string[]) => void;
   dayTransitionTime?: string;
+  lastReport?: any;
+  lastReportLanguage?: 'ar' | 'en';
+  onGenerateCustomMushafNow?: (studentDraft: Student) => Promise<void>;
 }
 
 // Convert Western numerals to Hindi numerals
@@ -100,7 +109,7 @@ const shortcutIsComplete = (
   return !missing.some(item => item.folderId === source.folderId && !saved.acknowledged.includes(item.id));
 };
 
-const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollment, onReactivateStudent, academies, student, academyRates, prefillAcademy, currentMonth, currentYear, onAssignTajweed, students, showToast, openStudentWebInitially = false, onAcknowledgeMissingReading, dayTransitionTime = '00:00' }) => {
+const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollment, onReactivateStudent, academies, student, academyRates, prefillAcademy, currentMonth, currentYear, onAssignTajweed, students, showToast, openStudentWebInitially = false, onAcknowledgeMissingReading, dayTransitionTime = '00:00', lastReport, lastReportLanguage = 'ar', onGenerateCustomMushafNow }) => {
   const [name, setName] = useState(student?.name || '');
   const [academy, setAcademy] = useState(student?.academy || prefillAcademy || '');
   const [studentTargetAge, setStudentTargetAge] = useState<'kids' | 'adults'>(student?.targetAge || 'adults');
@@ -155,7 +164,30 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
   const [scheduleLoading, setScheduleLoading] = useState(false);
   const [scheduleError, setScheduleError] = useState('');
   const [scheduleRefresh, setScheduleRefresh] = useState(0);
-  const [showStudentWeb, setShowStudentWeb] = useState(openStudentWebInitially);
+  const [activePanel, setActivePanel] = useState<'main' | 'studentWeb' | 'reportSettings'>(openStudentWebInitially ? 'studentWeb' : 'main');
+  const [lastSubPanel, setLastSubPanel] = useState<'studentWeb' | 'reportSettings'>('studentWeb');
+  const showStudentWeb = activePanel === 'studentWeb';
+  const openSubPanel = (panel: 'studentWeb' | 'reportSettings') => {
+    setLastSubPanel(panel);
+    setActivePanel(panel);
+  };
+  const [reportSettings, setReportSettings] = useState<StudentReportSettings>(() => ({
+    customMushafEnabled: student?.reportSettings?.customMushafEnabled ?? false,
+    mushafTargetSection: student?.reportSettings?.mushafTargetSection || 'reading',
+    mushafSectionOrder: normalizeSectionOrder(student?.reportSettings?.mushafSectionOrder),
+    mushafIncludedSections: {
+      rev: student?.reportSettings?.mushafIncludedSections?.rev !== false,
+      oldRev: student?.reportSettings?.mushafIncludedSections?.oldRev !== false,
+      new: student?.reportSettings?.mushafIncludedSections?.new !== false,
+      tilawa: student?.reportSettings?.mushafIncludedSections?.tilawa !== false,
+    },
+    mushafDividerStyle: student?.reportSettings?.mushafDividerStyle || 'page',
+    mushafLanguage: student?.reportSettings?.mushafLanguage || 'auto',
+    mushafPageOffset: student?.reportSettings?.mushafPageOffset ?? 0,
+    mushafAutoOpen: student?.reportSettings?.mushafAutoOpen ?? false,
+  }));
+  const [mushafFileStatus, setMushafFileStatus] = useState<{ found: boolean; fileName?: string; error?: string; outputDir?: string } | null>(null);
+  const [mushafGeneratingNow, setMushafGeneratingNow] = useState(false);
   const [isEndingEnrollment, setIsEndingEnrollment] = useState(!!student?.deletedAt);
   const [dayStartDates, setDayStartDates] = useState<Record<number, string>>(student?.dayStartDates || {});
   const [studyPlan, setStudyPlan] = useState<StudyPlan>(student?.studyPlan || {
@@ -171,6 +203,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
   const formRef = useRef<HTMLFormElement>(null);
   const mainPanelRef = useRef<HTMLElement>(null);
   const studentWebPanelRef = useRef<HTMLElement>(null);
+  const reportSettingsPanelRef = useRef<HTMLElement>(null);
   const [activePanelHeight, setActivePanelHeight] = useState<number>();
 
   useEffect(() => {
@@ -219,7 +252,11 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
   }, [showStudentWeb, name, student?.id, scheduleRefresh, dayTransitionTime]);
 
   useLayoutEffect(() => {
-    const panel = showStudentWeb ? studentWebPanelRef.current : mainPanelRef.current;
+    const panel = activePanel === 'studentWeb'
+      ? studentWebPanelRef.current
+      : activePanel === 'reportSettings'
+        ? reportSettingsPanelRef.current
+        : mainPanelRef.current;
     if (!panel) return;
     const measure = () => setActivePanelHeight(panel.offsetHeight);
     measure();
@@ -227,7 +264,30 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
     observer?.observe(panel);
     window.addEventListener('resize', measure);
     return () => { observer?.disconnect(); window.removeEventListener('resize', measure); };
-  }, [showStudentWeb]);
+  }, [activePanel, reportSettings.customMushafEnabled]);
+
+  useEffect(() => {
+    if (activePanel !== 'reportSettings') return;
+    if (!window.electronAPI?.resolveStudentMushaf) {
+      setMushafFileStatus({
+        found: false,
+        error: 'الخدمة الخلفية غير مفعّلة في النسخة المفتوحة حالياً؛ يلزم تحديث التطبيق أو فتحه بالنسخة الجديدة لتفعيل هذه الميزة.',
+      });
+      return;
+    }
+    let cancelled = false;
+    setMushafFileStatus(null);
+    window.electronAPI.resolveStudentMushaf({
+      studentName: name,
+      shortcutSourceId: shortcutSourceId || undefined,
+      quranLink: quranLink || undefined,
+    }).then(res => {
+      if (!cancelled) setMushafFileStatus(res);
+    }).catch(() => {
+      if (!cancelled) setMushafFileStatus({ found: false, error: 'تعذر التحقق من ملف مصحف الطالب.' });
+    });
+    return () => { cancelled = true; };
+  }, [activePanel, name, shortcutSourceId, quranLink]);
 
   useEffect(() => {
     if (!shortcutApplied) return;
@@ -282,19 +342,24 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
     return portion;
   };
 
-  // Intercept ALL wheel events while modal is open and redirect to the form
+  // Intercept ALL wheel events while modal is open and redirect to active panel scroll container
   useEffect(() => {
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault();
-      if (formRef.current) {
-        formRef.current.scrollTop += e.deltaY;
+      const targetScroll = activePanel === 'main'
+        ? formRef.current
+        : activePanel === 'reportSettings'
+          ? (reportSettingsPanelRef.current?.querySelector('.report-settings-scroll') as HTMLElement | null)
+          : (studentWebPanelRef.current?.querySelector('.overflow-y-auto') as HTMLElement | null);
+      if (targetScroll) {
+        targetScroll.scrollTop += e.deltaY;
       }
     };
     document.addEventListener('wheel', handleWheel, { passive: false });
     return () => {
       document.removeEventListener('wheel', handleWheel);
     };
-  }, []);
+  }, [activePanel]);
 
   // Calculate total classes from start and end dates
   useEffect(() => {
@@ -387,17 +452,36 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
     }
   }, [duration]);
 
+  const buildNormalizedReportSettings = (): StudentReportSettings | undefined => {
+    if (!reportSettings.customMushafEnabled && !student?.reportSettings) return undefined;
+    return {
+      customMushafEnabled: !!reportSettings.customMushafEnabled,
+      mushafTargetSection: reportSettings.mushafTargetSection || 'reading',
+      mushafSectionOrder: normalizeSectionOrder(reportSettings.mushafSectionOrder),
+      mushafIncludedSections: {
+        rev: reportSettings.mushafIncludedSections?.rev !== false,
+        oldRev: reportSettings.mushafIncludedSections?.oldRev !== false,
+        new: reportSettings.mushafIncludedSections?.new !== false,
+        tilawa: reportSettings.mushafIncludedSections?.tilawa !== false,
+      },
+      mushafDividerStyle: reportSettings.mushafDividerStyle || 'page',
+      mushafLanguage: reportSettings.mushafLanguage || 'auto',
+      mushafPageOffset: reportSettings.mushafPageOffset ?? 0,
+      mushafAutoOpen: !!reportSettings.mushafAutoOpen,
+    };
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !academy || !rate) return;
     if (quranLink.trim() && !isDriveFileLink(quranLink)) {
       setQuranLinkError(true);
-      setShowStudentWeb(true);
+      openSubPanel('studentWeb');
       return;
     }
     if (readingLink.trim() && !isDriveFileLink(readingLink)) {
       setReadingLinkError(true);
-      setShowStudentWeb(true);
+      openSubPanel('studentWeb');
       return;
     }
 
@@ -429,7 +513,8 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
       deletedAt: isEndingEnrollment ? nextMonthYear(currentMonth, currentYear) : undefined,
       days: isEndingEnrollment ? [] : selectedDays,
       dayStartDates: isEndingEnrollment ? {} : dayStartDates,
-      studyPlan: studyPlan
+      studyPlan: studyPlan,
+      reportSettings: buildNormalizedReportSettings(),
     };
 
     if (name && students) {
@@ -475,10 +560,10 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
         className="student-modal-card bg-white rounded-3xl shadow-2xl w-full max-w-xl overflow-hidden animate-in fade-in zoom-in duration-200"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* === Sliding container (2 panels side by side) === */}
+        {/* === Sliding container (main + active subpanel) === */}
         <div
           className="flex items-start transition-[transform,height] duration-300 ease-in-out will-change-transform"
-          style={{ transform: showStudentWeb ? 'translateX(100%)' : 'translateX(0)', height: activePanelHeight }}
+          style={{ transform: activePanel !== 'main' ? 'translateX(100%)' : 'translateX(0)', height: activePanelHeight }}
         >
 
           {/* ─────── Panel 0: Main form ─────── */}
@@ -490,17 +575,32 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                 <X size={24} />
               </button>
               <h2 className="text-3xl font-arabic text-gray-800 pt-2">{student ? 'تعديل بيانات الطالب' : 'إضافة طالب'}</h2>
-              <button
-                type="button"
-                onClick={() => setShowStudentWeb(true)}
-                title={shortcutStatus || 'واجهة الطالب'}
-                aria-label={shortcutStatus ? `واجهة الطالب — ${shortcutStatus}` : 'واجهة الطالب'}
-                className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-base font-bold text-gray-500 hover:text-amber-600 hover:bg-amber-50 px-4 py-2 rounded-xl transition-all border border-transparent hover:border-amber-200 group shadow-sm bg-gray-50"
-              >
-                {shortcutStatus && <Link aria-hidden="true" size={13} strokeWidth={2.5} className={`pointer-events-none absolute -left-1 -top-1 z-10 rounded-sm bg-white ${shortcutLinked ? 'text-emerald-600' : 'text-amber-500'}`} />}
-                <span className="font-arabic">واجهة الطالب</span>
-                <ChevronLeft size={18} className="group-hover:-translate-x-0.5 transition-transform" />
-              </button>
+              <div className="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col gap-1.5 items-stretch">
+                <button
+                  type="button"
+                  onClick={() => openSubPanel('studentWeb')}
+                  title={shortcutStatus || 'واجهة الطالب'}
+                  aria-label={shortcutStatus ? `واجهة الطالب — ${shortcutStatus}` : 'واجهة الطالب'}
+                  className="relative flex items-center justify-between gap-1.5 text-sm font-bold text-gray-500 hover:text-amber-600 hover:bg-amber-50 px-3 py-1.5 rounded-xl transition-all border border-transparent hover:border-amber-200 group shadow-sm bg-gray-50"
+                >
+                  {shortcutStatus && <Link aria-hidden="true" size={12} strokeWidth={2.5} className={`pointer-events-none absolute -left-1 -top-1 z-10 rounded-sm bg-white ${shortcutLinked ? 'text-emerald-600' : 'text-amber-500'}`} />}
+                  <span className="font-arabic">واجهة الطالب</span>
+                  <ChevronLeft size={16} className="group-hover:-translate-x-0.5 transition-transform" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openSubPanel('reportSettings')}
+                  title="تخصيص إعدادات التقرير والمصحف المخصص"
+                  className={`relative flex items-center justify-between gap-1.5 text-sm font-bold px-3 py-1.5 rounded-xl transition-all border group shadow-sm ${reportSettings.customMushafEnabled
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                    : 'bg-gray-50 text-gray-500 border-transparent hover:text-emerald-700 hover:bg-emerald-50 hover:border-emerald-200'
+                    }`}
+                >
+                  {reportSettings.customMushafEnabled && <span aria-hidden="true" className="w-2 h-2 rounded-full bg-emerald-500" />}
+                  <span className="font-arabic">تعديل التقرير</span>
+                  <ChevronLeft size={16} className="group-hover:-translate-x-0.5 transition-transform" />
+                </button>
+              </div>
             </div>
 
             <form ref={formRef} onSubmit={handleSubmit} className="p-8 space-y-6 overflow-y-auto overscroll-contain max-h-[calc(95vh-90px)]">
@@ -876,21 +976,330 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
           </section>
           {/* ─── End Panel 0 ─── */}
 
-          {/* ─── Panel 1: واجهة الطالب ─── */}
-          <section ref={studentWebPanelRef} className="w-full flex-shrink-0">
-            <div className="relative p-6 text-center border-b border-gray-100">
-              <button
-                type="button"
-                onClick={() => setShowStudentWeb(false)}
-                className="absolute right-6 top-1/2 -translate-y-1/2 p-2 hover:bg-gray-100 rounded-full text-gray-500 transition-colors"
-                title="رجوع"
-              >
-                <ChevronLeft size={24} style={{ transform: 'scaleX(-1)' }} />
-              </button>
-              <h2 className="text-3xl font-arabic text-gray-800 pt-2">واجهة الطالب</h2>
-            </div>
+          {/* ─── Panel 1 / Panel 2: Subpanel ─── */}
+          {lastSubPanel === 'reportSettings' ? (
+            <section ref={reportSettingsPanelRef} className="w-full flex-shrink-0">
+              <div className="relative p-6 text-center border-b border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setActivePanel('main')}
+                  className="absolute right-6 top-1/2 -translate-y-1/2 p-2 hover:bg-gray-100 rounded-full text-gray-500 transition-colors"
+                  title="رجوع"
+                >
+                  <ChevronLeft size={24} style={{ transform: 'scaleX(-1)' }} />
+                </button>
+                <h2 className="text-3xl font-arabic text-gray-800 pt-2">تعديل التقرير</h2>
+              </div>
 
-            <div className="p-8 space-y-6 overflow-y-auto overscroll-contain max-h-[calc(95vh-90px)]">
+              <div className="report-settings-scroll p-8 space-y-6 overflow-y-auto overscroll-contain max-h-[calc(95vh-90px)]">
+                {/* Main Toggle */}
+                <div className={`rounded-2xl border p-5 transition-colors ${reportSettings.customMushafEnabled ? 'bg-emerald-50/70 border-emerald-200' : 'bg-gray-50/70 border-gray-200'}`}>
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      id="customMushafEnabled"
+                      checked={!!reportSettings.customMushafEnabled}
+                      onChange={e => setReportSettings(prev => ({ ...prev, customMushafEnabled: e.target.checked }))}
+                      className="mt-1.5 w-5 h-5 accent-emerald-600 cursor-pointer shrink-0"
+                    />
+                    <div className="space-y-1">
+                      <span className="block text-xl font-bold text-gray-800 font-arabic">إنشاء ملف مصحف مخصص من التقرير</span>
+                      <span className="block text-sm text-gray-500 font-arabic leading-relaxed">
+                        يُنشئ لهذا الطالب فقط ملف مصحف يحتوي على صفحات التقرير مرتبة ومعنونة، مع إبقاء علامات الأخطاء والتظليلات من مصحفه.
+                      </span>
+                    </div>
+                  </label>
+                </div>
+
+                {/* Student Mushaf Source Status (No Master fallback) */}
+                {reportSettings.customMushafEnabled && (
+                  <div className="space-y-6 animate-in fade-in slide-in-from-top-2">
+                    <div className={`rounded-2xl border p-4 flex items-start gap-3 ${mushafFileStatus?.found ? 'bg-white border-emerald-200 text-emerald-900' : 'bg-amber-50 border-amber-200 text-amber-900'}`}>
+                      {mushafFileStatus?.found ? (
+                        <BookOpen size={20} className="text-emerald-600 shrink-0 mt-1" />
+                      ) : (
+                        <AlertTriangle size={20} className="text-amber-600 shrink-0 mt-1" />
+                      )}
+                      <div className="space-y-1 text-sm font-arabic flex-1 min-w-0">
+                        <p className="font-bold text-base">
+                          {mushafFileStatus === null
+                            ? 'جاري التحقق من مصحف الطالب...'
+                            : mushafFileStatus.found
+                              ? `مصحف الطالب المعتمد: ${mushafFileStatus.fileName}`
+                              : (mushafFileStatus.error || 'لا يوجد ملف مصحف خاص مرتبط بهذا الطالب.')}
+                        </p>
+                        <p className="text-gray-500 leading-relaxed">
+                          {mushafFileStatus === null
+                            ? 'يتم الآن البحث عن ملف مصحف الطالب المرتبط فقط (دون استخدام المصحف الأساسي).'
+                            : mushafFileStatus.found
+                              ? 'سيتم السحب من مصحف الطالب نفسه فقط حتى تظهر علامات الأخطاء والتظليلات.'
+                              : 'لن يتم استخدام المصحف الأساسي بديلاً عنه؛ تأكد من وجود وربط ملف مصحف الطالب وتحديث النسخة المثبتة.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Report Section Source */}
+                    <div className="space-y-2">
+                      <label className="block text-xl font-bold text-gray-700 font-arabic">القسم المعتمد من التقرير</label>
+                      <div className="flex bg-gray-50 p-1 rounded-xl border border-gray-200 gap-1">
+                        {([
+                          { id: 'reading', label: 'الدرس الحالي' },
+                          { id: 'homework', label: 'الدرس القادم' },
+                        ] as const).map(opt => (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            onClick={() => setReportSettings(prev => ({ ...prev, mushafTargetSection: opt.id }))}
+                            className={`flex-1 py-2.5 rounded-lg text-lg font-arabic transition-all ${(reportSettings.mushafTargetSection || 'reading') === opt.id
+                              ? 'bg-white text-emerald-700 shadow-sm border border-emerald-200 font-bold'
+                              : 'text-gray-500 hover:text-gray-700'
+                              }`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Sections & Order */}
+                    <div className="space-y-2">
+                      <label className="block text-xl font-bold text-gray-700 font-arabic">ترتيب الأقسام في الملف</label>
+                      <div className="space-y-2 bg-gray-50 p-3 rounded-2xl border border-gray-200">
+                        {normalizeSectionOrder(reportSettings.mushafSectionOrder).map((secKey, idx, arr) => {
+                          const included = reportSettings.mushafIncludedSections?.[secKey] !== false;
+                          const move = (dir: -1 | 1) => {
+                            const nextOrder = [...arr];
+                            const targetIdx = idx + dir;
+                            if (targetIdx < 0 || targetIdx >= nextOrder.length) return;
+                            [nextOrder[idx], nextOrder[targetIdx]] = [nextOrder[targetIdx], nextOrder[idx]];
+                            setReportSettings(prev => ({ ...prev, mushafSectionOrder: nextOrder }));
+                          };
+                          return (
+                            <div key={secKey} className="flex items-center justify-between gap-3 bg-white px-4 py-2.5 rounded-xl border border-gray-100 shadow-sm">
+                              <label className="flex items-center gap-3 cursor-pointer flex-1">
+                                <input
+                                  type="checkbox"
+                                  checked={included}
+                                  onChange={e => setReportSettings(prev => ({
+                                    ...prev,
+                                    mushafIncludedSections: {
+                                      ...prev.mushafIncludedSections,
+                                      [secKey]: e.target.checked,
+                                    },
+                                  }))}
+                                  className="w-4 h-4 accent-emerald-600 cursor-pointer"
+                                />
+                                <span className={`text-lg font-arabic font-bold ${included ? 'text-gray-800' : 'text-gray-400 line-through'}`}>
+                                  {toHindiDigits(String(idx + 1))}. {MUSHAF_SECTION_LABELS[secKey].ar}
+                                </span>
+                              </label>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  disabled={idx === 0}
+                                  onClick={() => move(-1)}
+                                  className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-25"
+                                  title="تحريك لأعلى"
+                                >
+                                  <ChevronUp size={18} />
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={idx === arr.length - 1}
+                                  onClick={() => move(1)}
+                                  className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-25"
+                                  title="تحريك لأسفل"
+                                >
+                                  <ChevronDown size={18} />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Divider Style */}
+                    <div className="space-y-2">
+                      <label className="block text-xl font-bold text-gray-700 font-arabic">شكل كتابة العنوان قبل الصفحات</label>
+                      <div className="flex bg-gray-50 p-1 rounded-xl border border-gray-200 gap-1">
+                        {([
+                          { id: 'page', label: 'صفحة فاصلة' },
+                          { id: 'banner', label: 'شريط أعلى الصفحة' },
+                          { id: 'both', label: 'كلاهما' },
+                        ] as const).map(opt => (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            onClick={() => setReportSettings(prev => ({ ...prev, mushafDividerStyle: opt.id }))}
+                            className={`flex-1 py-2 rounded-lg text-base font-arabic transition-all ${(reportSettings.mushafDividerStyle || 'page') === opt.id
+                              ? 'bg-white text-emerald-700 shadow-sm border border-emerald-200 font-bold'
+                              : 'text-gray-500 hover:text-gray-700'
+                              }`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Language & Offset */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="block text-lg font-bold text-gray-700 font-arabic">لغة العناوين</label>
+                        <div className="flex bg-gray-50 p-1 rounded-xl border border-gray-200 gap-1">
+                          {([
+                            { id: 'auto', label: 'تلقائي' },
+                            { id: 'ar', label: 'عربي' },
+                            { id: 'en', label: 'English' },
+                          ] as const).map(opt => (
+                            <button
+                              key={opt.id}
+                              type="button"
+                              onClick={() => setReportSettings(prev => ({ ...prev, mushafLanguage: opt.id }))}
+                              className={`flex-1 py-1.5 rounded-lg text-sm font-arabic transition-all ${(reportSettings.mushafLanguage || 'auto') === opt.id
+                                ? 'bg-white text-emerald-700 shadow-sm border border-emerald-200 font-bold'
+                                : 'text-gray-500 hover:text-gray-700'
+                                }`}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label htmlFor="mushafPageOffset" className="block text-lg font-bold text-gray-700 font-arabic">إزاحة ترقيم الملف (اختياري)</label>
+                        <input
+                          id="mushafPageOffset"
+                          type="number"
+                          value={reportSettings.mushafPageOffset ?? 0}
+                          onChange={e => setReportSettings(prev => ({ ...prev, mushafPageOffset: Number(e.target.value) || 0 }))}
+                          className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-center font-english text-lg focus:outline-none focus:border-[#ffe05d] focus:bg-white"
+                          dir="ltr"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Output Folder + Options */}
+                    <div className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4 space-y-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="space-y-0.5 min-w-0">
+                          <span className="block text-base font-bold text-gray-700 font-arabic">مجلد الحفظ</span>
+                          <span className="block text-sm text-gray-500 font-english truncate" dir="ltr">
+                            {mushafFileStatus?.outputDir || 'Z:\\مصاحف الطلبة'}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => void window.electronAPI?.openMushafFolder?.()}
+                          className="shrink-0 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white border border-gray-200 text-gray-700 hover:border-emerald-300 hover:text-emerald-700 text-sm font-bold font-arabic shadow-sm transition-colors"
+                        >
+                          <FolderOpen size={16} />
+                          <span>فتح المجلد</span>
+                        </button>
+                      </div>
+
+                      <label className="flex items-center gap-2.5 text-base text-gray-700 font-arabic cursor-pointer pt-1">
+                        <input
+                          type="checkbox"
+                          checked={!!reportSettings.mushafAutoOpen}
+                          onChange={e => setReportSettings(prev => ({ ...prev, mushafAutoOpen: e.target.checked }))}
+                          className="w-4 h-4 accent-emerald-600 cursor-pointer"
+                        />
+                        <span>فتح ملف المصحف تلقائيًا بعد الإنشاء</span>
+                      </label>
+                    </div>
+
+                    {/* Generate Immediately from Last Report */}
+                    {student && lastReport && onGenerateCustomMushafNow && (() => {
+                      const previewSections = buildCustomMushafPlan({
+                        reportData: lastReport,
+                        sectionToggles: lastReport.sectionToggles,
+                        cancelledInputs: lastReport.cancelledInputs,
+                        settings: reportSettings,
+                      });
+                      const currentLang = reportSettings.mushafLanguage === 'en'
+                        ? 'en'
+                        : reportSettings.mushafLanguage === 'ar'
+                          ? 'ar'
+                          : lastReportLanguage;
+
+                      return (
+                        <div className="rounded-2xl border border-emerald-200 bg-white p-4 space-y-3">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-base font-bold text-gray-800 font-arabic flex items-center gap-2">
+                              <FileText size={18} className="text-emerald-600" />
+                              <span>معاينة آخر تقرير محفوظ</span>
+                            </span>
+                            <span className="text-xs font-arabic text-gray-500">
+                              {previewSections.length ? `${toHindiDigits(String(previewSections.length))} أقسام جاهزة` : 'لا توجد أقسام متاحة'}
+                            </span>
+                          </div>
+                          {previewSections.length > 0 && (
+                            <div className="space-y-1.5 text-sm font-arabic text-gray-600">
+                              {previewSections.map(sec => (
+                                <div key={sec.key} className="flex items-center justify-between gap-2 bg-gray-50 px-3 py-1.5 rounded-lg">
+                                  <span className="font-bold text-gray-800">{currentLang === 'en' ? sec.titleEn : sec.titleAr}</span>
+                                  <span className="text-gray-500 truncate">{currentLang === 'en' ? sec.summaryEn : sec.summaryAr} (ص {toHindiDigits(String(sec.startPage))}–{toHindiDigits(String(sec.endPage))})</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          <button
+                            type="button"
+                            disabled={mushafGeneratingNow || !mushafFileStatus?.found || previewSections.length === 0}
+                            onClick={async () => {
+                              setMushafGeneratingNow(true);
+                              try {
+                                const draftStudent: Student = {
+                                  ...student,
+                                  name,
+                                  shortcutSourceId: shortcutSourceId || student.shortcutSourceId,
+                                  quranLink: quranLink.trim() || student.quranLink,
+                                  reportSettings: buildNormalizedReportSettings(),
+                                };
+                                await onGenerateCustomMushafNow(draftStudent);
+                              } finally {
+                                setMushafGeneratingNow(false);
+                              }
+                            }}
+                            className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-200 disabled:text-gray-400 text-white font-arabic font-bold text-lg transition-colors flex items-center justify-center gap-2 shadow-sm"
+                          >
+                            {mushafGeneratingNow ? <Loader2 size={18} className="animate-spin" /> : <BookOpen size={18} />}
+                            <span>{mushafGeneratingNow ? 'جاري إنشاء ملف المصحف...' : 'توليد مصحف هذا التقرير الآن'}</span>
+                          </button>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+
+                {/* Save */}
+                <button
+                  type="button"
+                  onClick={() => handleSubmit({ preventDefault: () => { } } as React.FormEvent)}
+                  className="w-full py-3 bg-[#ffe05d] text-gray-900 text-xl font-bold font-arabic rounded-xl hover:bg-[#fcd030] hover:shadow-lg hover:shadow-[#ffe05d]/20 active:scale-[0.98] transition-all pb-4"
+                >
+                  حفظ
+                </button>
+              </div>
+            </section>
+          ) : (
+            <section ref={studentWebPanelRef} className="w-full flex-shrink-0">
+              <div className="relative p-6 text-center border-b border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setActivePanel('main')}
+                  className="absolute right-6 top-1/2 -translate-y-1/2 p-2 hover:bg-gray-100 rounded-full text-gray-500 transition-colors"
+                  title="رجوع"
+                >
+                  <ChevronLeft size={24} style={{ transform: 'scaleX(-1)' }} />
+                </button>
+                <h2 className="text-3xl font-arabic text-gray-800 pt-2">واجهة الطالب</h2>
+              </div>
+
+              <div className="p-8 space-y-6 overflow-y-auto overscroll-contain max-h-[calc(95vh-90px)]">
               <div className={`space-y-3 rounded-2xl border p-4 transition-colors duration-500 ${shortcutApplied ? 'border-emerald-400 bg-emerald-100' : 'border-emerald-100 bg-emerald-50/50'}`}>
                 <div className="flex items-center justify-between gap-3">
                   <h3 className="text-xl font-bold text-gray-700">الربط بملفات الطالب</h3>
@@ -1259,7 +1668,8 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
               </button>
             </div>
           </section>
-          {/* ─── End Panel 1 ─── */}
+          )}
+          {/* ─── End Subpanel ─── */}
 
         </div>
         {/* === End sliding container === */}

@@ -106,6 +106,7 @@ import WebModal from './components/WebModal';
 import MultiStudentDetailsModal from './components/MultiStudentDetailsModal';
 import SearchableSurahSelect from './components/SearchableSurahSelect';
 import { quranPartRange, quranRubSpanRange, quranRubForVerse, type QuranPartKind } from './services/quranParts';
+import { buildCustomMushafPlan } from './services/quranPages';
 import {
   isStudentInactiveInMonth,
   isStudentPausedInMonth,
@@ -5429,6 +5430,65 @@ function App() {
     buildSmartReportUndoSnapshot,
   ]);
 
+  const triggerCustomMushafForStudent = useCallback(async (
+    targetStudent: Student | undefined,
+    reportData: Record<string, any> | undefined,
+    options: {
+      lang?: 'ar' | 'en';
+      sectionTogglesOverride?: Record<string, boolean>;
+      cancelledInputsOverride?: Record<string, boolean>;
+      exclusionsOverride?: Partial<Record<'rev' | 'oldRev' | 'new' | 'tilawa', boolean>>;
+      dateStr?: string;
+    } = {}
+  ) => {
+    if (!targetStudent?.reportSettings?.customMushafEnabled) return;
+    if (!window.electronAPI?.generateCustomMushaf) {
+      showToast('ميزة إنشاء المصحف المخصص متاحة من تطبيق الكمبيوتر.');
+      return;
+    }
+
+    const settings = targetStudent.reportSettings;
+    const sections = buildCustomMushafPlan({
+      reportData,
+      sectionToggles: options.sectionTogglesOverride ?? reportData?.sectionToggles,
+      cancelledInputs: options.cancelledInputsOverride ?? reportData?.cancelledInputs,
+      exclusions: options.exclusionsOverride,
+      settings,
+    });
+    if (sections.length === 0) {
+      showToast('لا توجد صفحات قرآن محددة في التقرير لإنشاء المصحف.');
+      return;
+    }
+
+    const resolvedLang: 'ar' | 'en' = settings.mushafLanguage === 'en'
+      ? 'en'
+      : settings.mushafLanguage === 'ar'
+        ? 'ar'
+        : (options.lang || lastReportLanguage);
+
+    try {
+      const res = await window.electronAPI.generateCustomMushaf({
+        studentName: targetStudent.name,
+        shortcutSourceId: targetStudent.shortcutSourceId,
+        quranLink: targetStudent.quranLink,
+        sections,
+        dividerStyle: settings.mushafDividerStyle || 'page',
+        language: resolvedLang,
+        pageOffset: settings.mushafPageOffset || 0,
+        dateStr: options.dateStr,
+        autoOpen: !!settings.mushafAutoOpen,
+      });
+
+      if (res.success) {
+        showToast(`تم إنشاء مصحف الطالب (${res.fileName}) 📖`);
+      } else {
+        showToast(`⚠️ ${res.error || 'تعذّر إنشاء المصحف المخصص.'}`);
+      }
+    } catch {
+      showToast('⚠️ حدث خطأ أثناء إنشاء المصحف المخصص.');
+    }
+  }, [lastReportLanguage]);
+
   const initializeReportDraft = (studentId: string, dayNum: number, currentMonth: number, currentYear: number) => {
     // Check if the current report is already saved (Editing Mode)
     const reportKey = `${studentId}_${dayNum}_${currentMonth}_${currentYear}`;
@@ -8287,6 +8347,15 @@ function App() {
             students={students}
             showToast={showToast}
             dayTransitionTime={dayTransitionTime}
+            lastReport={editingStudent ? lastReports[editingStudent.id] : undefined}
+            lastReportLanguage={lastReportLanguage}
+            onGenerateCustomMushafNow={async (draftStudent) => {
+              const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(today.day).padStart(2, '0')}`;
+              await triggerCustomMushafForStudent(draftStudent, lastReports[draftStudent.id], {
+                dateStr,
+                lang: lastReportLanguage,
+              });
+            }}
           />
         )
       }
@@ -16293,94 +16362,106 @@ function App() {
                             report += `\n*ــــــــــــــــــــــــــــــــــــــ*\n\n✏️ *ملاحظات:*\n${customNotesVal}`;
                           }
 
+                          const arReportSnapshot = {
+                            ...lastReports[smartReportModal.studentId],
+                            ...noorConfigPart,
+                            customNotes: customNotesVal || '',
+                            audioLink: audioLinkText.trim() || '',
+                            readingNew: {
+                              mode: preferredModes.readingNew,
+                              surah: quranNewSurah,
+                              fromAyah: quranNewFromAyah,
+                              toAyah: quranNewToAyah,
+                              fromPage: quranNewFromPage,
+                              toPage: quranNewToPage,
+                              fromJuz: quranNewFromJuz,
+                              toJuz: quranNewToJuz,
+                              fromHizb: quranNewFromHizb,
+                              toHizb: quranNewToHizb,
+                              fromSurah: quranNewFromSurah,
+                              toSurah: activeAdvancedAyah.readingNew ? quranNewToSurahAdvanced : quranNewToSurah,
+                              isAdvancedAyah: activeAdvancedAyah.readingNew
+                            },
+                            readingRev: {
+                              mode: preferredModes.readingRev,
+                              surah: quranRevSurah,
+                              fromAyah: quranRevFromAyah,
+                              toAyah: quranRevToAyah,
+                              fromPage: quranRevFromPage,
+                              toPage: quranRevToPage,
+                              fromJuz: quranRevFromJuz,
+                              toJuz: quranRevToJuz,
+                              fromHizb: quranRevFromHizb,
+                              toHizb: quranRevToHizb,
+                              fromSurah: quranRevFromSurah,
+                              toSurah: activeAdvancedAyah.readingRev ? quranRevToSurahAdvanced : quranRevToSurah,
+                              isAdvancedAyah: activeAdvancedAyah.readingRev
+                            },
+                            homeworkNew: {
+                              mode: preferredModes.homeworkNew,
+                              surah: hwNewSurah,
+                              from: hwNewFrom,
+                              to: hwNewTo,
+                              fromSurah: hwNewFromSurah,
+                              toSurah: activeAdvancedAyah.homeworkNew ? hwNewToSurahAdvanced : hwNewToSurah,
+                              isAdvancedAyah: activeAdvancedAyah.homeworkNew,
+                              isRedo: isRedoMode,
+                              excludeFromReport: excludeNewFromReport,
+                              masteryDeficiency: masteryDeficiency
+                            },
+                            homeworkRev: {
+                              mode: preferredModes.homeworkRev,
+                              surah: hwRevSurah,
+                              from: hwRevFrom,
+                              to: hwRevTo,
+                              fromSurah: hwRevFromSurah,
+                              toSurah: activeAdvancedAyah.homeworkRev ? hwRevToSurahAdvanced : hwRevToSurah,
+                              isAdvancedAyah: activeAdvancedAyah.homeworkRev
+                            },
+                            homeworkTilawa: {
+                              mode: preferredModes.homeworkTilawa,
+                              surah: hwTilawaSurah,
+                              from: hwTilawaFrom,
+                              to: hwTilawaTo,
+                              fromSurah: hwTilawaFromSurah,
+                              toSurah: activeAdvancedAyah.homeworkTilawa ? hwTilawaToSurahAdvanced : hwTilawaToSurah,
+                              isAdvancedAyah: activeAdvancedAyah.homeworkTilawa
+                            },
+                            quranTajweed: {
+                              currentLessonId: quranTajweedCurrentLessonId,
+                              nextLessonId: quranTajweedNextLessonId
+                            },
+                            readingTilawa: {
+                              mode: preferredModes.readingTilawa,
+                              surah: quranTilawaSurah,
+                              fromAyah: quranTilawaFromAyah,
+                              toAyah: quranTilawaToAyah,
+                              fromPage: quranTilawaFromPage,
+                              toPage: quranTilawaToPage,
+                              fromJuz: quranTilawaFromJuz,
+                              toJuz: quranTilawaToJuz,
+                              fromHizb: quranTilawaFromHizb,
+                              toHizb: quranTilawaToHizb,
+                              fromSurah: quranTilawaFromSurah,
+                              toSurah: activeAdvancedAyah.readingTilawa ? quranTilawaToSurahAdvanced : quranTilawaToSurah,
+                              isAdvancedAyah: activeAdvancedAyah.readingTilawa
+                            },
+                            sectionToggles: { ...sectionToggles },
+                            cancelledInputs: { ...cancelledInputs }
+                          };
+
+                          const arMushafTargetSection = student?.reportSettings?.mushafTargetSection === 'homework' ? 'homework' : 'reading';
+                          const arMushafExclusions = arMushafTargetSection === 'homework'
+                            ? { rev: excludeHomeworkRev, oldRev: excludeHomeworkOldRev, new: excludeHomeworkNew || excludeNewFromReport, tilawa: excludeHomeworkTilawa }
+                            : { rev: excludeReadingRev, oldRev: excludeReadingOldRev, new: excludeReadingNew || prevReportHadExclusion, tilawa: excludeReadingTilawa };
+                          const arMushafDateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(smartReportModal.dayNum).padStart(2, '0')}`;
+                          const _arMushafStudent = student;
+
                           setLastReports(prev => ({
                             ...prev,
                             [smartReportModal.studentId]: {
                               ...prev[smartReportModal.studentId],
-                              ...noorConfigPart,
-                              customNotes: customNotesVal || '',
-                              audioLink: audioLinkText.trim() || '',
-                              readingNew: {
-                                mode: preferredModes.readingNew,
-                                surah: quranNewSurah,
-                                fromAyah: quranNewFromAyah,
-                                toAyah: quranNewToAyah,
-                                fromPage: quranNewFromPage,
-                                toPage: quranNewToPage,
-                                fromJuz: quranNewFromJuz,
-                                toJuz: quranNewToJuz,
-                                fromHizb: quranNewFromHizb,
-                                toHizb: quranNewToHizb,
-                                fromSurah: quranNewFromSurah,
-                                toSurah: activeAdvancedAyah.readingNew ? quranNewToSurahAdvanced : quranNewToSurah,
-                                isAdvancedAyah: activeAdvancedAyah.readingNew
-                              },
-                              readingRev: {
-                                mode: preferredModes.readingRev,
-                                surah: quranRevSurah,
-                                fromAyah: quranRevFromAyah,
-                                toAyah: quranRevToAyah,
-                                fromPage: quranRevFromPage,
-                                toPage: quranRevToPage,
-                                fromJuz: quranRevFromJuz,
-                                toJuz: quranRevToJuz,
-                                fromHizb: quranRevFromHizb,
-                                toHizb: quranRevToHizb,
-                                fromSurah: quranRevFromSurah,
-                                toSurah: activeAdvancedAyah.readingRev ? quranRevToSurahAdvanced : quranRevToSurah,
-                                isAdvancedAyah: activeAdvancedAyah.readingRev
-                              },
-                              homeworkNew: {
-                                mode: preferredModes.homeworkNew,
-                                surah: hwNewSurah,
-                                from: hwNewFrom,
-                                to: hwNewTo,
-                                fromSurah: hwNewFromSurah,
-                                toSurah: activeAdvancedAyah.homeworkNew ? hwNewToSurahAdvanced : hwNewToSurah,
-                                isAdvancedAyah: activeAdvancedAyah.homeworkNew,
-                                isRedo: isRedoMode,
-                                excludeFromReport: excludeNewFromReport,
-                                masteryDeficiency: masteryDeficiency
-                              },
-                              homeworkRev: {
-                                mode: preferredModes.homeworkRev,
-                                surah: hwRevSurah,
-                                from: hwRevFrom,
-                                to: hwRevTo,
-                                fromSurah: hwRevFromSurah,
-                                toSurah: activeAdvancedAyah.homeworkRev ? hwRevToSurahAdvanced : hwRevToSurah,
-                                isAdvancedAyah: activeAdvancedAyah.homeworkRev
-                              },
-                              homeworkTilawa: {
-                                mode: preferredModes.homeworkTilawa,
-                                surah: hwTilawaSurah,
-                                from: hwTilawaFrom,
-                                to: hwTilawaTo,
-                                fromSurah: hwTilawaFromSurah,
-                                toSurah: activeAdvancedAyah.homeworkTilawa ? hwTilawaToSurahAdvanced : hwTilawaToSurah,
-                                isAdvancedAyah: activeAdvancedAyah.homeworkTilawa
-                              },
-                              quranTajweed: {
-                                currentLessonId: quranTajweedCurrentLessonId,
-                                nextLessonId: quranTajweedNextLessonId
-                              },
-                              readingTilawa: {
-                                mode: preferredModes.readingTilawa,
-                                surah: quranTilawaSurah,
-                                fromAyah: quranTilawaFromAyah,
-                                toAyah: quranTilawaToAyah,
-                                fromPage: quranTilawaFromPage,
-                                toPage: quranTilawaToPage,
-                                fromJuz: quranTilawaFromJuz,
-                                toJuz: quranTilawaToJuz,
-                                fromHizb: quranTilawaFromHizb,
-                                toHizb: quranTilawaToHizb,
-                                fromSurah: quranTilawaFromSurah,
-                                toSurah: activeAdvancedAyah.readingTilawa ? quranTilawaToSurahAdvanced : quranTilawaToSurah,
-                                isAdvancedAyah: activeAdvancedAyah.readingTilawa
-                              },
-                              sectionToggles: { ...sectionToggles },
-                              cancelledInputs: { ...cancelledInputs }
+                              ...arReportSnapshot,
                             }
                           }));
 
@@ -16410,6 +16491,13 @@ function App() {
                             const _arStudentId = smartReportModal.studentId;
                             const _arDayNum = smartReportModal.dayNum;
                             closeAllModals(true);
+                            void triggerCustomMushafForStudent(_arMushafStudent, arReportSnapshot, {
+                              lang: 'ar',
+                              sectionTogglesOverride: arReportSnapshot.sectionToggles,
+                              cancelledInputsOverride: arReportSnapshot.cancelledInputs,
+                              exclusionsOverride: arMushafExclusions,
+                              dateStr: arMushafDateStr,
+                            });
                             // Copy + open link immediately alongside WhatsApp send
                             handleClipboardCopy(_arStudentId, report, () => checkAndOpenLink(_arStudentId));
 
@@ -16543,6 +16631,13 @@ function App() {
 
                               showToast('تم نسخ التقرير (عربي) ✨');
                               setSearchQuery('');
+                              void triggerCustomMushafForStudent(_arMushafStudent, arReportSnapshot, {
+                                lang: 'ar',
+                                sectionTogglesOverride: arReportSnapshot.sectionToggles,
+                                cancelledInputsOverride: arReportSnapshot.cancelledInputs,
+                                exclusionsOverride: arMushafExclusions,
+                                dateStr: arMushafDateStr,
+                              });
                               checkAndOpenLink(_arCopyStudentId);
                             });
                           }
@@ -17829,94 +17924,106 @@ function App() {
                             report += `\n*ــــــــــــــــــــــــــــــــــــــ*\n\n✏️ *Notes:*\n${customNotesValEng}`;
                           }
 
+                          const enReportSnapshot = {
+                            ...lastReports[smartReportModal.studentId],
+                            ...noorConfigPart,
+                            customNotes: customNotesValEng || '',
+                            audioLink: audioLinkText.trim() || '',
+                            readingNew: {
+                              mode: preferredModes.readingNew,
+                              surah: quranNewSurahRaw,
+                              fromAyah: quranNewFromAyah,
+                              toAyah: quranNewToAyah,
+                              fromPage: quranNewFromPage,
+                              toPage: quranNewToPage,
+                              fromJuz: quranNewFromJuz,
+                              toJuz: quranNewToJuz,
+                              fromHizb: quranNewFromHizb,
+                              toHizb: quranNewToHizb,
+                              fromSurah: quranNewFromSurahRaw,
+                              toSurah: preferredModes.readingNew === 'surah' ? quranNewToSurahRaw : (activeAdvancedAyah.readingNew ? quranNewToSurahAdvancedRaw : quranNewToSurahRaw),
+                              isAdvancedAyah: activeAdvancedAyah.readingNew
+                            },
+                            readingRev: {
+                              mode: preferredModes.readingRev,
+                              surah: quranRevSurahRaw,
+                              fromAyah: quranRevFromAyah,
+                              toAyah: quranRevToAyah,
+                              fromPage: quranRevFromPage,
+                              toPage: quranRevToPage,
+                              fromJuz: quranRevFromJuz,
+                              toJuz: quranRevToJuz,
+                              fromHizb: quranRevFromHizb,
+                              toHizb: quranRevToHizb,
+                              fromSurah: quranRevFromSurahRaw,
+                              toSurah: preferredModes.readingRev === 'surah' ? quranRevToSurahRaw : (activeAdvancedAyah.readingRev ? quranRevToSurahAdvancedRaw : quranRevToSurahRaw),
+                              isAdvancedAyah: activeAdvancedAyah.readingRev
+                            },
+                            homeworkNew: {
+                              mode: preferredModes.homeworkNew,
+                              surah: hwNewSurahRaw,
+                              from: hwNewFrom,
+                              to: hwNewTo,
+                              fromSurah: hwNewFromSurahRaw,
+                              toSurah: preferredModes.homeworkNew === 'surah' ? hwNewToSurahRaw : (activeAdvancedAyah.homeworkNew ? hwNewToSurahAdvancedRaw : hwNewToSurahRaw),
+                              isAdvancedAyah: activeAdvancedAyah.homeworkNew,
+                              isRedo: isRedoMode,
+                              excludeFromReport: excludeNewFromReport,
+                              masteryDeficiency: masteryDeficiency
+                            },
+                            homeworkRev: {
+                              mode: preferredModes.homeworkRev,
+                              surah: hwRevSurahRaw,
+                              from: hwRevFrom,
+                              to: hwRevTo,
+                              fromSurah: hwRevFromSurahRaw,
+                              toSurah: preferredModes.homeworkRev === 'surah' ? hwRevToSurahRaw : (activeAdvancedAyah.homeworkRev ? hwRevToSurahAdvancedRaw : hwRevToSurahRaw),
+                              isAdvancedAyah: activeAdvancedAyah.homeworkRev
+                            },
+                            homeworkTilawa: {
+                              mode: preferredModes.homeworkTilawa,
+                              surah: hwTilawaSurahRaw,
+                              from: hwTilawaFrom,
+                              to: hwTilawaTo,
+                              fromSurah: hwTilawaFromSurahRaw,
+                              toSurah: preferredModes.homeworkTilawa === 'surah' ? hwTilawaToSurahRaw : (activeAdvancedAyah.homeworkTilawa ? hwTilawaToSurahAdvancedRaw : hwTilawaToSurahRaw),
+                              isAdvancedAyah: activeAdvancedAyah.homeworkTilawa
+                            },
+                            quranTajweed: {
+                              currentLessonId: quranTajweedCurrentLessonId,
+                              nextLessonId: quranTajweedNextLessonId
+                            },
+                            readingTilawa: {
+                              mode: preferredModes.readingTilawa,
+                              surah: quranTilawaSurahRaw,
+                              fromAyah: quranTilawaFromAyah,
+                              toAyah: quranTilawaToAyah,
+                              fromPage: quranTilawaFromPage,
+                              toPage: quranTilawaToPage,
+                              fromJuz: quranTilawaFromJuz,
+                              toJuz: quranTilawaToJuz,
+                              fromHizb: quranTilawaFromHizb,
+                              toHizb: quranTilawaToHizb,
+                              fromSurah: quranTilawaFromSurahRaw,
+                              toSurah: preferredModes.readingTilawa === 'surah' ? quranTilawaToSurahRaw : (activeAdvancedAyah.readingTilawa ? quranTilawaToSurahAdvancedRaw : quranTilawaToSurahRaw),
+                              isAdvancedAyah: activeAdvancedAyah.readingTilawa
+                            },
+                            sectionToggles: { ...sectionToggles },
+                            cancelledInputs: { ...cancelledInputs }
+                          };
+
+                          const enMushafTargetSection = student?.reportSettings?.mushafTargetSection === 'homework' ? 'homework' : 'reading';
+                          const enMushafExclusions = enMushafTargetSection === 'homework'
+                            ? { rev: excludeHomeworkRev, oldRev: excludeHomeworkOldRev, new: excludeHomeworkNew || excludeNewFromReport, tilawa: excludeHomeworkTilawa }
+                            : { rev: excludeReadingRev, oldRev: excludeReadingOldRev, new: excludeReadingNew || prevReportHadExclusion, tilawa: excludeReadingTilawa };
+                          const enMushafDateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(smartReportModal.dayNum).padStart(2, '0')}`;
+                          const _enMushafStudent = student;
+
                           setLastReports(prev => ({
                             ...prev,
                             [smartReportModal.studentId]: {
                               ...prev[smartReportModal.studentId],
-                              ...noorConfigPart,
-                              customNotes: customNotesValEng || '',
-                              audioLink: audioLinkText.trim() || '',
-                              readingNew: {
-                                mode: preferredModes.readingNew,
-                                surah: quranNewSurahRaw,
-                                fromAyah: quranNewFromAyah,
-                                toAyah: quranNewToAyah,
-                                fromPage: quranNewFromPage,
-                                toPage: quranNewToPage,
-                                fromJuz: quranNewFromJuz,
-                                toJuz: quranNewToJuz,
-                                fromHizb: quranNewFromHizb,
-                                toHizb: quranNewToHizb,
-                                fromSurah: quranNewFromSurahRaw,
-                                toSurah: preferredModes.readingNew === 'surah' ? quranNewToSurahRaw : (activeAdvancedAyah.readingNew ? quranNewToSurahAdvancedRaw : quranNewToSurahRaw),
-                                isAdvancedAyah: activeAdvancedAyah.readingNew
-                              },
-                              readingRev: {
-                                mode: preferredModes.readingRev,
-                                surah: quranRevSurahRaw,
-                                fromAyah: quranRevFromAyah,
-                                toAyah: quranRevToAyah,
-                                fromPage: quranRevFromPage,
-                                toPage: quranRevToPage,
-                                fromJuz: quranRevFromJuz,
-                                toJuz: quranRevToJuz,
-                                fromHizb: quranRevFromHizb,
-                                toHizb: quranRevToHizb,
-                                fromSurah: quranRevFromSurahRaw,
-                                toSurah: preferredModes.readingRev === 'surah' ? quranRevToSurahRaw : (activeAdvancedAyah.readingRev ? quranRevToSurahAdvancedRaw : quranRevToSurahRaw),
-                                isAdvancedAyah: activeAdvancedAyah.readingRev
-                              },
-                              homeworkNew: {
-                                mode: preferredModes.homeworkNew,
-                                surah: hwNewSurahRaw,
-                                from: hwNewFrom,
-                                to: hwNewTo,
-                                fromSurah: hwNewFromSurahRaw,
-                                toSurah: preferredModes.homeworkNew === 'surah' ? hwNewToSurahRaw : (activeAdvancedAyah.homeworkNew ? hwNewToSurahAdvancedRaw : hwNewToSurahRaw),
-                                isAdvancedAyah: activeAdvancedAyah.homeworkNew,
-                                isRedo: isRedoMode,
-                                excludeFromReport: excludeNewFromReport,
-                                masteryDeficiency: masteryDeficiency
-                              },
-                              homeworkRev: {
-                                mode: preferredModes.homeworkRev,
-                                surah: hwRevSurahRaw,
-                                from: hwRevFrom,
-                                to: hwRevTo,
-                                fromSurah: hwRevFromSurahRaw,
-                                toSurah: preferredModes.homeworkRev === 'surah' ? hwRevToSurahRaw : (activeAdvancedAyah.homeworkRev ? hwRevToSurahAdvancedRaw : hwRevToSurahRaw),
-                                isAdvancedAyah: activeAdvancedAyah.homeworkRev
-                              },
-                              homeworkTilawa: {
-                                mode: preferredModes.homeworkTilawa,
-                                surah: hwTilawaSurahRaw,
-                                from: hwTilawaFrom,
-                                to: hwTilawaTo,
-                                fromSurah: hwTilawaFromSurahRaw,
-                                toSurah: preferredModes.homeworkTilawa === 'surah' ? hwTilawaToSurahRaw : (activeAdvancedAyah.homeworkTilawa ? hwTilawaToSurahAdvancedRaw : hwTilawaToSurahRaw),
-                                isAdvancedAyah: activeAdvancedAyah.homeworkTilawa
-                              },
-                              quranTajweed: {
-                                currentLessonId: quranTajweedCurrentLessonId,
-                                nextLessonId: quranTajweedNextLessonId
-                              },
-                              readingTilawa: {
-                                mode: preferredModes.readingTilawa,
-                                surah: quranTilawaSurahRaw,
-                                fromAyah: quranTilawaFromAyah,
-                                toAyah: quranTilawaToAyah,
-                                fromPage: quranTilawaFromPage,
-                                toPage: quranTilawaToPage,
-                                fromJuz: quranTilawaFromJuz,
-                                toJuz: quranTilawaToJuz,
-                                fromHizb: quranTilawaFromHizb,
-                                toHizb: quranTilawaToHizb,
-                                fromSurah: quranTilawaFromSurahRaw,
-                                toSurah: preferredModes.readingTilawa === 'surah' ? quranTilawaToSurahRaw : (activeAdvancedAyah.readingTilawa ? quranTilawaToSurahAdvancedRaw : quranTilawaToSurahRaw),
-                                isAdvancedAyah: activeAdvancedAyah.readingTilawa
-                              },
-                              sectionToggles: { ...sectionToggles },
-                              cancelledInputs: { ...cancelledInputs }
+                              ...enReportSnapshot,
                             }
                           }));
 
@@ -17953,6 +18060,13 @@ function App() {
 
                             // Send via Puppeteer automation using the resolved target
                             closeAllModals(true);
+                            void triggerCustomMushafForStudent(_enMushafStudent, enReportSnapshot, {
+                              lang: 'en',
+                              sectionTogglesOverride: enReportSnapshot.sectionToggles,
+                              cancelledInputsOverride: enReportSnapshot.cancelledInputs,
+                              exclusionsOverride: enMushafExclusions,
+                              dateStr: enMushafDateStr,
+                            });
                             // Copy + open link immediately alongside WhatsApp send
                             handleClipboardCopy(_engStudentId, report, () => checkAndOpenLink(_engStudentId));
 
@@ -18079,6 +18193,13 @@ function App() {
 
                               closeAllModals(true);
                               showToast('Report Copied (English) ✨');
+                              void triggerCustomMushafForStudent(_enMushafStudent, enReportSnapshot, {
+                                lang: 'en',
+                                sectionTogglesOverride: enReportSnapshot.sectionToggles,
+                                cancelledInputsOverride: enReportSnapshot.cancelledInputs,
+                                exclusionsOverride: enMushafExclusions,
+                                dateStr: enMushafDateStr,
+                              });
                               checkAndOpenLink(_engStudentId);
 
                               // PERSISTENCE FIX: Force save to lastReports on Clipboard Copy (Match Arabic behavior)

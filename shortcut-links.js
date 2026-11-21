@@ -158,4 +158,76 @@ function readMatches(students) {
     }
 }
 
-module.exports = { normalizeName, folderName, zoomLink, driveLink, titleStudentName, findFolderHints, parseShortcuts, findMatches, findReadingMatches, isExistingFile, readMatches };
+function resolveStudentMushafFile({ studentName, shortcutSourceId, quranLink, shortcutsPath = SHORTCUTS_PATH, exists = isExistingFile } = {}) {
+    try {
+        const allGroups = parseShortcuts(fs.readFileSync(shortcutsPath, 'utf8'));
+        const quranGroups = allGroups.filter(group => group.isQuran);
+
+        let matched = shortcutSourceId
+            ? quranGroups.find(group => group.id === shortcutSourceId)
+            : null;
+
+        if (!matched && quranLink) {
+            const targetDrive = driveLink(quranLink);
+            if (targetDrive) {
+                const targetId = driveIdentity(targetDrive);
+                matched = quranGroups.find(group => group.quranLink && driveIdentity(group.quranLink) === targetId) || null;
+            }
+        }
+
+        if (!matched && studentName) {
+            const folderMatches = findMatches(quranGroups, studentName).filter(group => exists(group.path));
+            if (folderMatches.length === 1) {
+                matched = folderMatches[0];
+            } else if (folderMatches.length > 1) {
+                return {
+                    found: false,
+                    reason: 'AMBIGUOUS_MUSHAF',
+                    error: 'يوجد أكثر من ملف مصحف في مجلد الطالب؛ يرجى تحديد الملف من واجهة الطالب.',
+                };
+            }
+        }
+
+        if (!matched) {
+            return {
+                found: false,
+                reason: 'NO_STUDENT_MUSHAF',
+                error: 'لا يوجد ملف مصحف خاص مرتبط بهذا الطالب.',
+            };
+        }
+
+        const resolvedPath = localFilePath(matched.path);
+        if (!resolvedPath || !exists(matched.path)) {
+            return {
+                found: false,
+                reason: 'FILE_MISSING',
+                path: resolvedPath || matched.path,
+                error: 'ملف مصحف الطالب المرتبط غير موجود على الجهاز حالياً.',
+            };
+        }
+
+        if (path.extname(resolvedPath).toLowerCase() !== '.pdf') {
+            return {
+                found: false,
+                reason: 'NOT_PDF',
+                path: resolvedPath,
+                error: 'ملف مصحف الطالب المرتبط ليس بصيغة PDF.',
+            };
+        }
+
+        return {
+            found: true,
+            path: resolvedPath,
+            fileName: path.basename(resolvedPath),
+            shortcutId: matched.id,
+        };
+    } catch (error) {
+        return {
+            found: false,
+            reason: error.code || 'READ_ERROR',
+            error: 'تعذرت قراءة ملف الاختصارات للوصول إلى مصحف الطالب.',
+        };
+    }
+}
+
+module.exports = { normalizeName, folderName, zoomLink, driveLink, titleStudentName, findFolderHints, parseShortcuts, findMatches, findReadingMatches, isExistingFile, readMatches, resolveStudentMushafFile };

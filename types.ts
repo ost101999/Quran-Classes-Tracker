@@ -119,6 +119,19 @@ export interface MonthYear {
   year: number;
 }
 
+export type MushafSectionKey = 'rev' | 'oldRev' | 'new' | 'tilawa';
+
+export interface StudentReportSettings {
+  customMushafEnabled?: boolean;
+  mushafTargetSection?: 'reading' | 'homework';
+  mushafSectionOrder?: MushafSectionKey[];
+  mushafIncludedSections?: Partial<Record<MushafSectionKey, boolean>>;
+  mushafDividerStyle?: 'page' | 'banner' | 'both';
+  mushafLanguage?: 'auto' | 'ar' | 'en';
+  mushafPageOffset?: number;
+  mushafAutoOpen?: boolean;
+}
+
 export interface InactivePeriod {
   from: MonthYear;
   to?: MonthYear;
@@ -164,6 +177,7 @@ export interface Student {
   prepaidMode?: 'subscription' | 'monthly';
   dayStartDates?: Record<number, string>; // Maps day of week (0-6) to start date (YYYY-MM-DD)
   studyPlan?: StudyPlan;
+  reportSettings?: StudentReportSettings;
 }
 
 export interface AttendanceRecord {

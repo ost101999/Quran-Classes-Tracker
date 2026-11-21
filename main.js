@@ -9,7 +9,8 @@ const { createSyncQueue } = require('./sync-queue');
 const { sanitizeKeys } = require('./firebase-patch');
 const { createFirebaseClient } = require('./firebase-client');
 const { createSelectiveSync, cloudProjection, get } = require('./selective-sync');
-const { readMatches } = require('./shortcut-links');
+const { readMatches, resolveStudentMushafFile } = require('./shortcut-links');
+const { getDefaultMushafOutputDir, generateCustomMushafPdf } = require('./custom-mushaf');
 const { readTargets } = require('./whatsapp-integration');
 const { createCalendarSchedules } = require('./calendar-schedules');
 const { registerAppUpdates } = require('./app-update');
@@ -24,6 +25,96 @@ ipcMain.handle('get-shortcut-links', (_event, students) => {
 });
 
 ipcMain.handle('get-whatsapp-targets', (_event, students) => Array.isArray(students) ? readTargets(students.filter(s => s && typeof s.id === 'string' && typeof s.name === 'string')) : { available: false, matches: {} });
+
+ipcMain.handle('resolve-student-mushaf', (_event, payload) => {
+    const resolved = resolveStudentMushafFile(payload || {});
+    return {
+        ...resolved,
+        outputDir: getDefaultMushafOutputDir(app),
+    };
+});
+
+ipcMain.handle('generate-custom-mushaf', async (_event, payload) => {
+    try {
+        const {
+            studentName,
+            shortcutSourceId,
+            quranLink,
+            sections,
+            dividerStyle,
+            language,
+            pageOffset,
+            dateStr,
+            autoOpen,
+        } = payload || {};
+
+        const resolved = resolveStudentMushafFile({
+            studentName,
+            shortcutSourceId,
+            quranLink,
+        });
+        if (!resolved.found || !resolved.path) {
+            return {
+                success: false,
+                reason: resolved.reason || 'NO_STUDENT_MUSHAF',
+                error: resolved.error || 'لا يوجد ملف مصحف خاص مرتبط بهذا الطالب.',
+            };
+        }
+
+        const outputDir = getDefaultMushafOutputDir(app);
+        const result = await generateCustomMushafPdf({
+            studentName,
+            sourcePdfPath: resolved.path,
+            sections,
+            dividerStyle,
+            language,
+            pageOffset,
+            dateStr,
+            outputDir,
+            BrowserWindow,
+        });
+
+        if (result.success && autoOpen && result.filePath) {
+            shell.openPath(result.filePath).catch(() => {});
+        }
+        return result;
+    } catch (error) {
+        console.error('Failed to generate custom mushaf PDF:', error);
+        return {
+            success: false,
+            error: process.platform === 'win32' && /Z:|ENOENT|EACCES/i.test(String(error?.message || ''))
+                ? 'تعذر الحفظ في مجلد Z:\\مصاحف الطلبة. تأكد من اتصال القرص Z.'
+                : (error?.message || 'تعذّر إنشاء ملف المصحف المخصص.'),
+        };
+    }
+});
+
+ipcMain.handle('open-mushaf-folder', async () => {
+    try {
+        const outputDir = getDefaultMushafOutputDir(app);
+        fs.mkdirSync(outputDir, { recursive: true });
+        await shell.openPath(outputDir);
+        return { success: true, outputDir };
+    } catch (error) {
+        return { success: false, error: error?.message || 'تعذر فتح مجلد مصاحف الطلبة.' };
+    }
+});
+
+ipcMain.handle('open-mushaf-file', async (_event, filePath) => {
+    try {
+        if (!filePath || typeof filePath !== 'string') return { success: false, error: 'مسار غير صالح.' };
+        const outputDir = path.resolve(getDefaultMushafOutputDir(app));
+        const resolvedTarget = path.resolve(filePath);
+        if (!resolvedTarget.startsWith(outputDir + path.sep) && resolvedTarget !== outputDir) {
+            return { success: false, error: 'مسار الملف خارج مجلد مصاحف الطلبة.' };
+        }
+        if (!fs.existsSync(resolvedTarget)) return { success: false, error: 'الملف غير موجود.' };
+        await shell.openPath(resolvedTarget);
+        return { success: true };
+    } catch (error) {
+        return { success: false, error: error?.message || 'تعذر فتح الملف.' };
+    }
+});
 
 // Helper for waiting
 const waitForTimeout = (ms) => new Promise(resolve => setTimeout(resolve, ms));

@@ -19,7 +19,10 @@
       "output": "dist_electron"
     },
     "extraResources": [
-      { "from": "chrome-tab-extension", "to": "chrome-tab-extension" }
+      {
+        "from": "chrome-tab-extension",
+        "to": "chrome-tab-extension"
+      }
     ],
     "win": {
       "target": "nsis",
@@ -42,6 +45,7 @@
     "html-to-image": "^1.11.13",
     "lucide-react": "^0.562.0",
     "node-fetch": "^3.3.2",
+    "pdf-lib": "^1.17.1",
     "postcss": "^8.5.15",
     "puppeteer": "^24.0.0",
     "react": "^19.2.3",

@@ -12,6 +12,10 @@ declare global {
             loadData: () => Promise<any>;
             getWhatsAppTargets?: (students: { id: string; name: string }[]) => Promise<{ available: boolean; matches: Record<string, string> }>;
             getShortcutLinks?: (students: { id: string; name: string }[]) => Promise<ShortcutLinksResult>;
+            resolveStudentMushaf?: (payload: { studentName?: string; shortcutSourceId?: string; quranLink?: string }) => Promise<ResolveStudentMushafResult>;
+            generateCustomMushaf?: (payload: GenerateCustomMushafPayload) => Promise<GenerateCustomMushafResult>;
+            openMushafFolder?: () => Promise<{ success: boolean; outputDir?: string; error?: string }>;
+            openMushafFile?: (filePath: string) => Promise<{ success: boolean; error?: string }>;
             getCalendarSchedules?: (students: { id: string; name: string }[], force?: boolean, review?: boolean, dayTransitionTime?: string) => Promise<import('./types').CalendarSchedulesResult>;
             saveZoom?: (zoomFactor: number) => Promise<{ success: boolean; error?: string }>;
             loadZoom?: () => Promise<number | null>;
@@ -69,6 +73,49 @@ interface ShortcutLinksResult {
     missingReadingMatches: Record<string, ShortcutLinkMatch[]>;
     folderHints?: Record<string, string[]>;
     groups: ShortcutLinkMatch[];
+    error?: string;
+}
+
+interface ResolveStudentMushafResult {
+    found: boolean;
+    path?: string;
+    fileName?: string;
+    shortcutId?: string;
+    reason?: string;
+    error?: string;
+    outputDir?: string;
+}
+
+interface CustomMushafSectionPayload {
+    key: 'rev' | 'oldRev' | 'new' | 'tilawa';
+    titleAr: string;
+    titleEn: string;
+    summaryAr: string;
+    summaryEn: string;
+    startPage: number;
+    endPage: number;
+}
+
+interface GenerateCustomMushafPayload {
+    studentName: string;
+    shortcutSourceId?: string;
+    quranLink?: string;
+    sections: CustomMushafSectionPayload[];
+    dividerStyle?: 'page' | 'banner' | 'both';
+    language?: 'ar' | 'en';
+    pageOffset?: number;
+    dateStr?: string;
+    autoOpen?: boolean;
+}
+
+interface GenerateCustomMushafResult {
+    success: boolean;
+    filePath?: string;
+    fileName?: string;
+    totalOutputPages?: number;
+    sourceFileName?: string;
+    sectionsCount?: number;
+    reason?: string;
     error?: string;
 }
 
