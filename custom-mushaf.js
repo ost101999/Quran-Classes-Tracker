@@ -314,7 +314,7 @@ function createElectronHtmlRenderer(BrowserWindow) {
         async renderHtmlToPdf(html, widthPt, heightPt) {
             const targetWin = ensureWindow();
             await targetWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
-            await targetWin.webContents.executeJavaScript('document.fonts && document.fonts.ready ? document.fonts.ready.then(() => true) : true').catch(() => {});
+            await targetWin.webContents.executeJavaScript('document.fonts && document.fonts.ready ? document.fonts.ready.then(() => true) : true').catch(() => { });
             return await targetWin.webContents.printToPDF({
                 printBackground: true,
                 preferCSSPageSize: true,
@@ -406,7 +406,7 @@ async function generateCustomMushafPdf({
 
     const outputPdf = await PDFDocument.create();
     const renderer = renderHtmlToPdf
-        ? { renderHtmlToPdf, close: () => {} }
+        ? { renderHtmlToPdf, close: () => { } }
         : createElectronHtmlRenderer(BrowserWindow);
 
     const includeDividerPage = dividerStyle === 'page' || dividerStyle === 'both';

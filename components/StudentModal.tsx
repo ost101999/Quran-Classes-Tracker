@@ -1354,374 +1354,374 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
               </div>
 
               <div className="p-8 space-y-6 overflow-y-auto overscroll-contain max-h-[calc(95vh-90px)]">
-              <div className={`space-y-3 rounded-2xl border p-4 transition-colors duration-500 ${shortcutApplied ? 'border-emerald-400 bg-emerald-100' : 'border-emerald-100 bg-emerald-50/50'}`}>
-                <div className="flex items-center justify-between gap-3">
-                  <h3 className="text-xl font-bold text-gray-700">الربط بملفات الطالب</h3>
-                  {(shortcutCollapsed || shortcutSourceId || readingShortcutSourceId || shortcutNotRequired) && <button type="button" onClick={() => setShortcutCollapsed(value => !value)} className="inline-flex items-center gap-1 text-base font-bold text-emerald-700" aria-expanded={!shortcutCollapsed}>
-                    {shortcutCollapsed ? (shortcutNotRequired ? 'لا يحتاج اختصارات' : 'تم الربط') : 'إخفاء'}
-                    <ChevronDown size={16} className={shortcutCollapsed ? '' : 'rotate-180'} />
-                  </button>}
-                </div>
-                {!shortcutCollapsed && <>
-                  <label className="flex items-center gap-2 text-base text-gray-700 cursor-pointer">
-                    <input type="checkbox" checked={shortcutNotRequired} onChange={e => setShortcutNotRequired(e.target.checked)} className="w-4 h-4 accent-emerald-600" />
-                    لا يحتاج اختصارات
-                  </label>
-                  {shortcutNotRequired ? <p className="text-sm text-gray-500">الربط التلقائي وتنبيهاته متوقفان لهذا الطالب.</p> : <>
-                    {!window.electronAPI?.getShortcutLinks && <p className="text-sm text-gray-500">الربط التلقائي متاح من تطبيق الكمبيوتر.</p>}
-                    {shortcutAvailable === false && <p className="text-sm text-red-600">تعذرت قراءة ملف الاختصارات من iCloud.</p>}
-                    {shortcutAvailable === true && primaryShortcutMatches.length === 0 && <p className="text-sm text-amber-700">لم نجد اختصارًا لملف مصحف أو قراءة موجود مباشرة داخل مجلد مطابق لاسم الطالب. راجع الاسم والمسار المحفوظ في الاختصارات.</p>}
-                    {primaryShortcutMatches.length !== 1 && <p className={whatsappSource ? 'text-base text-emerald-700' : 'text-base text-amber-700'}>معرّف واتساب: {whatsappSource ? 'متاح' : whatsappSourceAvailable === false ? 'تعذّر التحقق' : 'غير متاح'}</p>}
-                    {shortcutAvailable === true && primaryShortcutMatches.length === 0 && folderHint && <p className="text-sm text-amber-700">وجدنا ملفًا باسم الطالب داخل مجلد «{folderHint}»، لكن اسم المجلد مختلف. راجع الاسم والمسار؛ لم يتم الربط تلقائيًا.</p>}
-                    {primaryShortcutMatches.length > 1 && <p className="text-sm text-amber-700">يوجد أكثر من ملف مطابق داخل المجلد، لذلك لم نختَر ملفًا تلقائيًا. راجع الاختصارات.</p>}
-                    {primaryShortcutMatches.length === 1 && primaryShortcutMatches.map(match => {
-                      const zoomDifferent = !!(zoomLink && match.zoomLink && !linksEquivalent(zoomLink, match.zoomLink, 'zoom'));
-                      const quranDifferent = !!(quranLink && match.quranLink && !linksEquivalent(quranLink, match.quranLink, 'quran'));
-                      const readingCandidates = readingMatches.filter(item => item.folderId === match.folderId);
-                      const reading = readingCandidates.length === 1 ? readingCandidates[0] : undefined;
-                      const missingReading = missingReadingMatches.filter(item => item.folderId === match.folderId && !acknowledgedMissingReadingIds.includes(item.id));
-                      const readingDifferent = !!(readingLink && reading?.readingLink && !linksEquivalent(readingLink, reading.readingLink, 'quran'));
-                      const readingAvailable = !!(reading?.readingLink && !reading.readingConflict && !reading.readingLinkInvalid);
-                      const folderName = match.path.split(/[\\/]/).filter(Boolean).slice(-2, -1)[0] || '';
-                      const folderNumber = folderName.match(/^[0-9٠-٩۰-۹]+/)?.[0] || '';
-                      const englishFolderNumber = folderNumber.replace(/[٠-٩۰-۹]/g, digit => String(digit.charCodeAt(0) - (digit.charCodeAt(0) >= 0x6f0 ? 0x6f0 : 0x660)));
-                      const whatsappDifferent = !!(whatsappNumber && whatsappSource && !whatsappTargetsEquivalent(whatsappNumber, whatsappSource));
-                      const statuses = [
-                        { label: isGoogleMeetLink(match.zoomLink) ? 'Google Meet' : 'زوم', available: !!match.zoomLink && !zoomDifferent && !match.zoomConflict, text: match.zoomConflict || zoomDifferent ? 'مختلف' : match.zoomLink ? 'متاح' : 'غير متاح' },
-                        { label: 'المصحف', available: !!match.quranLink && !quranDifferent, text: quranDifferent ? 'مختلف' : match.quranLink ? 'متاح' : 'غير متاح' },
-                        { label: 'كتاب القراءة', available: readingAvailable && !readingDifferent, text: readingDifferent ? 'مختلف' : readingAvailable ? 'متاح' : 'غير متاح' },
-                        { label: 'معرّف واتساب', available: !!whatsappSource && !whatsappDifferent, text: whatsappDifferent ? 'مختلف' : whatsappSource ? 'متاح' : whatsappSourceAvailable === false ? 'تعذّر التحقق' : 'غير متاح' },
-                      ];
-                      return (
-                        <div key={match.id} className="rounded-xl bg-white border border-gray-200 p-4 space-y-2">
-                          <p className="text-sm text-gray-600">{match.isReading ? 'كتاب القراءة' : 'المصحف'}</p>
-                          <div className="py-1">
-                            <p className="text-sm font-medium text-gray-500">مجلد الطالب</p>
-                            <p className="mt-1 text-lg font-bold text-gray-800 break-words" dir="auto"><bdi className="font-english" dir="ltr">{englishFolderNumber}</bdi>{folderName.slice(folderNumber.length)}</p>
-                            <details className="mt-2 text-sm text-gray-500">
-                              <summary className="cursor-pointer text-emerald-700">عرض مسارات الملفات</summary>
-                              <p className="mt-2 font-bold text-gray-600">{match.isReading ? 'كتاب القراءة' : 'المصحف'}</p>
-                              <p className="mt-1 break-all" dir="auto">{match.path}</p>
-                              {reading && reading.id !== match.id && <><p className="mt-2 font-bold text-gray-600">كتاب القراءة</p><p className="mt-1 break-all" dir="auto">{reading.path}</p></>}
-                            </details>
+                <div className={`space-y-3 rounded-2xl border p-4 transition-colors duration-500 ${shortcutApplied ? 'border-emerald-400 bg-emerald-100' : 'border-emerald-100 bg-emerald-50/50'}`}>
+                  <div className="flex items-center justify-between gap-3">
+                    <h3 className="text-xl font-bold text-gray-700">الربط بملفات الطالب</h3>
+                    {(shortcutCollapsed || shortcutSourceId || readingShortcutSourceId || shortcutNotRequired) && <button type="button" onClick={() => setShortcutCollapsed(value => !value)} className="inline-flex items-center gap-1 text-base font-bold text-emerald-700" aria-expanded={!shortcutCollapsed}>
+                      {shortcutCollapsed ? (shortcutNotRequired ? 'لا يحتاج اختصارات' : 'تم الربط') : 'إخفاء'}
+                      <ChevronDown size={16} className={shortcutCollapsed ? '' : 'rotate-180'} />
+                    </button>}
+                  </div>
+                  {!shortcutCollapsed && <>
+                    <label className="flex items-center gap-2 text-base text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={shortcutNotRequired} onChange={e => setShortcutNotRequired(e.target.checked)} className="w-4 h-4 accent-emerald-600" />
+                      لا يحتاج اختصارات
+                    </label>
+                    {shortcutNotRequired ? <p className="text-sm text-gray-500">الربط التلقائي وتنبيهاته متوقفان لهذا الطالب.</p> : <>
+                      {!window.electronAPI?.getShortcutLinks && <p className="text-sm text-gray-500">الربط التلقائي متاح من تطبيق الكمبيوتر.</p>}
+                      {shortcutAvailable === false && <p className="text-sm text-red-600">تعذرت قراءة ملف الاختصارات من iCloud.</p>}
+                      {shortcutAvailable === true && primaryShortcutMatches.length === 0 && <p className="text-sm text-amber-700">لم نجد اختصارًا لملف مصحف أو قراءة موجود مباشرة داخل مجلد مطابق لاسم الطالب. راجع الاسم والمسار المحفوظ في الاختصارات.</p>}
+                      {primaryShortcutMatches.length !== 1 && <p className={whatsappSource ? 'text-base text-emerald-700' : 'text-base text-amber-700'}>معرّف واتساب: {whatsappSource ? 'متاح' : whatsappSourceAvailable === false ? 'تعذّر التحقق' : 'غير متاح'}</p>}
+                      {shortcutAvailable === true && primaryShortcutMatches.length === 0 && folderHint && <p className="text-sm text-amber-700">وجدنا ملفًا باسم الطالب داخل مجلد «{folderHint}»، لكن اسم المجلد مختلف. راجع الاسم والمسار؛ لم يتم الربط تلقائيًا.</p>}
+                      {primaryShortcutMatches.length > 1 && <p className="text-sm text-amber-700">يوجد أكثر من ملف مطابق داخل المجلد، لذلك لم نختَر ملفًا تلقائيًا. راجع الاختصارات.</p>}
+                      {primaryShortcutMatches.length === 1 && primaryShortcutMatches.map(match => {
+                        const zoomDifferent = !!(zoomLink && match.zoomLink && !linksEquivalent(zoomLink, match.zoomLink, 'zoom'));
+                        const quranDifferent = !!(quranLink && match.quranLink && !linksEquivalent(quranLink, match.quranLink, 'quran'));
+                        const readingCandidates = readingMatches.filter(item => item.folderId === match.folderId);
+                        const reading = readingCandidates.length === 1 ? readingCandidates[0] : undefined;
+                        const missingReading = missingReadingMatches.filter(item => item.folderId === match.folderId && !acknowledgedMissingReadingIds.includes(item.id));
+                        const readingDifferent = !!(readingLink && reading?.readingLink && !linksEquivalent(readingLink, reading.readingLink, 'quran'));
+                        const readingAvailable = !!(reading?.readingLink && !reading.readingConflict && !reading.readingLinkInvalid);
+                        const folderName = match.path.split(/[\\/]/).filter(Boolean).slice(-2, -1)[0] || '';
+                        const folderNumber = folderName.match(/^[0-9٠-٩۰-۹]+/)?.[0] || '';
+                        const englishFolderNumber = folderNumber.replace(/[٠-٩۰-۹]/g, digit => String(digit.charCodeAt(0) - (digit.charCodeAt(0) >= 0x6f0 ? 0x6f0 : 0x660)));
+                        const whatsappDifferent = !!(whatsappNumber && whatsappSource && !whatsappTargetsEquivalent(whatsappNumber, whatsappSource));
+                        const statuses = [
+                          { label: isGoogleMeetLink(match.zoomLink) ? 'Google Meet' : 'زوم', available: !!match.zoomLink && !zoomDifferent && !match.zoomConflict, text: match.zoomConflict || zoomDifferent ? 'مختلف' : match.zoomLink ? 'متاح' : 'غير متاح' },
+                          { label: 'المصحف', available: !!match.quranLink && !quranDifferent, text: quranDifferent ? 'مختلف' : match.quranLink ? 'متاح' : 'غير متاح' },
+                          { label: 'كتاب القراءة', available: readingAvailable && !readingDifferent, text: readingDifferent ? 'مختلف' : readingAvailable ? 'متاح' : 'غير متاح' },
+                          { label: 'معرّف واتساب', available: !!whatsappSource && !whatsappDifferent, text: whatsappDifferent ? 'مختلف' : whatsappSource ? 'متاح' : whatsappSourceAvailable === false ? 'تعذّر التحقق' : 'غير متاح' },
+                        ];
+                        return (
+                          <div key={match.id} className="rounded-xl bg-white border border-gray-200 p-4 space-y-2">
+                            <p className="text-sm text-gray-600">{match.isReading ? 'كتاب القراءة' : 'المصحف'}</p>
+                            <div className="py-1">
+                              <p className="text-sm font-medium text-gray-500">مجلد الطالب</p>
+                              <p className="mt-1 text-lg font-bold text-gray-800 break-words" dir="auto"><bdi className="font-english" dir="ltr">{englishFolderNumber}</bdi>{folderName.slice(folderNumber.length)}</p>
+                              <details className="mt-2 text-sm text-gray-500">
+                                <summary className="cursor-pointer text-emerald-700">عرض مسارات الملفات</summary>
+                                <p className="mt-2 font-bold text-gray-600">{match.isReading ? 'كتاب القراءة' : 'المصحف'}</p>
+                                <p className="mt-1 break-all" dir="auto">{match.path}</p>
+                                {reading && reading.id !== match.id && <><p className="mt-2 font-bold text-gray-600">كتاب القراءة</p><p className="mt-1 break-all" dir="auto">{reading.path}</p></>}
+                              </details>
+                            </div>
+                            <p className={match.exact ? 'text-base text-red-400' : 'text-base text-gray-600'}>{match.exact ? 'تفصيل' : 'يحتاج مراجعة'}</p>
+                            <div className="space-y-1 text-base">
+                              {[true, false].map(available => {
+                                const group = statuses.filter(status => status.available === available);
+                                return group.length > 0 && <div key={String(available)} className={`space-y-1 ${available ? 'text-emerald-700' : 'text-amber-700'}`}>
+                                  {group.map(status => <p key={status.label}>{status.label}: {status.text}</p>)}
+                                </div>;
+                              })}
+                            </div>
+                            {(zoomDifferent || quranDifferent) && <p className="text-base text-amber-700">{zoomDifferent && quranDifferent ? 'رابطا الحصة والمصحف مختلفان' : zoomDifferent ? 'رابط الحصة مختلف' : 'رابط المصحف مختلف'} عن المحفوظ.</p>}
+                            {readingDifferent && <p className="text-base text-amber-700">رابط كتاب القراءة مختلف عن المحفوظ.</p>}
+                            {readingDifferent && <p className="text-xs text-gray-500 break-all" dir="ltr">Drive: {reading?.readingLink}</p>}
+                            {readingCandidates.length > 1 && <p className="text-base text-amber-700">يوجد أكثر من كتاب قراءة في المجلد؛ راجع الاختصارات قبل الربط.</p>}
+                            {match.isReading && match.zoomConflict && <p className="text-base text-amber-700">توجد روابط زوم مختلفة لنفس الملف في الاختصارات؛ راجعها أولًا.</p>}
+                            {reading?.readingConflict && <p className="text-base text-amber-700">توجد روابط مختلفة لكتاب القراءة في الاختصارات؛ راجعها أولًا.</p>}
+                            {reading?.readingLinkInvalid && <p className="text-base text-amber-700">رابط Google Drive المحفوظ لكتاب القراءة غير صالح.</p>}
+                            {missingReading.length > 0 && <p className="text-base text-amber-700">يوجد كتاب قراءة محفوظ في الاختصارات لكن الملف غير موجود في المسار المسجل.</p>}
+                            {readingShortcutSourceId && reading?.id !== readingShortcutSourceId && !acknowledgedMissingReadingIds.includes(readingShortcutSourceId) && <p className="text-base text-amber-700">تعذر العثور على كتاب القراءة المرتبط سابقًا في مساره؛ راجع الملف قبل تحديث الرابط.</p>}
+                            {reading && !reading.readingLink && !reading.readingConflict && !reading.readingLinkInvalid && <p className="text-sm text-gray-500">لا يوجد رابط Google Drive محفوظ لكتاب القراءة بعد.</p>}
+                            {(!match.isReading && match.conflict) ? <p className="text-base text-amber-700">توجد روابط مختلفة لنفس الملف في الاختصارات؛ راجعها أولًا.</p> : (
+                              <button type="button" onClick={() => {
+                                setShortcutSourceId(match.isReading ? '' : match.id);
+                                if (match.isReading) setReadingShortcutSourceId(match.id);
+                                if (match.zoomLink) setZoomLink(match.zoomLink);
+                                if (match.quranLink) { setQuranLink(match.quranLink); setQuranLinkError(false); }
+                                if (reading && !reading.readingConflict) {
+                                  setReadingShortcutSourceId(reading.id);
+                                  if (reading.readingLink && !reading.readingLinkInvalid) { setReadingLink(reading.readingLink); setReadingLinkError(false); }
+                                }
+                                const reviewedIds = [...missingReading.map(item => item.id), ...(!reading && readingShortcutSourceId ? [readingShortcutSourceId] : [])];
+                                if (reviewedIds.length) {
+                                  setAcknowledgedMissingReadingIds(previous => [...new Set([...previous, ...reviewedIds])]);
+                                  if (student?.id) onAcknowledgeMissingReading?.(student.id, reviewedIds);
+                                }
+                                const hasUnresolvedIssue = match.conflict || match.zoomConflict || !match.zoomLink ||
+                                  (match.isQuran && !match.quranLink) || readingCandidates.length > 1 ||
+                                  !!(reading && (reading.readingConflict || reading.readingLinkInvalid || !reading.readingLink));
+                                setShortcutCollapsed(!hasUnresolvedIssue);
+                                setShortcutApplied(true);
+                              }} className="rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-2 text-base font-bold">
+                                استخدام روابط هذا الملف
+                              </button>
+                            )}
                           </div>
-                          <p className={match.exact ? 'text-base text-red-400' : 'text-base text-gray-600'}>{match.exact ? 'تفصيل' : 'يحتاج مراجعة'}</p>
-                          <div className="space-y-1 text-base">
-                            {[true, false].map(available => {
-                              const group = statuses.filter(status => status.available === available);
-                              return group.length > 0 && <div key={String(available)} className={`space-y-1 ${available ? 'text-emerald-700' : 'text-amber-700'}`}>
-                                {group.map(status => <p key={status.label}>{status.label}: {status.text}</p>)}
-                              </div>;
-                            })}
-                          </div>
-                          {(zoomDifferent || quranDifferent) && <p className="text-base text-amber-700">{zoomDifferent && quranDifferent ? 'رابطا الحصة والمصحف مختلفان' : zoomDifferent ? 'رابط الحصة مختلف' : 'رابط المصحف مختلف'} عن المحفوظ.</p>}
-                          {readingDifferent && <p className="text-base text-amber-700">رابط كتاب القراءة مختلف عن المحفوظ.</p>}
-                          {readingDifferent && <p className="text-xs text-gray-500 break-all" dir="ltr">Drive: {reading?.readingLink}</p>}
-                          {readingCandidates.length > 1 && <p className="text-base text-amber-700">يوجد أكثر من كتاب قراءة في المجلد؛ راجع الاختصارات قبل الربط.</p>}
-                          {match.isReading && match.zoomConflict && <p className="text-base text-amber-700">توجد روابط زوم مختلفة لنفس الملف في الاختصارات؛ راجعها أولًا.</p>}
-                          {reading?.readingConflict && <p className="text-base text-amber-700">توجد روابط مختلفة لكتاب القراءة في الاختصارات؛ راجعها أولًا.</p>}
-                          {reading?.readingLinkInvalid && <p className="text-base text-amber-700">رابط Google Drive المحفوظ لكتاب القراءة غير صالح.</p>}
-                          {missingReading.length > 0 && <p className="text-base text-amber-700">يوجد كتاب قراءة محفوظ في الاختصارات لكن الملف غير موجود في المسار المسجل.</p>}
-                          {readingShortcutSourceId && reading?.id !== readingShortcutSourceId && !acknowledgedMissingReadingIds.includes(readingShortcutSourceId) && <p className="text-base text-amber-700">تعذر العثور على كتاب القراءة المرتبط سابقًا في مساره؛ راجع الملف قبل تحديث الرابط.</p>}
-                          {reading && !reading.readingLink && !reading.readingConflict && !reading.readingLinkInvalid && <p className="text-sm text-gray-500">لا يوجد رابط Google Drive محفوظ لكتاب القراءة بعد.</p>}
-                          {(!match.isReading && match.conflict) ? <p className="text-base text-amber-700">توجد روابط مختلفة لنفس الملف في الاختصارات؛ راجعها أولًا.</p> : (
-                            <button type="button" onClick={() => {
-                              setShortcutSourceId(match.isReading ? '' : match.id);
-                              if (match.isReading) setReadingShortcutSourceId(match.id);
-                              if (match.zoomLink) setZoomLink(match.zoomLink);
-                              if (match.quranLink) { setQuranLink(match.quranLink); setQuranLinkError(false); }
-                              if (reading && !reading.readingConflict) {
-                                setReadingShortcutSourceId(reading.id);
-                                if (reading.readingLink && !reading.readingLinkInvalid) { setReadingLink(reading.readingLink); setReadingLinkError(false); }
-                              }
-                              const reviewedIds = [...missingReading.map(item => item.id), ...(!reading && readingShortcutSourceId ? [readingShortcutSourceId] : [])];
-                              if (reviewedIds.length) {
-                                setAcknowledgedMissingReadingIds(previous => [...new Set([...previous, ...reviewedIds])]);
-                                if (student?.id) onAcknowledgeMissingReading?.(student.id, reviewedIds);
-                              }
-                              const hasUnresolvedIssue = match.conflict || match.zoomConflict || !match.zoomLink ||
-                                (match.isQuran && !match.quranLink) || readingCandidates.length > 1 ||
-                                !!(reading && (reading.readingConflict || reading.readingLinkInvalid || !reading.readingLink));
-                              setShortcutCollapsed(!hasUnresolvedIssue);
-                              setShortcutApplied(true);
-                            }} className="rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-2 text-base font-bold">
-                              استخدام روابط هذا الملف
-                            </button>
-                          )}
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </>}
                   </>}
-                </>}
-              </div>
-              {/* Zoom Link */}
-              <div className="space-y-2">
-                <label className="block text-xl font-bold text-gray-600 flex items-center gap-2">
-                  <Link size={18} className="text-gray-400" />
-                  {isGoogleMeetLink(zoomLink) ? 'رابط Google Meet' : 'رابط زوم'}
-                </label>
-                <div className="relative">
+                </div>
+                {/* Zoom Link */}
+                <div className="space-y-2">
+                  <label className="block text-xl font-bold text-gray-600 flex items-center gap-2">
+                    <Link size={18} className="text-gray-400" />
+                    {isGoogleMeetLink(zoomLink) ? 'رابط Google Meet' : 'رابط زوم'}
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={zoomLink}
+                      onChange={e => setZoomLink(e.target.value)}
+                      className={`w-full px-4 py-2.5 bg-gray-50 border-2 border-gray-100 rounded-xl focus:outline-none focus:border-[#ffe05d] focus:bg-white transition-all text-sm font-english text-left ${isValidUrl(zoomLink) ? 'text-gray-900 pr-10' : 'text-gray-400'}`}
+                      dir="ltr"
+                    />
+                    {isValidUrl(zoomLink) && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                        <div className="bg-emerald-100 text-emerald-600 rounded-full p-1 border border-emerald-200">
+                          <Check size={12} strokeWidth={4} />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Quran file link */}
+                <div className="space-y-2">
+                  <label htmlFor="quran-link" className="block text-xl font-bold text-gray-600 flex items-center gap-2">
+                    <Link size={18} className="text-gray-400" />
+                    رابط المصحف
+                  </label>
                   <input
-                    type="text"
-                    value={zoomLink}
-                    onChange={e => setZoomLink(e.target.value)}
-                    className={`w-full px-4 py-2.5 bg-gray-50 border-2 border-gray-100 rounded-xl focus:outline-none focus:border-[#ffe05d] focus:bg-white transition-all text-sm font-english text-left ${isValidUrl(zoomLink) ? 'text-gray-900 pr-10' : 'text-gray-400'}`}
+                    id="quran-link"
+                    type="url"
+                    value={quranLink}
+                    onChange={e => { setQuranLink(e.target.value); setQuranLinkError(false); }}
+                    aria-invalid={quranLinkError}
+                    aria-describedby={quranLinkError ? 'quran-link-error' : undefined}
+                    className="w-full px-4 py-2.5 bg-gray-50 border-2 border-gray-100 rounded-xl focus:outline-none focus:border-[#ffe05d] focus:bg-white transition-all text-sm font-english text-left"
                     dir="ltr"
                   />
-                  {isValidUrl(zoomLink) && (
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                      <div className="bg-emerald-100 text-emerald-600 rounded-full p-1 border border-emerald-200">
-                        <Check size={12} strokeWidth={4} />
+                  {quranLinkError && <p id="quran-link-error" className="text-sm text-red-600" role="alert">أدخل رابط ملف صالحًا من Google Drive.</p>}
+                </div>
+
+                <div className="space-y-2">
+                  <label htmlFor="reading-link" className="block text-xl font-bold text-gray-600 flex items-center gap-2">
+                    <Link size={18} className="text-gray-400" />
+                    رابط كتاب القراءة
+                  </label>
+                  <input
+                    id="reading-link" type="url" value={readingLink}
+                    onChange={e => { setReadingLink(e.target.value); setReadingLinkError(false); }}
+                    aria-invalid={readingLinkError} aria-describedby={readingLinkError ? 'reading-link-error' : undefined}
+                    className="w-full px-4 py-2.5 bg-gray-50 border-2 border-gray-100 rounded-xl focus:outline-none focus:border-[#ffe05d] focus:bg-white transition-all text-sm font-english text-left" dir="ltr"
+                  />
+                  {readingLinkError && <p id="reading-link-error" className="text-sm text-red-600" role="alert">أدخل رابط ملف صالحًا من Google Drive.</p>}
+                </div>
+
+                {/* Schedule Message */}
+                <div className="space-y-2">
+                  <label htmlFor="student-schedule" className="block text-xl font-bold text-gray-600 flex items-center gap-2">
+                    <span>🕒</span>
+                    جدول الأسبوع الحالي (من Google Calendar)
+                  </label>
+                  <textarea
+                    id="student-schedule"
+                    value={calendarSchedule && !isCurrentSchedule(calendarSchedule, name) ? '' : scheduleMessage}
+                    readOnly
+                    aria-busy={scheduleLoading}
+                    aria-describedby="student-schedule-status"
+                    placeholder="يتم ملء المواعيد تلقائيًا حسب اسم الطالب في التقويم"
+                    className="w-full px-4 py-2.5 bg-gray-50 border-2 border-gray-100 rounded-xl focus:outline-none focus:border-[#ffe05d] focus:bg-white transition-all text-sm font-english text-left resize-y min-h-[130px]"
+                    dir="ltr"
+                    rows={5}
+                  />
+                  <div className="flex items-start justify-between gap-3 text-base">
+                    <p id="student-schedule-status" role="status" className={scheduleError ? 'text-amber-700' : 'text-emerald-700'}>
+                      {scheduleLoading ? 'جاري قراءة مواعيد الأسبوع الحالي…' : scheduleError || (isCurrentSchedule(calendarSchedule, name)
+                        ? `${calendarSchedule!.status === 'empty' ? 'لا توجد مواعيد بهذا الاسم هذا الأسبوع' : 'تم التحديث من التقويم'} · ${arabicCalendarDate(calendarSchedule!.weekStart)} — ${arabicCalendarDate(calendarSchedule!.weekEnd)}`
+                        : 'من السبت إلى الجمعة بتوقيت القاهرة، وتُعرض الحصص بتوقيت الطالب.')}
+                    </p>
+                    <button type="button" disabled={scheduleLoading || !name.trim()} onClick={() => setScheduleRefresh(value => value + 1)} className="shrink-0 text-emerald-700 font-bold disabled:opacity-40">تحديث الآن</button>
+                  </div>
+                </div>
+
+                {/* Student Age Group */}
+                <div className="space-y-2">
+                  <label className="block text-xl font-bold text-gray-600 font-arabic">فئة الطالب</label>
+                  <div className="flex bg-gray-50 p-1 rounded-xl border border-gray-100">
+                    <button
+                      type="button"
+                      onClick={() => setStudentTargetAge('kids')}
+                      className={`flex-1 py-2 rounded-lg text-lg font-arabic transition-all ${studentTargetAge === 'kids'
+                        ? 'bg-white text-emerald-700 shadow-sm border border-emerald-200 font-bold'
+                        : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                    >
+                      صغار
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setStudentTargetAge('adults')}
+                      className={`flex-1 py-2 rounded-lg text-lg font-arabic transition-all ${studentTargetAge === 'adults'
+                        ? 'bg-white text-emerald-700 shadow-sm border border-emerald-200 font-bold'
+                        : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                    >
+                      كبار
+                    </button>
+                  </div>
+                </div>
+
+                {/* Study Plan Section */}
+                <div className="pt-6 mt-6 border-t border-gray-100">
+                  <h3 className="text-2xl font-bold text-gray-800 font-arabic mb-4">إعدادات الخطة</h3>
+                  <div className="flex items-center justify-between p-4 rounded-2xl border bg-gray-50/50 border-gray-100 mb-4">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="studyPlanActive"
+                        checked={studyPlan.isActive}
+                        onChange={e => setStudyPlan(prev => ({ ...prev, isActive: e.target.checked }))}
+                        className="w-5 h-5 accent-[#ffe05d] cursor-pointer"
+                      />
+                      <label htmlFor="studyPlanActive" className="text-xl font-bold text-gray-700 cursor-pointer select-none font-arabic">
+                        تفعيل الخطة للطالب
+                      </label>
+                    </div>
+                  </div>
+
+                  {studyPlan.isActive && (
+                    <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
+                      {/* Target Type */}
+                      <div className="flex bg-gray-50 p-1 rounded-xl border border-gray-100">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setStudyPlan(prev => {
+                              const next = { ...prev, targetType: 'pages' as const };
+                              next.portionPerClass = calculatePortion(next);
+                              return next;
+                            });
+                          }}
+                          className={`flex-1 py-2 rounded-lg text-lg font-arabic transition-all ${studyPlan.targetType === 'pages'
+                            ? 'bg-white text-emerald-700 shadow-sm border border-emerald-200 font-bold'
+                            : 'text-gray-500 hover:text-gray-700'
+                            }`}
+                        >
+                          صفحات
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setStudyPlan(prev => {
+                              const next = { ...prev, targetType: 'verses' as const };
+                              next.portionPerClass = calculatePortion(next);
+                              return next;
+                            });
+                          }}
+                          className={`flex-1 py-2 rounded-lg text-lg font-arabic transition-all ${studyPlan.targetType === 'verses'
+                            ? 'bg-white text-emerald-700 shadow-sm border border-emerald-200 font-bold'
+                            : 'text-gray-500 hover:text-gray-700'
+                            }`}
+                        >
+                          آيات
+                        </button>
+                      </div>
+
+                      {/* From - To */}
+                      <div className="flex gap-4">
+                        <div className="flex-1 space-y-2">
+                          <label className="block text-lg font-bold text-gray-600 font-arabic">من</label>
+                          <input
+                            type="number"
+                            value={studyPlan.from || ''}
+                            onChange={e => {
+                              const val = Number(e.target.value);
+                              setStudyPlan(prev => {
+                                const next = { ...prev, from: val };
+                                next.portionPerClass = calculatePortion(next);
+                                return next;
+                              });
+                            }}
+                            className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:border-[#ffe05d] focus:bg-white transition-all text-center font-english"
+                            dir="ltr"
+                          />
+                        </div>
+                        <div className="flex-1 space-y-2">
+                          <label className="block text-lg font-bold text-gray-600 font-arabic">إلى</label>
+                          <input
+                            type="number"
+                            value={studyPlan.to || ''}
+                            onChange={e => {
+                              const val = Number(e.target.value);
+                              setStudyPlan(prev => {
+                                const next = { ...prev, to: val };
+                                next.portionPerClass = calculatePortion(next);
+                                return next;
+                              });
+                            }}
+                            className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:border-[#ffe05d] focus:bg-white transition-all text-center font-english"
+                            dir="ltr"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Classes & Start Time */}
+                      <div className="flex gap-4">
+                        <div className="flex-1 space-y-2">
+                          <label className="block text-lg font-bold text-gray-600 font-arabic whitespace-nowrap text-sm">عدد الحصص</label>
+                          <input
+                            type="number"
+                            value={studyPlan.totalClasses || ''}
+                            onChange={e => {
+                              const val = Number(e.target.value);
+                              setStudyPlan(prev => {
+                                const next = { ...prev, totalClasses: val };
+                                next.portionPerClass = calculatePortion(next);
+                                return next;
+                              });
+                            }}
+                            className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:border-[#ffe05d] focus:bg-white transition-all text-center font-english"
+                            dir="ltr"
+                          />
+                        </div>
+                        <div className="flex-1 space-y-2">
+                          <label className="block text-lg font-bold text-gray-600 font-arabic whitespace-nowrap text-sm">المقدار للحصة</label>
+                          <div className="w-full px-4 py-2 bg-gray-100 border border-transparent rounded-xl text-center text-gray-600 font-bold font-english h-[42px] flex items-center justify-center">
+                            {studyPlan.portionPerClass || 0}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-4">
+                        <div className="flex-1 space-y-2">
+                          <label className="block text-lg font-bold text-gray-600 font-arabic whitespace-nowrap text-sm">تاريخ البدء</label>
+                          <input
+                            type="date"
+                            value={studyPlan.startDate || ''}
+                            onChange={e => setStudyPlan(prev => ({ ...prev, startDate: e.target.value }))}
+                            className="w-full px-2 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:border-[#ffe05d] focus:bg-white transition-all text-center font-english text-sm"
+                            dir="ltr"
+                          />
+                        </div>
+                        <div className="flex-1 space-y-2">
+                          <label className="block text-lg font-bold text-gray-600 font-arabic whitespace-nowrap text-sm">تاريخ الانتهاء</label>
+                          <input
+                            type="date"
+                            value={studyPlan.endDate || ''}
+                            onChange={e => setStudyPlan(prev => ({ ...prev, endDate: e.target.value }))}
+                            className="w-full px-2 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:border-[#ffe05d] focus:bg-white transition-all text-center font-english text-sm"
+                            dir="ltr"
+                          />
+                        </div>
                       </div>
                     </div>
                   )}
                 </div>
+
+                {/* Save */}
+                <button
+                  type="button"
+                  onClick={() => handleSubmit({ preventDefault: () => { } } as React.FormEvent)}
+                  className="w-full py-3 bg-[#ffe05d] text-gray-900 text-xl font-bold font-arabic rounded-xl hover:bg-[#fcd030] hover:shadow-lg hover:shadow-[#ffe05d]/20 active:scale-[0.98] transition-all pb-4"
+                >
+                  حفظ
+                </button>
               </div>
-
-              {/* Quran file link */}
-              <div className="space-y-2">
-                <label htmlFor="quran-link" className="block text-xl font-bold text-gray-600 flex items-center gap-2">
-                  <Link size={18} className="text-gray-400" />
-                  رابط المصحف
-                </label>
-                <input
-                  id="quran-link"
-                  type="url"
-                  value={quranLink}
-                  onChange={e => { setQuranLink(e.target.value); setQuranLinkError(false); }}
-                  aria-invalid={quranLinkError}
-                  aria-describedby={quranLinkError ? 'quran-link-error' : undefined}
-                  className="w-full px-4 py-2.5 bg-gray-50 border-2 border-gray-100 rounded-xl focus:outline-none focus:border-[#ffe05d] focus:bg-white transition-all text-sm font-english text-left"
-                  dir="ltr"
-                />
-                {quranLinkError && <p id="quran-link-error" className="text-sm text-red-600" role="alert">أدخل رابط ملف صالحًا من Google Drive.</p>}
-              </div>
-
-              <div className="space-y-2">
-                <label htmlFor="reading-link" className="block text-xl font-bold text-gray-600 flex items-center gap-2">
-                  <Link size={18} className="text-gray-400" />
-                  رابط كتاب القراءة
-                </label>
-                <input
-                  id="reading-link" type="url" value={readingLink}
-                  onChange={e => { setReadingLink(e.target.value); setReadingLinkError(false); }}
-                  aria-invalid={readingLinkError} aria-describedby={readingLinkError ? 'reading-link-error' : undefined}
-                  className="w-full px-4 py-2.5 bg-gray-50 border-2 border-gray-100 rounded-xl focus:outline-none focus:border-[#ffe05d] focus:bg-white transition-all text-sm font-english text-left" dir="ltr"
-                />
-                {readingLinkError && <p id="reading-link-error" className="text-sm text-red-600" role="alert">أدخل رابط ملف صالحًا من Google Drive.</p>}
-              </div>
-
-              {/* Schedule Message */}
-              <div className="space-y-2">
-                <label htmlFor="student-schedule" className="block text-xl font-bold text-gray-600 flex items-center gap-2">
-                  <span>🕒</span>
-                  جدول الأسبوع الحالي (من Google Calendar)
-                </label>
-                <textarea
-                  id="student-schedule"
-                  value={calendarSchedule && !isCurrentSchedule(calendarSchedule, name) ? '' : scheduleMessage}
-                  readOnly
-                  aria-busy={scheduleLoading}
-                  aria-describedby="student-schedule-status"
-                  placeholder="يتم ملء المواعيد تلقائيًا حسب اسم الطالب في التقويم"
-                  className="w-full px-4 py-2.5 bg-gray-50 border-2 border-gray-100 rounded-xl focus:outline-none focus:border-[#ffe05d] focus:bg-white transition-all text-sm font-english text-left resize-y min-h-[130px]"
-                  dir="ltr"
-                  rows={5}
-                />
-                <div className="flex items-start justify-between gap-3 text-base">
-                  <p id="student-schedule-status" role="status" className={scheduleError ? 'text-amber-700' : 'text-emerald-700'}>
-                    {scheduleLoading ? 'جاري قراءة مواعيد الأسبوع الحالي…' : scheduleError || (isCurrentSchedule(calendarSchedule, name)
-                      ? `${calendarSchedule!.status === 'empty' ? 'لا توجد مواعيد بهذا الاسم هذا الأسبوع' : 'تم التحديث من التقويم'} · ${arabicCalendarDate(calendarSchedule!.weekStart)} — ${arabicCalendarDate(calendarSchedule!.weekEnd)}`
-                      : 'من السبت إلى الجمعة بتوقيت القاهرة، وتُعرض الحصص بتوقيت الطالب.')}
-                  </p>
-                  <button type="button" disabled={scheduleLoading || !name.trim()} onClick={() => setScheduleRefresh(value => value + 1)} className="shrink-0 text-emerald-700 font-bold disabled:opacity-40">تحديث الآن</button>
-                </div>
-              </div>
-
-              {/* Student Age Group */}
-              <div className="space-y-2">
-                <label className="block text-xl font-bold text-gray-600 font-arabic">فئة الطالب</label>
-                <div className="flex bg-gray-50 p-1 rounded-xl border border-gray-100">
-                  <button
-                    type="button"
-                    onClick={() => setStudentTargetAge('kids')}
-                    className={`flex-1 py-2 rounded-lg text-lg font-arabic transition-all ${studentTargetAge === 'kids'
-                      ? 'bg-white text-emerald-700 shadow-sm border border-emerald-200 font-bold'
-                      : 'text-gray-500 hover:text-gray-700'
-                      }`}
-                  >
-                    صغار
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setStudentTargetAge('adults')}
-                    className={`flex-1 py-2 rounded-lg text-lg font-arabic transition-all ${studentTargetAge === 'adults'
-                      ? 'bg-white text-emerald-700 shadow-sm border border-emerald-200 font-bold'
-                      : 'text-gray-500 hover:text-gray-700'
-                      }`}
-                  >
-                    كبار
-                  </button>
-                </div>
-              </div>
-
-              {/* Study Plan Section */}
-              <div className="pt-6 mt-6 border-t border-gray-100">
-                <h3 className="text-2xl font-bold text-gray-800 font-arabic mb-4">إعدادات الخطة</h3>
-                <div className="flex items-center justify-between p-4 rounded-2xl border bg-gray-50/50 border-gray-100 mb-4">
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      id="studyPlanActive"
-                      checked={studyPlan.isActive}
-                      onChange={e => setStudyPlan(prev => ({ ...prev, isActive: e.target.checked }))}
-                      className="w-5 h-5 accent-[#ffe05d] cursor-pointer"
-                    />
-                    <label htmlFor="studyPlanActive" className="text-xl font-bold text-gray-700 cursor-pointer select-none font-arabic">
-                      تفعيل الخطة للطالب
-                    </label>
-                  </div>
-                </div>
-
-                {studyPlan.isActive && (
-                  <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
-                    {/* Target Type */}
-                    <div className="flex bg-gray-50 p-1 rounded-xl border border-gray-100">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setStudyPlan(prev => {
-                            const next = { ...prev, targetType: 'pages' as const };
-                            next.portionPerClass = calculatePortion(next);
-                            return next;
-                          });
-                        }}
-                        className={`flex-1 py-2 rounded-lg text-lg font-arabic transition-all ${studyPlan.targetType === 'pages'
-                          ? 'bg-white text-emerald-700 shadow-sm border border-emerald-200 font-bold'
-                          : 'text-gray-500 hover:text-gray-700'
-                          }`}
-                      >
-                        صفحات
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setStudyPlan(prev => {
-                            const next = { ...prev, targetType: 'verses' as const };
-                            next.portionPerClass = calculatePortion(next);
-                            return next;
-                          });
-                        }}
-                        className={`flex-1 py-2 rounded-lg text-lg font-arabic transition-all ${studyPlan.targetType === 'verses'
-                          ? 'bg-white text-emerald-700 shadow-sm border border-emerald-200 font-bold'
-                          : 'text-gray-500 hover:text-gray-700'
-                          }`}
-                      >
-                        آيات
-                      </button>
-                    </div>
-
-                    {/* From - To */}
-                    <div className="flex gap-4">
-                      <div className="flex-1 space-y-2">
-                        <label className="block text-lg font-bold text-gray-600 font-arabic">من</label>
-                        <input
-                          type="number"
-                          value={studyPlan.from || ''}
-                          onChange={e => {
-                            const val = Number(e.target.value);
-                            setStudyPlan(prev => {
-                              const next = { ...prev, from: val };
-                              next.portionPerClass = calculatePortion(next);
-                              return next;
-                            });
-                          }}
-                          className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:border-[#ffe05d] focus:bg-white transition-all text-center font-english"
-                          dir="ltr"
-                        />
-                      </div>
-                      <div className="flex-1 space-y-2">
-                        <label className="block text-lg font-bold text-gray-600 font-arabic">إلى</label>
-                        <input
-                          type="number"
-                          value={studyPlan.to || ''}
-                          onChange={e => {
-                            const val = Number(e.target.value);
-                            setStudyPlan(prev => {
-                              const next = { ...prev, to: val };
-                              next.portionPerClass = calculatePortion(next);
-                              return next;
-                            });
-                          }}
-                          className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:border-[#ffe05d] focus:bg-white transition-all text-center font-english"
-                          dir="ltr"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Classes & Start Time */}
-                    <div className="flex gap-4">
-                      <div className="flex-1 space-y-2">
-                        <label className="block text-lg font-bold text-gray-600 font-arabic whitespace-nowrap text-sm">عدد الحصص</label>
-                        <input
-                          type="number"
-                          value={studyPlan.totalClasses || ''}
-                          onChange={e => {
-                            const val = Number(e.target.value);
-                            setStudyPlan(prev => {
-                              const next = { ...prev, totalClasses: val };
-                              next.portionPerClass = calculatePortion(next);
-                              return next;
-                            });
-                          }}
-                          className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:border-[#ffe05d] focus:bg-white transition-all text-center font-english"
-                          dir="ltr"
-                        />
-                      </div>
-                      <div className="flex-1 space-y-2">
-                        <label className="block text-lg font-bold text-gray-600 font-arabic whitespace-nowrap text-sm">المقدار للحصة</label>
-                        <div className="w-full px-4 py-2 bg-gray-100 border border-transparent rounded-xl text-center text-gray-600 font-bold font-english h-[42px] flex items-center justify-center">
-                          {studyPlan.portionPerClass || 0}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex gap-4">
-                      <div className="flex-1 space-y-2">
-                        <label className="block text-lg font-bold text-gray-600 font-arabic whitespace-nowrap text-sm">تاريخ البدء</label>
-                        <input
-                          type="date"
-                          value={studyPlan.startDate || ''}
-                          onChange={e => setStudyPlan(prev => ({ ...prev, startDate: e.target.value }))}
-                          className="w-full px-2 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:border-[#ffe05d] focus:bg-white transition-all text-center font-english text-sm"
-                          dir="ltr"
-                        />
-                      </div>
-                      <div className="flex-1 space-y-2">
-                        <label className="block text-lg font-bold text-gray-600 font-arabic whitespace-nowrap text-sm">تاريخ الانتهاء</label>
-                        <input
-                          type="date"
-                          value={studyPlan.endDate || ''}
-                          onChange={e => setStudyPlan(prev => ({ ...prev, endDate: e.target.value }))}
-                          className="w-full px-2 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:border-[#ffe05d] focus:bg-white transition-all text-center font-english text-sm"
-                          dir="ltr"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Save */}
-              <button
-                type="button"
-                onClick={() => handleSubmit({ preventDefault: () => { } } as React.FormEvent)}
-                className="w-full py-3 bg-[#ffe05d] text-gray-900 text-xl font-bold font-arabic rounded-xl hover:bg-[#fcd030] hover:shadow-lg hover:shadow-[#ffe05d]/20 active:scale-[0.98] transition-all pb-4"
-              >
-                حفظ
-              </button>
-            </div>
-          </section>
+            </section>
           )}
           {/* ─── End Subpanel ─── */}
 
