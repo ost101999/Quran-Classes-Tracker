@@ -1,18 +1,13 @@
 import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { X, Trash2, Clock, Link, Check, Phone, ChevronDown, ChevronUp, ChevronLeft, ArchiveRestore, FileText, FolderOpen, BookOpen, AlertTriangle, Loader2, Layers, SlidersHorizontal, Send, Minus, Plus } from 'lucide-react';
-import { Student, StudyPlan, CalendarSchedule, StudentReportSettings, MushafSectionKey } from '../types';
+import { X, Trash2, Clock, Link, Check, Phone, ChevronDown, ChevronLeft, ArchiveRestore, BookOpen, AlertTriangle, Loader2, SlidersHorizontal } from 'lucide-react';
+import { Student, StudyPlan, CalendarSchedule, StudentReportSettings } from '../types';
 import { DAYS_OF_WEEK } from '../constants';
 import { linksEquivalent } from '../services/shortcutStudentSync';
 import { whatsappTargetsEquivalent } from '../services/whatsappStudentSync';
 import { isCurrentSchedule } from '../services/calendarStudentSync';
 import { cairoDate, replaceScheduleFrom } from '../services/studentSchedule';
 import { isStudentInactiveInMonth, isStudentPausedInMonth, nextMonthYear } from '../services/studentVisibility';
-import {
-  DEFAULT_MUSHAF_SECTION_ORDER,
-  MUSHAF_SECTION_LABELS,
-  normalizeSectionOrder,
-  buildCustomMushafPlan,
-} from '../services/quranPages';
+import { resolveEffectiveReportSettings } from '../services/quranPages';
 
 type ShortcutMatch = {
   id: string; folderId: string; path: string; titles: string[]; isQuran: boolean; isReading: boolean;
@@ -55,9 +50,9 @@ const toWesternDigits = (str: string): string => {
 const getReportCustomizationItems = (settings: StudentReportSettings): string[] => {
   const items: string[] = [];
   if (settings.customMushafEnabled) {
-    if (settings.mushafOutputFormat === 'web_link') items.push('إنشاء مصحف (رابط صوتي)');
-    else if (settings.mushafOutputFormat === 'html') items.push('إنشاء مصحف (HTML)');
-    else items.push('إنشاء مصحف');
+    if (settings.mushafOutputFormat === 'html') items.push('إنشاء مصحف (HTML)');
+    else if (settings.mushafOutputFormat === 'pdf') items.push('إنشاء مصحف');
+    else items.push('إنشاء مصحف (رابط صوتي)');
   }
   return items;
 };
@@ -202,50 +197,24 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [headerMenuOpen]);
-  const [reportSettings, setReportSettings] = useState<StudentReportSettings>(() => ({
-    customMushafEnabled: student?.reportSettings?.customMushafEnabled ?? false,
-    mushafOutputFormat: student?.reportSettings?.mushafOutputFormat || 'pdf',
-    mushafTargetSection: student?.reportSettings?.mushafTargetSection || 'homework',
-    mushafSectionOrder: normalizeSectionOrder(student?.reportSettings?.mushafSectionOrder),
-    mushafIncludedSections: {
-      rev: student?.reportSettings?.mushafIncludedSections?.rev !== false,
-      oldRev: student?.reportSettings?.mushafIncludedSections?.oldRev !== false,
-      new: student?.reportSettings?.mushafIncludedSections?.new !== false,
-      tilawa: student?.reportSettings?.mushafIncludedSections?.tilawa !== false,
-    },
-    mushafDividerStyle: student?.reportSettings?.mushafDividerStyle || 'both',
-    mushafLanguage: student?.reportSettings?.mushafLanguage || 'auto',
-    mushafPageOffset: student?.reportSettings?.mushafPageOffset ?? 0,
-    mushafAutoOpen: student?.reportSettings?.mushafAutoOpen ?? false,
-    mushafAutoSendWhatsapp: student?.reportSettings?.mushafAutoSendWhatsapp !== false,
-  }));
+  const [reportSettings, setReportSettings] = useState<StudentReportSettings>(() =>
+    resolveEffectiveReportSettings(student?.reportSettings)
+  );
   const [mushafFileStatus, setMushafFileStatus] = useState<{ found: boolean; fileName?: string; error?: string; outputDir?: string } | null>(null);
-  const [audioSessionInfo, setAudioSessionInfo] = useState<{ hasSession: boolean; clipsCount: number } | null>(null);
-  const [mushafGeneratingNow, setMushafGeneratingNow] = useState(false);
   const reportGroupsStorageKey = `quranTracker.reportGroupsOpen.${student?.id || 'draft'}`;
-  const [openReportGroups, setOpenReportGroups] = useState<Record<'sections' | 'format' | 'delivery' | 'preview', boolean>>(() => {
-    const defaults = {
-      sections: !(student?.reportSettings?.customMushafEnabled),
-      format: false,
-      delivery: false,
-      preview: true,
-    };
+  const [openReportGroups, setOpenReportGroups] = useState<Record<'format', boolean>>(() => {
+    const defaults = { format: true };
     try {
       const raw = window.localStorage.getItem(reportGroupsStorageKey);
       if (!raw) return defaults;
       const parsed = JSON.parse(raw);
-      if (parsed && typeof parsed === 'object') {
-        return {
-          sections: typeof parsed.sections === 'boolean' ? parsed.sections : defaults.sections,
-          format: typeof parsed.format === 'boolean' ? parsed.format : defaults.format,
-          delivery: typeof parsed.delivery === 'boolean' ? parsed.delivery : defaults.delivery,
-          preview: typeof parsed.preview === 'boolean' ? parsed.preview : defaults.preview,
-        };
+      if (parsed && typeof parsed === 'object' && typeof parsed.format === 'boolean') {
+        return { format: parsed.format };
       }
     } catch { }
     return defaults;
   });
-  const toggleReportGroup = (key: 'sections' | 'format' | 'delivery' | 'preview') => {
+  const toggleReportGroup = (key: 'format') => {
     setOpenReportGroups(prev => {
       const next = { ...prev, [key]: !prev[key] };
       try {
@@ -353,12 +322,6 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
     }).catch(() => {
       if (!cancelled) setMushafFileStatus({ found: false, error: 'تعذر التحقق من ملف مصحف الطالب.' });
     });
-    window.electronAPI.getStudentAudioSession?.({
-      studentId: student?.id || '',
-      studentName: name,
-    }).then(info => {
-      if (!cancelled) setAudioSessionInfo({ hasSession: !!info?.hasSession, clipsCount: info?.clipsCount || 0 });
-    }).catch(() => { });
     return () => { cancelled = true; };
   }, [activePanel, name, shortcutSourceId, quranLink]);
 
