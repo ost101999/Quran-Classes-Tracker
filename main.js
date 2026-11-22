@@ -23,6 +23,7 @@ const {
 const {
     findSessionForStudent,
     readClipAudioDataUrl,
+    resolveLatestPdfCopyForReading,
 } = require('./audio-mushaf/session-store');
 const {
     renderPdfPagesToImages,
@@ -108,7 +109,8 @@ ipcMain.handle('generate-custom-mushaf', async (_event, payload) => {
         if (outputFormat === 'web_link' || outputFormat === 'html') {
             const audioSession = findSessionForStudent({ studentId, studentName, dateStr: todayStr });
             const hasClips = !!(audioSession && Array.isArray(audioSession.clips) && audioSession.clips.length > 0);
-            const sourceBytes = fs.readFileSync(resolved.path);
+            const readablePdfPath = resolveLatestPdfCopyForReading(resolved.path);
+            const sourceBytes = fs.readFileSync(readablePdfPath);
             const sourceDoc = await PDFDocument.load(sourceBytes, { ignoreEncryption: true });
             const totalSourcePages = sourceDoc.getPageCount();
             const offsetNum = Number.isFinite(pageOffset) ? Math.trunc(pageOffset) : 0;

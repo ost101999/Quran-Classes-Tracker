@@ -7,9 +7,30 @@ const HAS_WIN_Z_STORAGE = process.platform === 'win32' && fs.existsSync('Z:\\ت�
 const SESSIONS_ROOT_DIR = HAS_WIN_Z_STORAGE
     ? path.join(WIN_Z_STORAGE_DIR, 'sessions')
     : path.join(os.homedir(), '.quran-audio-corrector', 'sessions');
+const HUD_STATE_PATH = path.join(os.homedir(), '.quran-audio-corrector', 'hud-state.json');
 const OUTPUT_HTML_DIR = HAS_WIN_Z_STORAGE
     ? WIN_Z_STORAGE_DIR
     : path.join(os.homedir(), 'Documents', 'المصحح الصوتي');
+
+function loadHudState(statePath = HUD_STATE_PATH) {
+    try {
+        if (!fs.existsSync(statePath)) return {};
+        const parsed = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+        return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+        return {};
+    }
+}
+
+function saveHudState(patch = {}, statePath = HUD_STATE_PATH) {
+    const current = loadHudState(statePath);
+    const next = { ...current, ...patch, updatedAt: Date.now() };
+    fs.mkdirSync(path.dirname(statePath), { recursive: true });
+    const tmp = `${statePath}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify(next, null, 2), 'utf8');
+    fs.renameSync(tmp, statePath);
+    return next;
+}
 
 function normalizeText(value) {
     return String(value || '')
@@ -97,12 +118,19 @@ function loadOrCreateSession({
     return saveSession(created, rootDir);
 }
 
-function findSessionForStudent({ studentId, studentName, dateStr = getTodayDateStr(), rootDir = SESSIONS_ROOT_DIR } = {}) {
+function shiftDateStr(dateStr, deltaDays) {
+    const m = String(dateStr || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return '';
+    const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]) + deltaDays));
+    return d.toISOString().slice(0, 10);
+}
+
+function findSessionForStudentOnDate({ studentId, studentName, dateStr, rootDir }) {
     const byNameKey = getStudentSessionKey(studentName, studentId, dateStr);
     const exact = loadSession(byNameKey, rootDir);
     if (exact && Array.isArray(exact.clips) && exact.clips.length > 0) return exact;
-
     if (!fs.existsSync(rootDir)) return exact;
+
     const normTarget = normalizeText(studentName);
     let bestMatch = exact;
     for (const entry of fs.readdirSync(rootDir, { withFileTypes: true })) {
@@ -119,6 +147,24 @@ function findSessionForStudent({ studentId, studentName, dateStr = getTodayDateS
         }
     }
     return bestMatch;
+}
+
+function findSessionForStudent({ studentId, studentName, dateStr = getTodayDateStr(), rootDir = SESSIONS_ROOT_DIR } = {}) {
+    const todayReal = getTodayDateStr();
+    const candidateDates = [];
+    const pushDate = (d) => { if (d && !candidateDates.includes(d)) candidateDates.push(d); };
+    pushDate(dateStr);
+    pushDate(shiftDateStr(dateStr, 1));
+    pushDate(shiftDateStr(dateStr, -1));
+    pushDate(todayReal);
+
+    let firstMatch = null;
+    for (const d of candidateDates) {
+        const found = findSessionForStudentOnDate({ studentId, studentName, dateStr: d, rootDir });
+        if (!firstMatch && found) firstMatch = found;
+        if (found && Array.isArray(found.clips) && found.clips.length > 0) return found;
+    }
+    return firstMatch;
 }
 
 function addAudioClipToSession(sessionKey, { buffer, ext = 'mp3', startedAt, endedAt, durationMs }, rootDir = SESSIONS_ROOT_DIR) {
@@ -141,6 +187,14 @@ function addAudioClipToSession(sessionKey, { buffer, ext = 'mp3', startedAt, end
         manualYPercent: null,
     };
     session.clips = Array.isArray(session.clips) ? [...session.clips, clip] : [clip];
+    if (Array.isArray(session.undoneClips) && session.undoneClips.length > 0) {
+        for (const oldClip of session.undoneClips) {
+            if (!oldClip?.fileName) continue;
+            const oldPath = path.join(audioDir, oldClip.fileName);
+            try { if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath); } catch { /* ignore */ }
+        }
+        session.undoneClips = [];
+    }
     session.lastRecordedAt = clip.endedAt;
     saveSession(session, rootDir);
     return { session, clip };
@@ -155,11 +209,41 @@ function removeClipFromSession(sessionKey, clipId = null, rootDir = SESSIONS_ROO
     if (idx === -1) return { session, removed: null };
 
     const [removed] = session.clips.splice(idx, 1);
-    const audioPath = path.join(getSessionDir(sessionKey, rootDir), 'audio', removed.fileName);
-    try { if (fs.existsSync(audioPath)) fs.unlinkSync(audioPath); } catch { /* ignore */ }
+    if (clipId) {
+        // Explicit delete from review modal deletes the audio file permanently
+        const audioPath = path.join(getSessionDir(sessionKey, rootDir), 'audio', removed.fileName);
+        try { if (fs.existsSync(audioPath)) fs.unlinkSync(audioPath); } catch { /* ignore */ }
+    } else {
+        // Soft undo pushes onto redo stack so F21 / Redo can restore it cleanly
+        session.undoneClips = Array.isArray(session.undoneClips) ? [...session.undoneClips, removed] : [removed];
+    }
     session.lastRecordedAt = session.clips.length ? session.clips[session.clips.length - 1].endedAt : null;
     saveSession(session, rootDir);
     return { session, removed };
+}
+
+function redoClipInSession(sessionKey, rootDir = SESSIONS_ROOT_DIR) {
+    const session = loadSession(sessionKey, rootDir);
+    if (!session || !Array.isArray(session.undoneClips) || session.undoneClips.length === 0) {
+        return { session, restored: null };
+    }
+    const audioDir = path.join(getSessionDir(sessionKey, rootDir), 'audio');
+    let restored = null;
+    while (session.undoneClips.length > 0) {
+        const candidate = session.undoneClips.pop();
+        if (candidate?.fileName && fs.existsSync(path.join(audioDir, candidate.fileName))) {
+            restored = candidate;
+            break;
+        }
+    }
+    if (!restored) {
+        saveSession(session, rootDir);
+        return { session, restored: null };
+    }
+    session.clips = Array.isArray(session.clips) ? [...session.clips, restored] : [restored];
+    session.lastRecordedAt = session.clips.length ? session.clips[session.clips.length - 1].endedAt : null;
+    saveSession(session, rootDir);
+    return { session, restored };
 }
 
 function updateClipManualPin(sessionKey, clipId, { pdfPage, xPercent, yPercent }, rootDir = SESSIONS_ROOT_DIR) {
@@ -255,6 +339,88 @@ function readShortcutMushafs() {
     return entries;
 }
 
+function findXodoLocalStateDirs(localAppData = process.env.LOCALAPPDATA) {
+    if (!localAppData || !fs.existsSync(localAppData)) return [];
+    const packagesDir = path.join(localAppData, 'Packages');
+    if (!fs.existsSync(packagesDir)) return [];
+    const out = [];
+    try {
+        for (const entry of fs.readdirSync(packagesDir, { withFileTypes: true })) {
+            if (!entry.isDirectory() || !/xododocs/i.test(entry.name)) continue;
+            const localState = path.join(packagesDir, entry.name, 'LocalState');
+            if (fs.existsSync(localState)) out.push(localState);
+        }
+    } catch { /* ignore */ }
+    return out;
+}
+
+function parseXodoFileNameMapping(mappingFilePath) {
+    if (!mappingFilePath || !fs.existsSync(mappingFilePath)) return [];
+    try {
+        const raw = fs.readFileSync(mappingFilePath);
+        const xml = raw.length >= 2 && raw[0] === 0xff && raw[1] === 0xfe
+            ? raw.toString('utf16le')
+            : raw.toString('utf8');
+        const pairs = [];
+        const re = /<Key>(.*?)<\/Key>\s*<Value>(.*?)<\/Value>/gs;
+        let match;
+        while ((match = re.exec(xml))) {
+            const key = match[1].trim();
+            const value = match[2].trim();
+            if (key && value) pairs.push({ key, value });
+        }
+        return pairs;
+    } catch {
+        return [];
+    }
+}
+
+function readXodoOpenDocuments(localAppData = process.env.LOCALAPPDATA) {
+    const docs = [];
+    for (const localState of findXodoLocalStateDirs(localAppData)) {
+        const mapping = parseXodoFileNameMapping(path.join(localState, 'FileNameMapping.txt'));
+        const byValue = new Map(mapping.map(p => [normalizeText(p.value), p.key]));
+        const openDir = path.join(localState, 'OpenDocuments');
+        if (!fs.existsSync(openDir)) continue;
+        try {
+            for (const folder of fs.readdirSync(openDir, { withFileTypes: true })) {
+                if (!folder.isDirectory()) continue;
+                const subDir = path.join(openDir, folder.name);
+                for (const fileEntry of fs.readdirSync(subDir, { withFileTypes: true })) {
+                    if (!fileEntry.isFile() || path.extname(fileEntry.name).toLowerCase() !== '.pdf') continue;
+                    const openCopyPath = path.join(subDir, fileEntry.name);
+                    try {
+                        const st = fs.statSync(openCopyPath);
+                        const originalPath = byValue.get(normalizeText(openCopyPath)) || '';
+                        docs.push({
+                            fileName: fileEntry.name,
+                            openCopyPath,
+                            originalPath,
+                            mtimeMs: st.mtimeMs,
+                        });
+                    } catch { /* ignore */ }
+                }
+            }
+        } catch { /* ignore */ }
+    }
+    docs.sort((a, b) => b.mtimeMs - a.mtimeMs);
+    return docs;
+}
+
+function resolveLatestPdfCopyForReading(sourcePdfPath, localAppData = process.env.LOCALAPPDATA) {
+    if (!sourcePdfPath || !fs.existsSync(sourcePdfPath)) return sourcePdfPath;
+    if (process.platform !== 'win32' && !localAppData) return sourcePdfPath;
+    try {
+        const srcStat = fs.statSync(sourcePdfPath);
+        const normTarget = normalizeText(sourcePdfPath);
+        const match = readXodoOpenDocuments(localAppData).find(d => d.originalPath && normalizeText(d.originalPath) === normTarget);
+        if (match && match.mtimeMs > srcStat.mtimeMs + 500 && fs.existsSync(match.openCopyPath)) {
+            return match.openCopyPath;
+        }
+    } catch { /* ignore */ }
+    return sourcePdfPath;
+}
+
 function matchWindowTitleToStudent(windowTitleOrFileName, explicitFilePath = '') {
     const cleanTitle = String(windowTitleOrFileName || '')
         .replace(/\s*-\s*(Xodo|Adobe Acrobat.*|Acrobat.*)$/i, '')
@@ -335,7 +501,10 @@ function pruneOldFilesByExtension(dir, maxFilesToKeep, ext = '.html', protectedP
 
 module.exports = {
     SESSIONS_ROOT_DIR,
+    HUD_STATE_PATH,
     OUTPUT_HTML_DIR,
+    loadHudState,
+    saveHudState,
     normalizeText,
     sanitizeSegment,
     getTodayDateStr,
@@ -347,10 +516,14 @@ module.exports = {
     findSessionForStudent,
     addAudioClipToSession,
     removeClipFromSession,
+    redoClipInSession,
     updateClipManualPin,
     readClipAudioDataUrl,
     getQuranTrackerStudents,
     readShortcutMushafs,
+    parseXodoFileNameMapping,
+    readXodoOpenDocuments,
+    resolveLatestPdfCopyForReading,
     matchWindowTitleToStudent,
     pruneOldFilesByExtension,
 };
