@@ -3,6 +3,7 @@ const https = require('node:https');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { sanitizeSegment, pruneOldFilesByExtension } = require('./session-store');
+const { MUSHAF_620_FRAME, isSupported620Pdf } = require('./mushaf-crop-data');
 
 const DEFAULT_FIREBASE_URL = 'https://quran-classes-tracker-default-rtdb.firebaseio.com';
 const DEFAULT_WEB_BASE_URL = 'https://project-mw5jh.vercel.app';
@@ -111,6 +112,7 @@ async function renderPdfPagesToImages({
     pdfPath,
     pdfBytes = null,
     pageNumbers,
+    cropRequests = null,
     pdfjsModulePath,
     pdfjsWorkerPath,
     scale = 1.6,
@@ -118,8 +120,21 @@ async function renderPdfPagesToImages({
 }) {
     if (!BrowserWindow) throw new Error('BrowserWindow is required to render PDF pages');
     if (!pdfBytes && (!pdfPath || !fs.existsSync(pdfPath))) throw new Error('ملف مصحف الطالب غير موجود.');
-    const uniquePages = [...new Set((pageNumbers || []).filter(p => Number.isInteger(p) && p >= 1))];
+    const normalizedCrops = Array.isArray(cropRequests) && cropRequests.length > 0
+        ? cropRequests.filter(r => r && r.key && Number.isInteger(r.pdfPage) && r.pdfPage >= 1)
+        : null;
+    const uniquePages = normalizedCrops
+        ? [...new Set(normalizedCrops.map(r => r.pdfPage))]
+        : [...new Set((pageNumbers || []).filter(p => Number.isInteger(p) && p >= 1))];
     if (uniquePages.length === 0) return {};
+
+    const requestsByPage = {};
+    if (normalizedCrops) {
+        for (const req of normalizedCrops) {
+            if (!requestsByPage[req.pdfPage]) requestsByPage[req.pdfPage] = [];
+            requestsByPage[req.pdfPage].push(req);
+        }
+    }
 
     const pdfBase64 = Buffer.from(pdfBytes || fs.readFileSync(pdfPath)).toString('base64');
     const resolvedPdfJs = (pdfjsModulePath || require.resolve('pdfjs-dist/legacy/build/pdf.mjs')).replace('app.asar', 'app.asar.unpacked');
@@ -145,6 +160,7 @@ async function renderPdfPagesToImages({
         }
         const moduleUrl = pathToFileURL(resolvedPdfJs).href;
         const workerUrl = pathToFileURL(resolvedWorker).href;
+        const frameMeta = MUSHAF_620_FRAME;
 
         const rendered = await win.webContents.executeJavaScript(`
             (async () => {
@@ -154,6 +170,10 @@ async function renderPdfPagesToImages({
                 const bytes = new Uint8Array(binStr.length);
                 for (let i = 0; i < binStr.length; i++) bytes[i] = binStr.charCodeAt(i);
                 const doc = await pdfjsLib.getDocument({ data: bytes, verbosity: 0, disableWorker: true }).promise;
+                const reqMap = ${JSON.stringify(requestsByPage)};
+                const frame = ${JSON.stringify(frameMeta)};
+                const hasCropMode = ${JSON.stringify(!!normalizedCrops)};
+                const is620Layout = doc.numPages >= 618 && doc.numPages <= 625;
                 const out = {};
                 for (const pageNum of ${JSON.stringify(uniquePages)}) {
                     if (pageNum < 1 || pageNum > doc.numPages) continue;
@@ -166,11 +186,61 @@ async function renderPdfPagesToImages({
                     ctx.fillStyle = '#ffffff';
                     ctx.fillRect(0, 0, canvas.width, canvas.height);
                     await page.render({ canvasContext: ctx, viewport, annotationMode: 2 }).promise;
-                    out[String(pageNum)] = {
-                        imageDataUrl: canvas.toDataURL('image/jpeg', ${Number(jpegQuality) || 0.84}),
-                        width: canvas.width,
-                        height: canvas.height,
-                    };
+
+                    const reqs = hasCropMode ? (reqMap[pageNum] || []) : [{ key: String(pageNum), pdfPage: pageNum, crop: null }];
+                    const aspectOk = Math.abs((viewport.width / viewport.height) - frame.aspectRatio) <= 0.035;
+                    for (const req of reqs) {
+                        const crop = req.crop;
+                        if (!crop || !crop.isCropped || !is620Layout || !aspectOk) {
+                            out[req.key] = {
+                                imageDataUrl: canvas.toDataURL('image/jpeg', ${Number(jpegQuality) || 0.84}),
+                                width: canvas.width,
+                                height: canvas.height,
+                                srcHeight: canvas.height,
+                                outHeight: canvas.height,
+                                srcY0: 0,
+                                padTop: 0,
+                                cropApplied: false,
+                            };
+                            continue;
+                        }
+                        const srcW = canvas.width;
+                        const srcH = canvas.height;
+                        const srcY0 = Math.max(0, Math.round(crop.topFrac * srcH));
+                        const srcY1 = Math.min(srcH, Math.round(crop.botFrac * srcH));
+                        const cropH = Math.max(24, srcY1 - srcY0);
+                        const padTop = crop.drawTopBar ? Math.max(8, Math.round(srcH * 0.014)) : 0;
+                        const padBot = crop.drawBotBar ? Math.max(8, Math.round(srcH * 0.014)) : 0;
+                        const outH = cropH + padTop + padBot;
+                        const outCanvas = document.createElement('canvas');
+                        outCanvas.width = srcW;
+                        outCanvas.height = outH;
+                        const octx = outCanvas.getContext('2d', { alpha: false });
+                        octx.fillStyle = '#ffffff';
+                        octx.fillRect(0, 0, srcW, outH);
+                        octx.drawImage(canvas, 0, srcY0, srcW, cropH, 0, padTop, srcW, cropH);
+
+                        const barW = Math.max(2, Math.round(frame.borderWidthFrac * srcH));
+                        const bx0 = Math.round(frame.borderLeftFrac * srcW);
+                        const bx1 = Math.round(frame.borderRightFrac * srcW);
+                        octx.fillStyle = frame.borderColor || '#aba000';
+                        if (crop.drawTopBar) {
+                            octx.fillRect(bx0, Math.max(0, padTop - Math.floor(barW / 2)), bx1 - bx0, barW);
+                        }
+                        if (crop.drawBotBar) {
+                            octx.fillRect(bx0, Math.min(outH - barW, padTop + cropH - Math.ceil(barW / 2)), bx1 - bx0, barW);
+                        }
+                        out[req.key] = {
+                            imageDataUrl: outCanvas.toDataURL('image/jpeg', ${Number(jpegQuality) || 0.84}),
+                            width: srcW,
+                            height: outH,
+                            srcHeight: srcH,
+                            outHeight: outH,
+                            srcY0,
+                            padTop,
+                            cropApplied: true,
+                        };
+                    }
                 }
                 return out;
             })()

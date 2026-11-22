@@ -444,6 +444,7 @@ function mergeReportAndAudioSections({
             summaryEn: sec.summaryEn || '',
             startPage: sec.startPage,
             endPage: sec.endPage,
+            verseSpan: sec.verseSpan || null,
             pages,
         });
     }

@@ -68,7 +68,7 @@
             cinzel: ['Cinzel', 'serif'],
             amiri: ['Amiri', 'serif'],
             uthman: ['"KFGQPC Uthman Taha"', 'Amiri', 'serif'],
-            acme: ['Acme', 'sans-serif'],
+            acme: ['Acme', '"Segoe UI"', 'Tahoma', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
           },
           colors: {
             islamic: {
@@ -1359,7 +1359,11 @@
 
       if (loading) {
         return (
-          <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-6 text-center" dir="rtl">
+          <div
+            className="min-h-screen text-white flex flex-col items-center justify-center p-6 text-center font-acme"
+            style={{ background: 'radial-gradient(circle at top center, #0f1f3a 0%, #070d1a 55%, #040710 100%)' }}
+            dir="rtl"
+          >
             <div className="w-10 h-10 border-4 border-emerald-400 border-t-transparent rounded-full animate-spin mb-4" />
             <p className="text-lg font-bold">جاري تحميل المصحف الصوتي...</p>
           </div>
@@ -1368,7 +1372,11 @@
 
       if (err || !sessionData) {
         return (
-          <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-6 text-center" dir="rtl">
+          <div
+            className="min-h-screen text-white flex flex-col items-center justify-center p-6 text-center font-acme"
+            style={{ background: 'radial-gradient(circle at top center, #0f1f3a 0%, #070d1a 55%, #040710 100%)' }}
+            dir="rtl"
+          >
             <p className="text-lg font-bold text-amber-300 max-w-md">{err || 'الرابط غير متوفر.'}</p>
           </div>
         );
@@ -1387,11 +1395,46 @@
         return isAr ? `${toHindi(d)} ${AR_MONTHS[mo]} ${toHindi(y)}` : `${d} ${EN_MONTHS[mo]} ${y}`;
       };
       const secAccents = {
-        rev: { dot: 'bg-blue-400', activeBg: 'bg-blue-500/20 border-blue-400 text-white shadow-lg shadow-blue-500/20' },
-        oldRev: { dot: 'bg-amber-400', activeBg: 'bg-amber-500/20 border-amber-400 text-white shadow-lg shadow-amber-500/20' },
-        new: { dot: 'bg-emerald-400', activeBg: 'bg-emerald-500/20 border-emerald-400 text-white shadow-lg shadow-emerald-500/20' },
-        tilawa: { dot: 'bg-violet-400', activeBg: 'bg-violet-500/20 border-violet-400 text-white shadow-lg shadow-violet-500/20' },
-        corrections: { dot: 'bg-teal-400', activeBg: 'bg-teal-500/20 border-teal-400 text-white shadow-lg shadow-teal-500/20' },
+        rev: {
+          dot: 'bg-blue-400 shadow-[0_0_8px_#60a5fa]',
+          accent: '#60a5fa',
+          bannerBg: 'rgba(37, 99, 235, 0.16)',
+          bannerBorder: 'rgba(96, 165, 250, 0.45)',
+          bannerGlow: '0 10px 26px -10px rgba(59, 130, 246, 0.28)',
+          activeBg: 'bg-blue-500/20 border-blue-400 text-white shadow-lg shadow-blue-500/20',
+        },
+        oldRev: {
+          dot: 'bg-amber-400 shadow-[0_0_8px_#fbbf24]',
+          accent: '#fbbf24',
+          bannerBg: 'rgba(217, 119, 6, 0.16)',
+          bannerBorder: 'rgba(251, 191, 36, 0.45)',
+          bannerGlow: '0 10px 26px -10px rgba(245, 158, 11, 0.28)',
+          activeBg: 'bg-amber-500/20 border-amber-400 text-white shadow-lg shadow-amber-500/20',
+        },
+        new: {
+          dot: 'bg-emerald-400 shadow-[0_0_8px_#34d399]',
+          accent: '#34d399',
+          bannerBg: 'rgba(5, 150, 105, 0.16)',
+          bannerBorder: 'rgba(52, 211, 153, 0.45)',
+          bannerGlow: '0 10px 26px -10px rgba(16, 185, 129, 0.28)',
+          activeBg: 'bg-emerald-500/20 border-emerald-400 text-white shadow-lg shadow-emerald-500/20',
+        },
+        tilawa: {
+          dot: 'bg-violet-400 shadow-[0_0_8px_#a78bfa]',
+          accent: '#a78bfa',
+          bannerBg: 'rgba(124, 58, 237, 0.16)',
+          bannerBorder: 'rgba(167, 139, 250, 0.45)',
+          bannerGlow: '0 10px 26px -10px rgba(139, 92, 246, 0.28)',
+          activeBg: 'bg-violet-500/20 border-violet-400 text-white shadow-lg shadow-violet-500/20',
+        },
+        corrections: {
+          dot: 'bg-teal-400 shadow-[0_0_8px_#2dd4bf]',
+          accent: '#2dd4bf',
+          bannerBg: 'rgba(13, 148, 136, 0.16)',
+          bannerBorder: 'rgba(45, 212, 191, 0.45)',
+          bannerGlow: '0 10px 26px -10px rgba(20, 184, 166, 0.28)',
+          activeBg: 'bg-teal-500/20 border-teal-400 text-white shadow-lg shadow-teal-500/20',
+        },
       };
       const cleanLabel = (sec) => {
         const rawAr = String(sec.titleAr || '').replace(/^(?:الدرس الحالي|الدرس القادم)\s*:\s*/u, '').trim();
@@ -1430,19 +1473,35 @@
       };
 
       return (
-        <div className="min-h-screen bg-slate-950 text-slate-100 px-3 py-5 pb-16" dir={isAr ? 'rtl' : 'ltr'}>
+        <div
+          className="min-h-screen text-slate-100 px-3 py-5 pb-16 font-acme"
+          style={{ background: 'radial-gradient(circle at top center, #0f1f3a 0%, #070d1a 55%, #040710 100%)' }}
+          dir={isAr ? 'rtl' : 'ltr'}
+        >
           <div className="max-w-3xl mx-auto space-y-5">
-            <header className="rounded-2xl bg-slate-900/95 border border-white/10 px-5 py-4 flex flex-wrap items-center justify-between gap-2 shadow-xl">
+            <header
+              className="rounded-[22px] backdrop-blur-md border border-white/15 px-5 py-4 flex flex-wrap items-center justify-between gap-2"
+              style={{
+                background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.92), rgba(15, 23, 42, 0.96))',
+                boxShadow: '0 18px 45px rgba(0, 0, 0, 0.45)',
+              }}
+            >
               <h1 className="font-acme text-2xl text-emerald-400">
                 {isAr ? `المصحف الصوتي — ${sessionData.studentName}` : `Audio Mushaf — ${sessionData.studentName}`}
               </h1>
-              <span className="font-acme px-3 py-1 rounded-full bg-white/10 text-xs text-slate-200">
+              <span className="font-acme px-3 py-1 rounded-full bg-white/10 border border-white/10 text-xs text-slate-200">
                 {formatDisplayDate(sessionData.dateStr)}
               </span>
             </header>
 
             {sections.length > 0 && (
-              <div className="sticky top-2.5 z-40 rounded-2xl bg-slate-900/90 backdrop-blur-md border border-white/10 p-3 shadow-2xl space-y-2.5">
+              <div
+                className="sticky top-2.5 z-40 rounded-[20px] backdrop-blur-lg border border-white/12 p-3 space-y-2.5"
+                style={{
+                  background: 'rgba(10, 17, 32, 0.86)',
+                  boxShadow: '0 14px 36px rgba(0, 0, 0, 0.5)',
+                }}
+              >
                 {grouped ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
                     <div className="rounded-xl bg-white/[0.03] border border-white/10 p-2.5 space-y-2">
@@ -1490,14 +1549,31 @@
               </div>
             )}
 
-            {visibleSections.map(({ sec, idx }) => (
+            {visibleSections.map(({ sec, idx }) => {
+              const sty = secAccents[sec.key] || secAccents.new;
+              return (
               <section key={`${sec.key}_${idx}_${activeTab}`} className="space-y-4 animate-in fade-in slide-in-from-bottom-3 duration-300">
-                <div className="rounded-xl bg-emerald-950/60 border border-emerald-500/30 px-4 py-3 flex items-center justify-between gap-3">
-                  <span className="font-acme text-emerald-300 text-lg">
-                    {isAr ? (sec.titleAr || sec.titleEn) : (sec.groupTitleEn ? `${sec.groupTitleEn} · ${cleanLabel(sec)}` : (sec.titleEn || sec.titleAr))}
-                  </span>
+                <div
+                  className="rounded-2xl border px-4 py-3 flex flex-wrap items-center justify-between gap-3"
+                  style={{
+                    background: sty.bannerBg,
+                    borderColor: sty.bannerBorder,
+                    boxShadow: sty.bannerGlow,
+                  }}
+                >
+                  <div className="inline-flex items-center gap-2.5">
+                    <span className={`w-2.5 h-2.5 rounded-full ${sty.dot}`} />
+                    <span className="font-acme text-white text-lg">
+                      {isAr ? (sec.titleAr || sec.titleEn) : (sec.groupTitleEn ? `${sec.groupTitleEn} · ${cleanLabel(sec)}` : (sec.titleEn || sec.titleAr))}
+                    </span>
+                  </div>
                   {(sec.summaryAr || sec.summaryEn) && (
-                    <span className="font-acme text-xs text-slate-300">{isAr ? (sec.summaryAr || sec.summaryEn) : (sec.summaryEn || sec.summaryAr)}</span>
+                    <span
+                      className="font-acme text-xs md:text-sm px-3 py-1 rounded-full border border-white/10"
+                      style={{ background: 'rgba(15, 23, 42, 0.55)', color: sty.accent }}
+                    >
+                      {isAr ? (sec.summaryAr || sec.summaryEn) : (sec.summaryEn || sec.summaryAr)}
+                    </span>
                   )}
                 </div>
 
@@ -1535,7 +1611,8 @@
                   </div>
                 ))}
               </section>
-            ))}
+              );
+            })}
           </div>
         </div>
       );

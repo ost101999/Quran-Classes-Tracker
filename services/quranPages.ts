@@ -88,6 +88,13 @@ export interface ReportSectionInput {
   toCancelled?: boolean;
 }
 
+export interface VerseSpanRange {
+  startSurah: number;
+  startAyah: number;
+  endSurah: number;
+  endAyah: number;
+}
+
 export interface ResolvedMushafSection {
   key: MushafSectionKey;
   group?: 'reading' | 'homework';
@@ -99,6 +106,7 @@ export interface ResolvedMushafSection {
   summaryEn: string;
   startPage: number;
   endPage: number;
+  verseSpan?: VerseSpanRange;
 }
 
 export function toWesternDigits(value: string | number | undefined | null): string {
@@ -222,241 +230,253 @@ function formatSurahVerseSummary(
 export function resolveReportSectionPages(
   section: ReportSectionInput | undefined | null,
   counts: readonly number[] = SURAH_AYAH_COUNTS
-): { startPage: number; endPage: number; summaryAr: string; summaryEn: string } | null {
-  if (!section) return null;
-  const mode = section.mode || 'ayah';
+): { startPage: number; endPage: number; summaryAr: string; summaryEn: string; verseSpan ?: VerseSpanRange } | null {
+    if (!section) return null;
+    const mode = section.mode || 'ayah';
 
-  if (mode === 'page') {
-    if (section.fromCancelled) return null;
-    const rawFrom = parsePositiveInt(section.fromPage ?? section.from);
-    if (rawFrom === null || rawFrom < 1) return null;
-    const rawToVal = section.toCancelled ? null : parsePositiveInt(section.toPage ?? section.to);
-    const startPage = clamp(rawFrom, 1, 604);
-    const endPage = rawToVal !== null && rawToVal > 0 ? clamp(rawToVal, 1, 604) : startPage;
-    const lo = Math.min(startPage, endPage);
-    const hi = Math.max(startPage, endPage);
-    const summaryAr = lo === hi ? `صفحة ${toHindiDigits(lo)}` : `من صفحة ${toHindiDigits(lo)} إلى صفحة ${toHindiDigits(hi)}`;
-    const summaryEn = lo === hi ? `Page ${lo}` : `Pages ${lo}–${hi}`;
-    return { startPage: lo, endPage: hi, summaryAr, summaryEn };
-  }
+    if (mode === 'page') {
+      if (section.fromCancelled) return null;
+      const rawFrom = parsePositiveInt(section.fromPage ?? section.from);
+      if (rawFrom === null || rawFrom < 1) return null;
+      const rawToVal = section.toCancelled ? null : parsePositiveInt(section.toPage ?? section.to);
+      const startPage = clamp(rawFrom, 1, 604);
+      const endPage = rawToVal !== null && rawToVal > 0 ? clamp(rawToVal, 1, 604) : startPage;
+      const lo = Math.min(startPage, endPage);
+      const hi = Math.max(startPage, endPage);
+      const summaryAr = lo === hi ? `صفحة ${toHindiDigits(lo)}` : `من صفحة ${toHindiDigits(lo)} إلى صفحة ${toHindiDigits(hi)}`;
+      const summaryEn = lo === hi ? `Page ${lo}` : `Pages ${lo}–${hi}`;
+      return { startPage: lo, endPage: hi, summaryAr, summaryEn };
+    }
 
-  if (mode === 'juz' || mode === 'hizb') {
-    if (section.fromCancelled) return null;
-    const rawFrom = parsePositiveInt(mode === 'juz' ? (section.fromJuz ?? section.from) : (section.fromHizb ?? section.from));
-    if (rawFrom === null || rawFrom < 1) return null;
-    const maxPart = mode === 'juz' ? 30 : 60;
-    const rawToVal = section.toCancelled
-      ? null
-      : parsePositiveInt(mode === 'juz' ? (section.toJuz ?? section.to) : (section.toHizb ?? section.to));
-    const fromPart = clamp(rawFrom, 1, maxPart);
-    const toPart = rawToVal !== null && rawToVal > 0 ? clamp(rawToVal, 1, maxPart) : fromPart;
-    const lo = Math.min(fromPart, toPart);
-    const hi = Math.max(fromPart, toPart);
-    const startRange = quranPartRange(mode, lo, [...counts]);
-    const endRange = quranPartRange(mode, hi, [...counts]);
-    if (!startRange || !endRange) return null;
-    const pageSpan = mushafPageRangeForVerseSpan(
-      startRange.startSurah,
-      startRange.startAyah,
-      endRange.endSurah,
-      endRange.endAyah,
-      counts
-    );
+    if (mode === 'juz' || mode === 'hizb') {
+      if (section.fromCancelled) return null;
+      const rawFrom = parsePositiveInt(mode === 'juz' ? (section.fromJuz ?? section.from) : (section.fromHizb ?? section.from));
+      if (rawFrom === null || rawFrom < 1) return null;
+      const maxPart = mode === 'juz' ? 30 : 60;
+      const rawToVal = section.toCancelled
+        ? null
+        : parsePositiveInt(mode === 'juz' ? (section.toJuz ?? section.to) : (section.toHizb ?? section.to));
+      const fromPart = clamp(rawFrom, 1, maxPart);
+      const toPart = rawToVal !== null && rawToVal > 0 ? clamp(rawToVal, 1, maxPart) : fromPart;
+      const lo = Math.min(fromPart, toPart);
+      const hi = Math.max(fromPart, toPart);
+      const startRange = quranPartRange(mode, lo, [...counts]);
+      const endRange = quranPartRange(mode, hi, [...counts]);
+      if (!startRange || !endRange) return null;
+      const pageSpan = mushafPageRangeForVerseSpan(
+        startRange.startSurah,
+        startRange.startAyah,
+        endRange.endSurah,
+        endRange.endAyah,
+        counts
+      );
+      if (!pageSpan) return null;
+      const labelAr = mode === 'juz' ? 'الجزء' : 'الحزب';
+      const labelEn = mode === 'juz' ? 'Juz' : 'Hizb';
+      const summaryAr = lo === hi
+        ? `${labelAr} ${toHindiDigits(lo)}`
+        : `من ${labelAr} ${toHindiDigits(lo)} إلى ${labelAr} ${toHindiDigits(hi)}`;
+      const summaryEn = lo === hi ? `${labelEn} ${lo}` : `${labelEn} ${lo}–${hi}`;
+      return { ...pageSpan, summaryAr, summaryEn };
+    }
+
+    if (mode === 'surah') {
+      const s1 = normalizeSurahIndex(section.fromSurah || section.surah);
+      if (!s1) return null;
+      const s2 = normalizeSurahIndex(section.toSurah) || s1;
+      const loS = Math.min(s1, s2);
+      const hiS = Math.max(s1, s2);
+      const pageSpan = mushafPageRangeForVerseSpan(loS, 1, hiS, counts[hiS - 1], counts);
+      if (!pageSpan) return null;
+      return {
+        ...pageSpan,
+        summaryAr: formatSurahVerseSummary(loS, null, hiS, null, 'ar'),
+        summaryEn: formatSurahVerseSummary(loS, null, hiS, null, 'en'),
+        verseSpan: { startSurah: loS, startAyah: 1, endSurah: hiS, endAyah: counts[hiS - 1] },
+      };
+    }
+
+    // Default: 'ayah' (supports both standard single-surah and advanced cross-surah mode)
+    const s1 = normalizeSurahIndex(section.surah || section.fromSurah) || 1;
+    const s2 = section.isAdvancedAyah
+      ? (normalizeSurahIndex(section.toSurah) || s1)
+      : s1;
+
+    const rawFromVal = section.fromCancelled ? null : parsePositiveInt(section.fromAyah ?? section.from);
+    const rawToVal = section.toCancelled ? null : parsePositiveInt(section.toAyah ?? section.to);
+    const hasFrom = rawFromVal !== null && rawFromVal > 0;
+    const hasTo = rawToVal !== null && rawToVal > 0;
+
+    let effStartAyah: number;
+    let effEndAyah: number;
+    let dispFrom: number | null = null;
+    let dispTo: number | null = null;
+
+    if (!hasFrom && !hasTo) {
+      effStartAyah = 1;
+      effEndAyah = counts[s2 - 1];
+    } else if (hasFrom && !hasTo) {
+      effStartAyah = clamp(rawFromVal!, 1, counts[s1 - 1]);
+      dispFrom = effStartAyah;
+      if (s1 === s2) {
+        effEndAyah = effStartAyah;
+      } else {
+        effEndAyah = counts[s2 - 1];
+      }
+    } else if (!hasFrom && hasTo) {
+      effStartAyah = 1;
+      effEndAyah = clamp(rawToVal!, 1, counts[s2 - 1]);
+      dispTo = effEndAyah;
+    } else {
+      effStartAyah = clamp(rawFromVal!, 1, counts[s1 - 1]);
+      effEndAyah = clamp(rawToVal!, 1, counts[s2 - 1]);
+      dispFrom = effStartAyah;
+      dispTo = effEndAyah;
+    }
+
+    const pageSpan = mushafPageRangeForVerseSpan(s1, effStartAyah, s2, effEndAyah, counts);
     if (!pageSpan) return null;
-    const labelAr = mode === 'juz' ? 'الجزء' : 'الحزب';
-    const labelEn = mode === 'juz' ? 'Juz' : 'Hizb';
-    const summaryAr = lo === hi
-      ? `${labelAr} ${toHindiDigits(lo)}`
-      : `من ${labelAr} ${toHindiDigits(lo)} إلى ${labelAr} ${toHindiDigits(hi)}`;
-    const summaryEn = lo === hi ? `${labelEn} ${lo}` : `${labelEn} ${lo}–${hi}`;
-    return { ...pageSpan, summaryAr, summaryEn };
-  }
-
-  if (mode === 'surah') {
-    const s1 = normalizeSurahIndex(section.fromSurah || section.surah);
-    if (!s1) return null;
-    const s2 = normalizeSurahIndex(section.toSurah) || s1;
-    const loS = Math.min(s1, s2);
-    const hiS = Math.max(s1, s2);
-    const pageSpan = mushafPageRangeForVerseSpan(loS, 1, hiS, counts[hiS - 1], counts);
-    if (!pageSpan) return null;
+    const normInverted = s1 > s2 || (s1 === s2 && effStartAyah > effEndAyah);
+    const vStartSurah = normInverted ? s2 : s1;
+    const vStartAyah = normInverted ? effEndAyah : effStartAyah;
+    const vEndSurah = normInverted ? s1 : s2;
+    const vEndAyah = normInverted ? effStartAyah : effEndAyah;
     return {
       ...pageSpan,
-      summaryAr: formatSurahVerseSummary(loS, null, hiS, null, 'ar'),
-      summaryEn: formatSurahVerseSummary(loS, null, hiS, null, 'en'),
+      summaryAr: formatSurahVerseSummary(s1, dispFrom, s2, dispTo, 'ar'),
+      summaryEn: formatSurahVerseSummary(s1, dispFrom, s2, dispTo, 'en'),
+      verseSpan: {
+        startSurah: vStartSurah,
+        startAyah: vStartAyah,
+        endSurah: vEndSurah,
+        endAyah: vEndAyah,
+      },
     };
   }
 
-  // Default: 'ayah' (supports both standard single-surah and advanced cross-surah mode)
-  const s1 = normalizeSurahIndex(section.surah || section.fromSurah) || 1;
-  const s2 = section.isAdvancedAyah
-    ? (normalizeSurahIndex(section.toSurah) || s1)
-    : s1;
-
-  const rawFromVal = section.fromCancelled ? null : parsePositiveInt(section.fromAyah ?? section.from);
-  const rawToVal = section.toCancelled ? null : parsePositiveInt(section.toAyah ?? section.to);
-  const hasFrom = rawFromVal !== null && rawFromVal > 0;
-  const hasTo = rawToVal !== null && rawToVal > 0;
-
-  let effStartAyah: number;
-  let effEndAyah: number;
-  let dispFrom: number | null = null;
-  let dispTo: number | null = null;
-
-  if (!hasFrom && !hasTo) {
-    effStartAyah = 1;
-    effEndAyah = counts[s2 - 1];
-  } else if (hasFrom && !hasTo) {
-    effStartAyah = clamp(rawFromVal!, 1, counts[s1 - 1]);
-    dispFrom = effStartAyah;
-    if (s1 === s2) {
-      effEndAyah = effStartAyah;
-    } else {
-      effEndAyah = counts[s2 - 1];
+  export function normalizeSectionOrder(order?: MushafSectionKey[]): MushafSectionKey[] {
+    const seen = new Set<MushafSectionKey>();
+    const result: MushafSectionKey[] = [];
+    for (const key of order || []) {
+      if ((key === 'rev' || key === 'oldRev' || key === 'new' || key === 'tilawa') && !seen.has(key)) {
+        seen.add(key);
+        result.push(key);
+      }
     }
-  } else if (!hasFrom && hasTo) {
-    effStartAyah = 1;
-    effEndAyah = clamp(rawToVal!, 1, counts[s2 - 1]);
-    dispTo = effEndAyah;
-  } else {
-    effStartAyah = clamp(rawFromVal!, 1, counts[s1 - 1]);
-    effEndAyah = clamp(rawToVal!, 1, counts[s2 - 1]);
-    dispFrom = effStartAyah;
-    dispTo = effEndAyah;
+    for (const fallbackKey of DEFAULT_MUSHAF_SECTION_ORDER) {
+      if (!seen.has(fallbackKey)) {
+        seen.add(fallbackKey);
+        result.push(fallbackKey);
+      }
+    }
+    return result;
   }
 
-  const pageSpan = mushafPageRangeForVerseSpan(s1, effStartAyah, s2, effEndAyah, counts);
-  if (!pageSpan) return null;
-  return {
-    ...pageSpan,
-    summaryAr: formatSurahVerseSummary(s1, dispFrom, s2, dispTo, 'ar'),
-    summaryEn: formatSurahVerseSummary(s1, dispFrom, s2, dispTo, 'en'),
-  };
-}
+  export function buildCustomMushafPlan(params: {
+    reportData: Record<string, any> | undefined;
+    sectionToggles?: Record<string, boolean>;
+    cancelledInputs?: Record<string, boolean>;
+    exclusions?: Partial<Record<MushafSectionKey, boolean>>;
+    readingExclusions?: Partial<Record<MushafSectionKey, boolean>>;
+    homeworkExclusions?: Partial<Record<MushafSectionKey, boolean>>;
+    settings?: StudentReportSettings;
+    counts?: readonly number[];
+  }): ResolvedMushafSection[] {
+    const {
+      reportData,
+      sectionToggles,
+      cancelledInputs = {},
+      exclusions = {},
+      readingExclusions,
+      homeworkExclusions,
+      settings,
+      counts = SURAH_AYAH_COUNTS,
+    } = params;
+    if (!reportData) return [];
 
-export function normalizeSectionOrder(order?: MushafSectionKey[]): MushafSectionKey[] {
-  const seen = new Set<MushafSectionKey>();
-  const result: MushafSectionKey[] = [];
-  for (const key of order || []) {
-    if ((key === 'rev' || key === 'oldRev' || key === 'new' || key === 'tilawa') && !seen.has(key)) {
-      seen.add(key);
-      result.push(key);
+    const targetMode = settings?.mushafTargetSection || 'homework';
+    const order = normalizeSectionOrder(settings?.mushafSectionOrder);
+    const includedMap = settings?.mushafIncludedSections;
+    const isBoth = targetMode === 'both';
+
+    const collectSectionsForKind = (
+      targetKind: 'reading' | 'homework',
+      kindExclusions: Partial<Record<MushafSectionKey, boolean>>
+    ): ResolvedMushafSection[] => {
+      const keyConfig: Record<MushafSectionKey, {
+        reportKey: string;
+        toggleKey: string;
+        fromCancelId: string;
+        toCancelId: string;
+      }> = targetKind === 'homework'
+          ? {
+            rev: { reportKey: 'homeworkRev', toggleKey: 'homeworkRev', fromCancelId: 'hw-rev-from', toCancelId: 'hw-rev-to' },
+            oldRev: { reportKey: 'homeworkOldRev', toggleKey: 'homeworkOldRev', fromCancelId: 'hw-oldrev-from', toCancelId: 'hw-oldrev-to' },
+            new: { reportKey: 'homeworkNew', toggleKey: 'homeworkNew', fromCancelId: 'hw-new-from', toCancelId: 'hw-new-to' },
+            tilawa: { reportKey: 'homeworkTilawa', toggleKey: 'homeworkTilawa', fromCancelId: 'hw-tilawa-from', toCancelId: 'hw-tilawa-to' },
+          }
+          : {
+            rev: { reportKey: 'readingRev', toggleKey: 'readingRev', fromCancelId: 'quran-rev-from-ayah', toCancelId: 'quran-rev-to-ayah' },
+            oldRev: { reportKey: 'readingOldRev', toggleKey: 'readingOldRev', fromCancelId: 'quran-oldrev-from-ayah', toCancelId: 'quran-oldrev-to-ayah' },
+            new: { reportKey: 'readingNew', toggleKey: 'readingNew', fromCancelId: 'quran-new-from-ayah', toCancelId: 'quran-new-to-ayah' },
+            tilawa: { reportKey: 'readingTilawa', toggleKey: 'readingTilawa', fromCancelId: 'quran-tilawa-from-ayah', toCancelId: 'quran-tilawa-to-ayah' },
+          };
+
+      const groupTitleAr = targetKind === 'reading' ? 'الدرس الحالي' : 'الدرس القادم';
+      const groupTitleEn = targetKind === 'reading' ? "Current Lesson" : 'Next Lesson';
+      const collected: ResolvedMushafSection[] = [];
+
+      for (const key of order) {
+        if (includedMap && includedMap[key] === false) continue;
+        if (kindExclusions[key]) continue;
+
+        const cfg = keyConfig[key];
+        const toggles = sectionToggles ?? reportData.sectionToggles;
+        if (toggles && toggles[cfg.toggleKey] === false) continue;
+
+        const raw = reportData[cfg.reportKey] as ReportSectionInput | undefined;
+        if (!raw) continue;
+
+        const mode = raw.mode || 'ayah';
+        const fromCancelId = targetKind === 'reading' && mode !== 'ayah'
+          ? `quran-${key === 'oldRev' ? 'oldrev' : key}-from-${mode}`
+          : cfg.fromCancelId;
+        const toCancelId = targetKind === 'reading' && mode !== 'ayah'
+          ? `quran-${key === 'oldRev' ? 'oldrev' : key}-to-${mode}`
+          : cfg.toCancelId;
+
+        const resolved = resolveReportSectionPages(
+          {
+            ...raw,
+            fromCancelled: !!cancelledInputs[fromCancelId],
+            toCancelled: !!cancelledInputs[toCancelId],
+          },
+          counts
+        );
+        if (!resolved) continue;
+
+        collected.push({
+          key,
+          group: targetKind,
+          groupTitleAr,
+          groupTitleEn,
+          titleAr: isBoth ? `${groupTitleAr}: ${MUSHAF_SECTION_LABELS[key].ar}` : MUSHAF_SECTION_LABELS[key].ar,
+          titleEn: MUSHAF_SECTION_LABELS[key].en,
+          ...resolved,
+        });
+      }
+      return collected;
+    };
+
+    if (isBoth) {
+      return [
+        ...collectSectionsForKind('reading', readingExclusions ?? exclusions),
+        ...collectSectionsForKind('homework', homeworkExclusions ?? exclusions),
+      ];
     }
+    const singleKind = targetMode === 'reading' ? 'reading' : 'homework';
+    const singleExcl = singleKind === 'reading'
+      ? (readingExclusions ?? exclusions)
+      : (homeworkExclusions ?? exclusions);
+    return collectSectionsForKind(singleKind, singleExcl);
   }
-  for (const fallbackKey of DEFAULT_MUSHAF_SECTION_ORDER) {
-    if (!seen.has(fallbackKey)) {
-      seen.add(fallbackKey);
-      result.push(fallbackKey);
-    }
-  }
-  return result;
-}
-
-export function buildCustomMushafPlan(params: {
-  reportData: Record<string, any> | undefined;
-  sectionToggles?: Record<string, boolean>;
-  cancelledInputs?: Record<string, boolean>;
-  exclusions?: Partial<Record<MushafSectionKey, boolean>>;
-  readingExclusions?: Partial<Record<MushafSectionKey, boolean>>;
-  homeworkExclusions?: Partial<Record<MushafSectionKey, boolean>>;
-  settings?: StudentReportSettings;
-  counts?: readonly number[];
-}): ResolvedMushafSection[] {
-  const {
-    reportData,
-    sectionToggles,
-    cancelledInputs = {},
-    exclusions = {},
-    readingExclusions,
-    homeworkExclusions,
-    settings,
-    counts = SURAH_AYAH_COUNTS,
-  } = params;
-  if (!reportData) return [];
-
-  const targetMode = settings?.mushafTargetSection || 'homework';
-  const order = normalizeSectionOrder(settings?.mushafSectionOrder);
-  const includedMap = settings?.mushafIncludedSections;
-  const isBoth = targetMode === 'both';
-
-  const collectSectionsForKind = (
-    targetKind: 'reading' | 'homework',
-    kindExclusions: Partial<Record<MushafSectionKey, boolean>>
-  ): ResolvedMushafSection[] => {
-    const keyConfig: Record<MushafSectionKey, {
-      reportKey: string;
-      toggleKey: string;
-      fromCancelId: string;
-      toCancelId: string;
-    }> = targetKind === 'homework'
-      ? {
-          rev: { reportKey: 'homeworkRev', toggleKey: 'homeworkRev', fromCancelId: 'hw-rev-from', toCancelId: 'hw-rev-to' },
-          oldRev: { reportKey: 'homeworkOldRev', toggleKey: 'homeworkOldRev', fromCancelId: 'hw-oldrev-from', toCancelId: 'hw-oldrev-to' },
-          new: { reportKey: 'homeworkNew', toggleKey: 'homeworkNew', fromCancelId: 'hw-new-from', toCancelId: 'hw-new-to' },
-          tilawa: { reportKey: 'homeworkTilawa', toggleKey: 'homeworkTilawa', fromCancelId: 'hw-tilawa-from', toCancelId: 'hw-tilawa-to' },
-        }
-      : {
-          rev: { reportKey: 'readingRev', toggleKey: 'readingRev', fromCancelId: 'quran-rev-from-ayah', toCancelId: 'quran-rev-to-ayah' },
-          oldRev: { reportKey: 'readingOldRev', toggleKey: 'readingOldRev', fromCancelId: 'quran-oldrev-from-ayah', toCancelId: 'quran-oldrev-to-ayah' },
-          new: { reportKey: 'readingNew', toggleKey: 'readingNew', fromCancelId: 'quran-new-from-ayah', toCancelId: 'quran-new-to-ayah' },
-          tilawa: { reportKey: 'readingTilawa', toggleKey: 'readingTilawa', fromCancelId: 'quran-tilawa-from-ayah', toCancelId: 'quran-tilawa-to-ayah' },
-        };
-
-    const groupTitleAr = targetKind === 'reading' ? 'الدرس الحالي' : 'الدرس القادم';
-    const groupTitleEn = targetKind === 'reading' ? "Current Lesson" : 'Next Lesson';
-    const collected: ResolvedMushafSection[] = [];
-
-    for (const key of order) {
-      if (includedMap && includedMap[key] === false) continue;
-      if (kindExclusions[key]) continue;
-
-      const cfg = keyConfig[key];
-      const toggles = sectionToggles ?? reportData.sectionToggles;
-      if (toggles && toggles[cfg.toggleKey] === false) continue;
-
-      const raw = reportData[cfg.reportKey] as ReportSectionInput | undefined;
-      if (!raw) continue;
-
-      const mode = raw.mode || 'ayah';
-      const fromCancelId = targetKind === 'reading' && mode !== 'ayah'
-        ? `quran-${key === 'oldRev' ? 'oldrev' : key}-from-${mode}`
-        : cfg.fromCancelId;
-      const toCancelId = targetKind === 'reading' && mode !== 'ayah'
-        ? `quran-${key === 'oldRev' ? 'oldrev' : key}-to-${mode}`
-        : cfg.toCancelId;
-
-      const resolved = resolveReportSectionPages(
-        {
-          ...raw,
-          fromCancelled: !!cancelledInputs[fromCancelId],
-          toCancelled: !!cancelledInputs[toCancelId],
-        },
-        counts
-      );
-      if (!resolved) continue;
-
-      collected.push({
-        key,
-        group: targetKind,
-        groupTitleAr,
-        groupTitleEn,
-        titleAr: isBoth ? `${groupTitleAr}: ${MUSHAF_SECTION_LABELS[key].ar}` : MUSHAF_SECTION_LABELS[key].ar,
-        titleEn: MUSHAF_SECTION_LABELS[key].en,
-        ...resolved,
-      });
-    }
-    return collected;
-  };
-
-  if (isBoth) {
-    return [
-      ...collectSectionsForKind('reading', readingExclusions ?? exclusions),
-      ...collectSectionsForKind('homework', homeworkExclusions ?? exclusions),
-    ];
-  }
-  const singleKind = targetMode === 'reading' ? 'reading' : 'homework';
-  const singleExcl = singleKind === 'reading'
-    ? (readingExclusions ?? exclusions)
-    : (homeworkExclusions ?? exclusions);
-  return collectSectionsForKind(singleKind, singleExcl);
-}

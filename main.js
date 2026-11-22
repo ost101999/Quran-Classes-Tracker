@@ -30,6 +30,11 @@ const {
     saveInteractiveHtmlFile,
     publishAudioSessionToCloud,
 } = require('./audio-mushaf/publisher');
+const {
+    resolvePdfPagesForVerseSpan620,
+    computePageCropForVerseSpan620,
+    transformMarkerForCrop,
+} = require('./audio-mushaf/mushaf-crop-data');
 const { readTargets } = require('./whatsapp-integration');
 const { createCalendarSchedules } = require('./calendar-schedules');
 const { registerAppUpdates } = require('./app-update');
@@ -108,10 +113,15 @@ ipcMain.handle('generate-custom-mushaf', async (_event, payload) => {
             const totalSourcePages = sourceDoc.getPageCount();
             const offsetNum = Number.isFinite(pageOffset) ? Math.trunc(pageOffset) : 0;
 
-            const reportSectionsWithPages = (Array.isArray(sections) ? sections : []).map(sec => ({
-                ...sec,
-                pdfPages: mapMushafPagesToPdfPages(sec.startPage, sec.endPage, totalSourcePages, offsetNum),
-            }));
+            const reportSectionsWithPages = (Array.isArray(sections) ? sections : []).map(sec => {
+                const resolved620Pages = resolvePdfPagesForVerseSpan620(sec.verseSpan, totalSourcePages, offsetNum);
+                return {
+                    ...sec,
+                    pdfPages: (resolved620Pages && resolved620Pages.length > 0)
+                        ? resolved620Pages
+                        : mapMushafPagesToPdfPages(sec.startPage, sec.endPage, totalSourcePages, offsetNum),
+                };
+            });
 
             let markers = [];
             let unmatchedClips = [];
@@ -140,30 +150,63 @@ ipcMain.handle('generate-custom-mushaf', async (_event, payload) => {
             const allowedPageSet = new Set(merged.allPdfPages);
             const filteredRecolor = unmatchedNewAnnotations.filter(a => allowedPageSet.has(a.pdfPage));
             const renderBytes = await recolorAnnotationsToGreenInPdfBytes(sourceBytes, filteredRecolor);
+
+            const cropPlanMap = new Map();
+            const cropRequests = [];
+            const sectionPageCropKey = new Map();
+
+            merged.sections.forEach((sec, secIdx) => {
+                (sec.pages || []).forEach(p => {
+                    const crop = computePageCropForVerseSpan620(p.pdfPage, sec.verseSpan, totalSourcePages, offsetNum);
+                    const cropKey = crop.isCropped
+                        ? `${p.pdfPage}_${crop.topFrac.toFixed(4)}_${crop.botFrac.toFixed(4)}_${crop.drawTopBar ? 1 : 0}${crop.drawBotBar ? 1 : 0}`
+                        : String(p.pdfPage);
+                    sectionPageCropKey.set(`${secIdx}:${p.pdfPage}`, { crop, cropKey });
+                    if (!cropPlanMap.has(cropKey)) {
+                        cropPlanMap.set(cropKey, crop);
+                        cropRequests.push({ key: cropKey, pdfPage: p.pdfPage, crop });
+                    }
+                });
+            });
+
             const renderedImages = await renderPdfPagesToImages({
                 BrowserWindow,
                 pdfPath: resolved.path,
                 pdfBytes: renderBytes,
                 pageNumbers: merged.allPdfPages,
+                cropRequests,
                 scale: 1.55,
             });
 
-            const enrichedSections = merged.sections.map(sec => ({
-                ...sec,
-                pages: sec.pages.map(p => ({
-                    pdfPage: p.pdfPage,
-                    imageDataUrl: renderedImages[String(p.pdfPage)]?.imageDataUrl || '',
-                    markers: p.markers.map(m => ({
-                        id: m.clipId,
-                        xPercent: m.xPercent,
-                        yPercent: m.yPercent,
-                        durationMs: m.durationMs || 0,
-                        audioDataUrl: readClipAudioDataUrl(audioSession.sessionKey, m.audioFileName),
-                    })),
-                })),
-            }));
+                const enrichedSections = merged.sections.map((sec, secIdx) => ({
+                    ...sec,
+                    pages: sec.pages.map(p => {
+                        const plan = sectionPageCropKey.get(`${secIdx}:${p.pdfPage}`);
+                        const cropKey = plan ? plan.cropKey : String(p.pdfPage);
+                        const crop = plan ? plan.crop : null;
+                        const rendered = renderedImages[cropKey] || renderedImages[String(p.pdfPage)];
+                        const mappedMarkers = p.markers
+                            .map(m => {
+                                const transformed = transformMarkerForCrop(m, rendered?.cropApplied ? crop : null, rendered);
+                                if (!transformed) return null;
+                                return {
+                                    id: transformed.clipId,
+                                    xPercent: transformed.xPercent,
+                                    yPercent: transformed.yPercent,
+                                    durationMs: transformed.durationMs || 0,
+                                    audioDataUrl: readClipAudioDataUrl(audioSession.sessionKey, transformed.audioFileName),
+                                };
+                            })
+                            .filter(Boolean);
+                        return {
+                            pdfPage: p.pdfPage,
+                            imageDataUrl: rendered?.imageDataUrl || '',
+                            markers: mappedMarkers,
+                        };
+                    }),
+                }));
 
-            if (outputFormat === 'web_link') {
+                if(outputFormat === 'web_link') {
                 const published = await publishAudioSessionToCloud({
                     studentId: studentId || '',
                     studentName,

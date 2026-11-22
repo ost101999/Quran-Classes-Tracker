@@ -120,3 +120,41 @@ test('mergeReportAndAudioSections drops out-of-report pages when includeExtraPag
   assert.match(html, /Revision/);
   assert.match(html, /New Memorization/);
 });
+
+test('620-page Mushaf crop solver scopes Surah Al-Bayyinah (1-8) and mid-surah ranges cleanly and remaps markers', () => {
+  const {
+    resolvePdfPagesForVerseSpan620,
+    computePageCropForVerseSpan620,
+    transformMarkerForCrop,
+  } = require('../audio-mushaf/mushaf-crop-data');
+
+  const bayyinahSpan = { startSurah: 98, startAyah: 1, endSurah: 98, endAyah: 8 };
+  assert.deepEqual(resolvePdfPagesForVerseSpan620(bayyinahSpan, 620, 0), [598, 599]);
+
+  // Sub-range only on page 599 (ayahs 6-8) should resolve ONLY page 599
+  assert.deepEqual(resolvePdfPagesForVerseSpan620({ startSurah: 98, startAyah: 6, endSurah: 98, endAyah: 8 }, 620, 0), [599]);
+
+  const crop598 = computePageCropForVerseSpan620(598, bayyinahSpan, 620, 0);
+  assert.equal(crop598.isCropped, true);
+  assert.equal(crop598.drawTopBar, true);
+  assert.equal(crop598.drawBotBar, false);
+  assert.ok(crop598.topFrac > 0.5 && crop598.topFrac < 0.56);
+
+  const crop599 = computePageCropForVerseSpan620(599, bayyinahSpan, 620, 0);
+  assert.equal(crop599.isCropped, true);
+  assert.equal(crop599.drawTopBar, false);
+  assert.equal(crop599.drawBotBar, true);
+  assert.ok(crop599.botFrac > 0.33 && crop599.botFrac < 0.37);
+
+  // Pin in Al-Qadr (above Al-Bayyinah on p598) should be excluded; pin inside Al-Bayyinah should remap into 0..100
+  assert.equal(transformMarkerForCrop({ clipId: 'qadr', yPercent: 35 }, crop598), null);
+  const inside = transformMarkerForCrop({ clipId: 'bayyinah_4', yPercent: 80 }, crop598);
+  assert.ok(inside && inside.yPercent > 40 && inside.yPercent < 70);
+
+  // Al-Fatihah on PDF page 2 crops only top half
+  const cropFatiha = computePageCropForVerseSpan620(2, { startSurah: 1, startAyah: 1, endSurah: 1, endAyah: 7 }, 620, 0);
+  assert.equal(cropFatiha.isCropped, true);
+  assert.equal(cropFatiha.drawTopBar, false);
+  assert.equal(cropFatiha.drawBotBar, true);
+  assert.ok(cropFatiha.botFrac < 0.55);
+});
