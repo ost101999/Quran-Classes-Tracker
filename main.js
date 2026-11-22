@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, protocol, Menu, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, protocol, Menu, dialog, clipboard } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn, execFile } = require('child_process');
@@ -304,6 +304,15 @@ ipcMain.handle('open-mushaf-file', async (_event, filePath) => {
         return { success: true };
     } catch (error) {
         return { success: false, error: error?.message || 'تعذر فتح الملف.' };
+    }
+});
+
+ipcMain.handle('copy-text-to-clipboard', async (_event, text) => {
+    try {
+        clipboard.writeText(String(text ?? ''));
+        return { success: true };
+    } catch (error) {
+        return { success: false, error: error?.message || 'تعذر النسخ إلى الحافظة.' };
     }
 });
 

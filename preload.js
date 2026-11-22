@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     openMushafFolder: () => ipcRenderer.invoke('open-mushaf-folder'),
     openMushafFile: (filePath) => ipcRenderer.invoke('open-mushaf-file', filePath),
     copyFileToClipboard: (filePath) => ipcRenderer.invoke('copy-file-to-clipboard', filePath),
+    copyTextToClipboard: (text) => ipcRenderer.invoke('copy-text-to-clipboard', text),
     getCalendarSchedules: (students, force = false, review = false, dayTransitionTime = '00:00') => ipcRenderer.invoke('get-calendar-schedules', students, force, review, dayTransitionTime),
     saveZoom: (zoomFactor) => ipcRenderer.invoke('save-zoom', zoomFactor),
     loadZoom: () => ipcRenderer.invoke('load-zoom'),

@@ -5144,6 +5144,38 @@ function App() {
     return () => window.removeEventListener('keydown', handleMultiSelectKeyDown);
   }, [isMultiSelectMode, selectedStudentIds, students]);
 
+  // --- Reliable multi-tier clipboard copy (immune to lost focus / expired click activation after async link upload) ---
+  const writeClipboardTextReliable = useCallback(async (text: string): Promise<boolean> => {
+    const value = String(text ?? '');
+    if (window.electronAPI?.copyTextToClipboard) {
+      try {
+        const res = await window.electronAPI.copyTextToClipboard(value);
+        if (res?.success) return true;
+      } catch { /* fall through */ }
+    }
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value);
+        return true;
+      }
+    } catch { /* fall through to textarea fallback */ }
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = value;
+      ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed';
+      ta.style.top = '-9999px';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      if (ok) return true;
+    } catch { /* ignore */ }
+    return false;
+  }, []);
+
   // --- Close Modals/Menus on Escape ---
   const handleClipboardCopy = useCallback(async (studentId: string, reportText: string, onCopied: () => void) => {
     const isManualWhatsapp = whatsappMode === 'manual' && sendViaWhatsapp;
@@ -5153,22 +5185,25 @@ function App() {
       const academyWhatsapp = student ? academyRates[student.academy]?.whatsappNumber : undefined;
       const finalTarget = studentWhatsapp || academyWhatsapp || student?.name || '';
 
-      try {
-        await navigator.clipboard.writeText(reportText);
-        setTimeout(() => {
-          navigator.clipboard.writeText(finalTarget).then(() => {
-            onCopied();
-          }).catch(() => { onCopied(); });
-        }, 800);
-      } catch {
+      const reportCopied = await writeClipboardTextReliable(reportText);
+      if (!reportCopied) {
+        showToast('⚠️ تعذر نسخ التقرير إلى الحافظة — أعد المحاولة');
         onCopied();
+        return;
       }
-    } else {
-      navigator.clipboard.writeText(reportText).then(() => {
+      setTimeout(async () => {
+        await writeClipboardTextReliable(finalTarget);
         onCopied();
-      }).catch(() => { onCopied(); });
+      }, 800);
+    } else {
+      const copied = await writeClipboardTextReliable(reportText);
+      if (!copied) {
+        showToast('⚠️ تعذر نسخ التقرير إلى الحافظة — أعد المحاولة والنافذة نشطة');
+        return;
+      }
+      onCopied();
     }
-  }, [whatsappMode, sendViaWhatsapp, students, academyRates]);
+  }, [whatsappMode, sendViaWhatsapp, students, academyRates, writeClipboardTextReliable, showToast]);
 
   const closeAllModals = useCallback((isCommit = false, reportOnly = false) => {
     if (!isCommit && smartReportModal?.undoSnapshot) {

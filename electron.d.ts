@@ -18,6 +18,7 @@ declare global {
             openMushafFolder?: () => Promise<{ success: boolean; outputDir?: string; error?: string }>;
             openMushafFile?: (filePath: string) => Promise<{ success: boolean; error?: string }>;
             copyFileToClipboard?: (filePath: string) => Promise<{ success: boolean; error?: string }>;
+            copyTextToClipboard?: (text: string) => Promise<{ success: boolean; error?: string }>;
             getCalendarSchedules?: (students: { id: string; name: string }[], force?: boolean, review?: boolean, dayTransitionTime?: string) => Promise<import('./types').CalendarSchedulesResult>;
             saveZoom?: (zoomFactor: number) => Promise<{ success: boolean; error?: string }>;
             loadZoom?: () => Promise<number | null>;
