@@ -106,7 +106,7 @@ import WebModal from './components/WebModal';
 import MultiStudentDetailsModal from './components/MultiStudentDetailsModal';
 import SearchableSurahSelect from './components/SearchableSurahSelect';
 import { quranPartRange, quranRubSpanRange, quranRubForVerse, type QuranPartKind } from './services/quranParts';
-import { buildCustomMushafPlan } from './services/quranPages';
+import { buildCustomMushafPlan, resolveEffectiveReportSettings } from './services/quranPages';
 import {
   isStudentInactiveInMonth,
   isStudentPausedInMonth,
@@ -5518,8 +5518,8 @@ function App() {
       return null;
     }
 
-    const settings = targetStudent.reportSettings;
-    const outputFormat = settings.mushafOutputFormat || 'pdf';
+    const settings = resolveEffectiveReportSettings(targetStudent.reportSettings);
+    const outputFormat = settings.mushafOutputFormat || 'web_link';
     const sections = buildCustomMushafPlan({
       reportData,
       sectionToggles: options.sectionTogglesOverride ?? reportData?.sectionToggles,
@@ -5534,13 +5534,7 @@ function App() {
       return null;
     }
 
-    const resolvedLang: 'ar' | 'en' = options.lang
-      ? options.lang
-      : settings.mushafLanguage === 'ar'
-        ? 'ar'
-        : settings.mushafLanguage === 'auto'
-          ? lastReportLanguage
-          : 'en';
+    const resolvedLang: 'ar' | 'en' = options.lang || lastReportLanguage;
 
     try {
       const res = await window.electronAPI.generateCustomMushaf({
@@ -5552,9 +5546,9 @@ function App() {
         sections,
         dividerStyle: settings.mushafDividerStyle || 'both',
         language: resolvedLang,
-        pageOffset: settings.mushafPageOffset || 0,
+        pageOffset: 0,
         dateStr: options.dateStr,
-        autoOpen: !!settings.mushafAutoOpen,
+        autoOpen: false,
       });
 
       if (res.success) {
@@ -5584,8 +5578,9 @@ function App() {
       | { mode: 'manual'; lang: 'ar' | 'en' }
   ) => {
     if (!targetStudent?.reportSettings?.customMushafEnabled) return;
-    if ((targetStudent.reportSettings.mushafOutputFormat || 'pdf') === 'web_link') return;
-    if (targetStudent.reportSettings.mushafAutoSendWhatsapp === false) return;
+    const effectiveSettings = resolveEffectiveReportSettings(targetStudent.reportSettings);
+    if (effectiveSettings.mushafOutputFormat === 'web_link') return;
+    if (effectiveSettings.mushafAutoSendWhatsapp === false) return;
 
     if (delivery.mode === 'auto') {
       const [autoRes, mushafRes] = await Promise.all([delivery.waitAuto, mushafPromise]);
@@ -5601,11 +5596,7 @@ function App() {
       }
       const fileRes = await window.electronAPI.sendWhatsAppFile(delivery.target, mushafRes.filePath);
       if (fileRes?.success) {
-        const msgLang = targetStudent.reportSettings.mushafLanguage === 'ar'
-          ? 'ar'
-          : targetStudent.reportSettings.mushafLanguage === 'auto'
-            ? lastReportLanguage
-            : 'en';
+        const msgLang = lastReportLanguage;
         showToast(msgLang === 'en'
           ? 'Report & custom Mushaf sent via WhatsApp ✅'
           : 'تم إرسال التقرير والمصحف عبر واتساب ✅');
@@ -16652,13 +16643,13 @@ function App() {
                             cancelledInputs: { ...cancelledInputs }
                           };
 
-                          const arMushafTargetSection = student?.reportSettings?.mushafTargetSection || 'homework';
                           const arReadingExclusions = { rev: excludeReadingRev, oldRev: excludeReadingOldRev, new: excludeReadingNew || prevReportHadExclusion, tilawa: excludeReadingTilawa };
                           const arHomeworkExclusions = { rev: excludeHomeworkRev, oldRev: excludeHomeworkOldRev, new: excludeHomeworkNew || excludeNewFromReport, tilawa: excludeHomeworkTilawa };
-                          const arMushafExclusions = arMushafTargetSection === 'reading' ? arReadingExclusions : arHomeworkExclusions;
+                          const arMushafExclusions = arHomeworkExclusions;
                           const arMushafDateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(smartReportModal.dayNum).padStart(2, '0')}`;
                           const _arMushafStudent = student;
-                          const arIsWebLinkMode = Boolean(_arMushafStudent?.reportSettings?.customMushafEnabled && (_arMushafStudent.reportSettings.mushafOutputFormat || 'pdf') === 'web_link');
+                          const arEffectiveMushaf = resolveEffectiveReportSettings(_arMushafStudent?.reportSettings);
+                          const arIsWebLinkMode = Boolean(arEffectiveMushaf.customMushafEnabled && arEffectiveMushaf.mushafOutputFormat === 'web_link');
                           if (arIsWebLinkMode) {
                             showToast('جاري تجهيز رابط المصحف الصوتي... ⏳', 0);
                             const linkRes = await triggerCustomMushafForStudent(_arMushafStudent, arReportSnapshot, {
@@ -18249,13 +18240,13 @@ function App() {
                             cancelledInputs: { ...cancelledInputs }
                           };
 
-                          const enMushafTargetSection = student?.reportSettings?.mushafTargetSection || 'homework';
                           const enReadingExclusions = { rev: excludeReadingRev, oldRev: excludeReadingOldRev, new: excludeReadingNew || prevReportHadExclusion, tilawa: excludeReadingTilawa };
                           const enHomeworkExclusions = { rev: excludeHomeworkRev, oldRev: excludeHomeworkOldRev, new: excludeHomeworkNew || excludeNewFromReport, tilawa: excludeHomeworkTilawa };
-                          const enMushafExclusions = enMushafTargetSection === 'reading' ? enReadingExclusions : enHomeworkExclusions;
+                          const enMushafExclusions = enHomeworkExclusions;
                           const enMushafDateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(smartReportModal.dayNum).padStart(2, '0')}`;
                           const _enMushafStudent = student;
-                          const enIsWebLinkMode = Boolean(_enMushafStudent?.reportSettings?.customMushafEnabled && (_enMushafStudent.reportSettings.mushafOutputFormat || 'pdf') === 'web_link');
+                          const enEffectiveMushaf = resolveEffectiveReportSettings(_enMushafStudent?.reportSettings);
+                          const enIsWebLinkMode = Boolean(enEffectiveMushaf.customMushafEnabled && enEffectiveMushaf.mushafOutputFormat === 'web_link');
                           if (enIsWebLinkMode) {
                             showToast('Preparing Audio Mushaf link... ⏳', 0);
                             const linkRes = await triggerCustomMushafForStudent(_enMushafStudent, enReportSnapshot, {

@@ -375,7 +375,28 @@ export function resolveReportSectionPages(
     };
   }
 
-  export function normalizeSectionOrder(order?: MushafSectionKey[]): MushafSectionKey[] {
+  export function resolveEffectiveReportSettings(
+  settings?: StudentReportSettings | null
+): StudentReportSettings {
+  const outputFormat = settings?.mushafUnifiedV2
+    ? (settings.mushafOutputFormat || 'web_link')
+    : 'web_link';
+  return {
+    customMushafEnabled: !!settings?.customMushafEnabled,
+    mushafUnifiedV2: true,
+    mushafOutputFormat: outputFormat,
+    mushafTargetSection: 'both',
+    mushafSectionOrder: [...DEFAULT_MUSHAF_SECTION_ORDER],
+    mushafIncludedSections: { rev: true, oldRev: true, new: true, tilawa: true },
+    mushafDividerStyle: settings?.mushafDividerStyle || 'both',
+    mushafLanguage: 'auto',
+    mushafPageOffset: 0,
+    mushafAutoOpen: false,
+    mushafAutoSendWhatsapp: true,
+  };
+}
+
+export function normalizeSectionOrder(order?: MushafSectionKey[]): MushafSectionKey[] {
     const seen = new Set<MushafSectionKey>();
     const result: MushafSectionKey[] = [];
     for (const key of order || []) {
