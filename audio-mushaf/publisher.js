@@ -362,6 +362,27 @@ function buildInteractiveHtml({
             `;
         }).join('');
 
+        const nextSec = secIdx + 1 < sections.length ? sections[secIdx + 1] : null;
+        const nextTheme = nextSec ? (SECTION_COLORS[nextSec.key] || SECTION_COLORS.new) : null;
+        const nextSecTitle = nextSec
+            ? (isAr ? (nextSec.titleAr || nextSec.titleEn) : (nextSec.groupTitleEn ? `${nextSec.groupTitleEn} · ${getCleanTabLabel(nextSec)}` : (nextSec.titleEn || nextSec.titleAr)))
+            : '';
+        const nextSecSummary = nextSec ? (isAr ? (nextSec.summaryAr || nextSec.summaryEn) : (nextSec.summaryEn || nextSec.summaryAr)) : '';
+        const nextHintMarkup = nextSec ? `
+                <div class="next-sec-hint" style="--next-accent:${nextTheme.accent};">
+                    <button type="button" class="next-sec-btn" onclick="selectMushafSection(${secIdx + 1})">
+                        <span class="next-sec-main">
+                            <span class="next-sec-dot"></span>
+                            <span class="next-sec-kicker">${isAr ? 'القسم التالي:' : 'Next:'}</span>
+                            <span class="next-sec-name">${escapeHtml(nextSecTitle)}</span>
+                        </span>
+                        <span class="next-sec-side">
+                            ${nextSecSummary ? `<span class="next-sec-summary">${escapeHtml(nextSecSummary)}</span>` : ''}
+                            <span class="next-sec-arrow">${isAr ? '←' : '→'}</span>
+                        </span>
+                    </button>
+                </div>` : '';
+
         return `
             <section
                 class="mushaf-section${secIdx === 0 ? ' is-visible' : ''}"
@@ -376,6 +397,7 @@ function buildInteractiveHtml({
                     ${secSummary ? `<span class="sec-summary">${escapeHtml(secSummary)}</span>` : ''}
                 </div>
                 ${pagesHtml}
+                ${nextHintMarkup}
             </section>
         `;
     }).join('');
@@ -550,6 +572,46 @@ function buildInteractiveHtml({
     display: flex;
     animation: secPanelIn 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
+  .mushaf-section.is-visible .section-banner {
+    animation: bannerRevealSettle 0.95s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .next-sec-hint {
+    padding-top: 8px;
+    opacity: 0.25;
+    transform: translateY(6px);
+    transition: opacity 0.45s ease, transform 0.45s ease;
+  }
+  .next-sec-hint.is-near-bottom { opacity: 0.72; transform: translateY(0); }
+  .next-sec-hint:hover { opacity: 1; }
+  .container.is-show-all .next-sec-hint { display: none; }
+  .next-sec-btn {
+    width: 100%;
+    appearance: none;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(15, 23, 42, 0.5);
+    backdrop-filter: blur(12px);
+    border-radius: 16px;
+    padding: 12px 16px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    color: #cbd5e1;
+    cursor: pointer;
+    font-family: 'Acme', "Segoe UI", Tahoma, sans-serif;
+    transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .next-sec-btn:hover { background: rgba(30, 41, 59, 0.78); border-color: rgba(255, 255, 255, 0.24); color: #ffffff; }
+  .next-sec-btn:active { transform: scale(0.99); }
+  .next-sec-main { display: inline-flex; align-items: center; gap: 9px; min-width: 0; }
+  .next-sec-dot { width: 8px; height: 8px; border-radius: 999px; background: var(--next-accent, #34d399); box-shadow: 0 0 8px var(--next-accent, #34d399); flex-shrink: 0; }
+  .next-sec-kicker { font-size: 0.84rem; color: #94a3b8; flex-shrink: 0; }
+  .next-sec-name { font-size: 0.98rem; color: inherit; }
+  .next-sec-side { display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .next-sec-summary { font-size: 0.78rem; color: #94a3b8; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.09); border-radius: 999px; padding: 2px 10px; }
+  .next-sec-arrow { font-size: 0.95rem; color: #94a3b8; }
   .section-banner {
     background: var(--sec-bg);
     border: 1.5px solid var(--sec-border);
@@ -650,6 +712,23 @@ function buildInteractiveHtml({
     from { opacity: 0; transform: translateY(14px) scale(0.985); }
     to { opacity: 1; transform: translateY(0) scale(1); }
   }
+  @keyframes bannerRevealSettle {
+    0% {
+      opacity: 0;
+      transform: translateY(10px) scale(0.985);
+      box-shadow: 0 0 0 0 rgba(0, 0, 0, 0);
+    }
+    45% {
+      opacity: 1;
+      transform: translateY(0) scale(1.012);
+      box-shadow: 0 14px 34px -4px var(--sec-glow), 0 0 0 1px var(--sec-accent);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+      box-shadow: 0 10px 26px -10px var(--sec-glow);
+    }
+  }
   @keyframes pageSlideUp {
     from { opacity: 0; transform: translateY(18px); }
     to { opacity: 1; transform: translateY(0); }
@@ -681,8 +760,18 @@ function buildInteractiveHtml({
     document.querySelectorAll('audio').forEach(function(a) { a.pause(); a.currentTime = 0; });
     document.querySelectorAll('.audio-pin').forEach(function(b) { b.classList.remove('playing'); });
   }
+  function updateNextHintState() {
+    var doc = document.documentElement;
+    var remaining = doc.scrollHeight - (window.scrollY + window.innerHeight);
+    var isNear = remaining <= 220;
+    document.querySelectorAll('.next-sec-hint').forEach(function(el) {
+      el.classList.toggle('is-near-bottom', isNear);
+    });
+  }
   function selectMushafSection(target) {
     stopAllAudio();
+    var container = document.querySelector('.container');
+    if (container) container.classList.toggle('is-show-all', String(target) === 'all');
     document.querySelectorAll('.sec-tab').forEach(function(btn) {
       btn.classList.toggle('is-active', String(btn.getAttribute('data-tab-index')) === String(target));
     });
@@ -696,7 +785,12 @@ function buildInteractiveHtml({
         sec.classList.remove('is-visible');
       }
     });
+    try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) { window.scrollTo(0, 0); }
+    requestAnimationFrame(updateNextHintState);
   }
+  window.addEventListener('scroll', updateNextHintState, { passive: true });
+  window.addEventListener('resize', updateNextHintState, { passive: true });
+  requestAnimationFrame(updateNextHintState);
   function togglePinAudio(btn, audioId) {
     var audio = document.getElementById(audioId);
     if (!audio) return;

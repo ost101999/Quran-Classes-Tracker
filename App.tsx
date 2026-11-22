@@ -3112,7 +3112,7 @@ function App() {
         setPrevReportHadExclusion(false);
       }
 
-      // Restore Custom Notes and Audio Link in Edit Mode
+      // Restore Custom Notes in Edit Mode
       if (isEditMode) {
         if (lastReport?.customNotes) {
           setShowNotesInput(true);
@@ -3121,7 +3121,7 @@ function App() {
           setShowNotesInput(false);
           setCustomNotesText('');
         }
-        setAudioLinkText(lastReport?.audioLink || '');
+        setAudioLinkText('');
       } else {
         setShowNotesInput(false);
         setCustomNotesText('');
@@ -15413,23 +15413,6 @@ function App() {
                           </div>
                         </div>
                       )}
-                    </div>
-                  </div>
-
-                  {/* Audio Link (Optional) - always in DOM, hidden in Noor path */}
-                  <div className={`mt-2 ${reportPath === 'noor' ? 'hidden' : ''}`}>
-                    <label className="flex items-center justify-center gap-2 text-sm font-medium text-gray-400 mb-1.5 font-arabic">
-                      🎧 رابط التصحيح الصوتي (اختياري)
-                    </label>
-                    <div className="flex justify-center">
-                      <input
-                        id="audio-link-input"
-                        type="text"
-                        dir="ltr"
-                        value={audioLinkText}
-                        onChange={(e) => setAudioLinkText(e.target.value)}
-                        className="w-2/3 max-w-md p-3 border border-gray-200 rounded-xl bg-gray-50 text-sm font-english text-center focus:ring-2 focus:ring-purple-300 focus:border-purple-300 transition-all placeholder-gray-300"
-                      />
                     </div>
                   </div>
 

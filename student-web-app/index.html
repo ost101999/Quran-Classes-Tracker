@@ -288,6 +288,27 @@
       30%, 70% { box-shadow: 0 0 18px 6px rgba(217,119,6,0.5), 0 0 8px 2px rgba(217,119,6,0.25); }
     }
 
+    @keyframes mushafBannerRevealSettle {
+      0% {
+        opacity: 0;
+        transform: translateY(10px) scale(0.985);
+        box-shadow: 0 0 0 0 rgba(0, 0, 0, 0);
+      }
+      45% {
+        opacity: 1;
+        transform: translateY(0) scale(1.012);
+        box-shadow: 0 14px 34px -4px var(--sec-glow, rgba(52, 211, 153, 0.35)), 0 0 0 1px var(--sec-accent, #34d399);
+      }
+      100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+        box-shadow: var(--sec-settled-shadow, 0 10px 26px -10px rgba(52, 211, 153, 0.24));
+      }
+    }
+    .mushaf-banner-settle {
+      animation: mushafBannerRevealSettle 0.95s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+
     .animate-report-glow {
       animation: reportGlow 2.5s ease-in-out forwards;
     }
@@ -1309,12 +1330,16 @@
       const [err, setErr] = useState('');
       const [playingId, setPlayingId] = useState(null);
       const [activeTab, setActiveTab] = useState(0);
+      const [switchNonce, setSwitchNonce] = useState(0);
+      const [nearBottom, setNearBottom] = useState(false);
       const audioRef = useRef(null);
 
       useEffect(() => {
         let cancelled = false;
         setLoading(true);
         setActiveTab(0);
+        setSwitchNonce(0);
+        setNearBottom(false);
         axios
           .get('https://quran-classes-tracker-default-rtdb.firebaseio.com/audioMushafSessions/' + encodeURIComponent(sessionId) + '.json')
           .then(res => {
@@ -1342,7 +1367,31 @@
       const selectTab = (target) => {
         stopAudio();
         setActiveTab(target);
+        setSwitchNonce(n => n + 1);
+        setNearBottom(false);
+        try {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        } catch {
+          window.scrollTo(0, 0);
+        }
       };
+
+      useEffect(() => {
+        const updateBottomState = () => {
+          const doc = document.documentElement;
+          const remaining = doc.scrollHeight - (window.scrollY + window.innerHeight);
+          setNearBottom(remaining <= 220);
+        };
+        updateBottomState();
+        const rafId = requestAnimationFrame(updateBottomState);
+        window.addEventListener('scroll', updateBottomState, { passive: true });
+        window.addEventListener('resize', updateBottomState, { passive: true });
+        return () => {
+          cancelAnimationFrame(rafId);
+          window.removeEventListener('scroll', updateBottomState);
+          window.removeEventListener('resize', updateBottomState);
+        };
+      }, [activeTab, sessionData, switchNonce]);
 
       const togglePin = (pin) => {
         if (playingId === pin.id && audioRef.current) {
@@ -1551,14 +1600,18 @@
 
             {visibleSections.map(({ sec, idx }) => {
               const sty = secAccents[sec.key] || secAccents.new;
+              const nextSec = activeTab !== 'all' && idx + 1 < sections.length ? sections[idx + 1] : null;
+              const nextSty = nextSec ? (secAccents[nextSec.key] || secAccents.new) : null;
               return (
-              <section key={`${sec.key}_${idx}_${activeTab}`} className="space-y-4 animate-in fade-in slide-in-from-bottom-3 duration-300">
+              <section key={`${sec.key}_${idx}_${activeTab}_${switchNonce}`} className="space-y-4">
                 <div
-                  className="rounded-2xl border px-4 py-3 flex flex-wrap items-center justify-between gap-3"
+                  className="mushaf-banner-settle rounded-2xl border px-4 py-3 flex flex-wrap items-center justify-between gap-3"
                   style={{
                     background: sty.bannerBg,
                     borderColor: sty.bannerBorder,
-                    boxShadow: sty.bannerGlow,
+                    '--sec-accent': sty.accent,
+                    '--sec-glow': sty.bannerBorder,
+                    '--sec-settled-shadow': sty.bannerGlow,
                   }}
                 >
                   <div className="inline-flex items-center gap-2.5">
@@ -1610,6 +1663,34 @@
                     </div>
                   </div>
                 ))}
+
+                {nextSec && nextSty && (
+                  <div className={`pt-2 flex justify-center transition-all duration-500 ${nearBottom ? 'opacity-70 hover:opacity-100 translate-y-0' : 'opacity-25 translate-y-1.5'}`}>
+                    <button
+                      type="button"
+                      onClick={() => selectTab(idx + 1)}
+                      className="w-full rounded-2xl border border-white/10 bg-slate-900/50 hover:bg-slate-800/75 hover:border-white/25 backdrop-blur-md px-4 py-3 flex flex-wrap items-center justify-between gap-2 text-slate-300 hover:text-white transition-all duration-200 active:scale-[0.99]"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span className={`w-2 h-2 rounded-full shrink-0 ${nextSty.dot}`} />
+                        <span className="font-acme text-xs md:text-sm text-slate-400 shrink-0">
+                          {isAr ? 'القسم التالي:' : 'Next:'}
+                        </span>
+                        <span className="font-acme text-sm md:text-base truncate">
+                          {isAr ? (nextSec.titleAr || nextSec.titleEn) : (nextSec.groupTitleEn ? `${nextSec.groupTitleEn} · ${cleanLabel(nextSec)}` : (nextSec.titleEn || nextSec.titleAr))}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {(nextSec.summaryAr || nextSec.summaryEn) && (
+                          <span className="font-acme text-xs px-2.5 py-0.5 rounded-full bg-white/5 border border-white/10 text-slate-400">
+                            {isAr ? (nextSec.summaryAr || nextSec.summaryEn) : (nextSec.summaryEn || nextSec.summaryAr)}
+                          </span>
+                        )}
+                        <span className="text-sm text-slate-400">{isAr ? '←' : '→'}</span>
+                      </div>
+                    </button>
+                  </div>
+                )}
               </section>
               );
             })}
