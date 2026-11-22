@@ -51,6 +51,22 @@ function toHindiDigits(val) {
     return String(val ?? '').replace(/\d/g, d => '٠١٢٣٤٥٦٧٨٩'[Number(d)]);
 }
 
+const AR_MONTHS = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+const EN_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function formatLessonDate(dateStr, isAr) {
+    const m = String(dateStr || '').trim().match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (!m) return isAr ? toHindiDigits(dateStr) : String(dateStr || '');
+    const year = Number(m[1]);
+    const monthIdx = Number(m[2]) - 1;
+    const day = Number(m[3]);
+    if (monthIdx < 0 || monthIdx > 11) return isAr ? toHindiDigits(dateStr) : String(dateStr || '');
+    if (isAr) {
+        return `${toHindiDigits(day)} ${AR_MONTHS[monthIdx]} ${toHindiDigits(year)}`;
+    }
+    return `${day} ${EN_MONTHS[monthIdx]} ${year}`;
+}
+
 function httpJsonRequest(urlString, { method = 'GET', body } = {}, requestImpl = https.request) {
     const payload = body === undefined ? null : JSON.stringify(body);
     return new Promise((resolve, reject) => {
@@ -173,7 +189,7 @@ function buildInteractiveHtml({
 }) {
     const isAr = language !== 'en';
     const titleText = isAr ? `المصحف الصوتي — ${studentName}` : `Audio Mushaf — ${studentName}`;
-    const displayDate = isAr ? toHindiDigits(dateStr) : dateStr;
+    const displayDate = formatLessonDate(dateStr, isAr);
     const acmeFontCss = buildAcmeFontCss();
 
     const getCleanTabLabel = (sec) => {
@@ -185,9 +201,7 @@ function buildInteractiveHtml({
     const renderTabButton = (sec, idx) => {
         const theme = SECTION_COLORS[sec.key] || SECTION_COLORS.new;
         const tabLabel = getCleanTabLabel(sec);
-        const pageCount = (sec.pages || []).length;
         const pinCount = (sec.pages || []).reduce((acc, p) => acc + (p.markers || []).length, 0);
-        const pageBadge = isAr ? `${toHindiDigits(pageCount)} ص` : `${pageCount}p`;
         const pinBadge = pinCount > 0 ? (isAr ? `🔊 ${toHindiDigits(pinCount)}` : `🔊 ${pinCount}`) : '';
 
         return `
@@ -200,7 +214,6 @@ function buildInteractiveHtml({
             >
                 <span class="sec-dot"></span>
                 <span class="sec-tab-label">${escapeHtml(tabLabel)}</span>
-                <span class="sec-tab-count">${escapeHtml(pageBadge)}</span>
                 ${pinBadge ? `<span class="sec-tab-audio">${escapeHtml(pinBadge)}</span>` : ''}
             </button>
         `;
@@ -586,11 +599,7 @@ function buildInteractiveHtml({
       <h1>${escapeHtml(titleText)}</h1>
       <div class="meta-row">
         <span class="pill-badge">${escapeHtml(displayDate)}</span>
-      </div>
-      <div class="hint">
-        <span>${isAr ? 'اختر القسم لعرض صفحاته، واضغط على أي علامة 🔊 لسماع التصحيح.' : 'Select a section below to view its pages, and tap 🔊 to listen.'}</span>
-        ${totalPins > 0 ? `<span class="legend-chip">🔊 ${isAr ? `${toHindiDigits(totalPins)} تصحيح صوتي` : `${totalPins} Voice Corrections`}</span>` : ''}
-        <span class="legend-chip">🟢 ${isAr ? 'تظليل أخضر = حفظ' : 'Green = Memorization'}</span>
+        ${totalPins > 0 ? `<span class="legend-chip">🔊 ${isAr ? `${toHindiDigits(totalPins)} تصحيح صوتي` : `${totalPins} Voice`}</span>` : ''}
       </div>
     </div>
 

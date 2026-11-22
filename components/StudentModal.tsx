@@ -214,7 +214,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
       tilawa: student?.reportSettings?.mushafIncludedSections?.tilawa !== false,
     },
     mushafDividerStyle: student?.reportSettings?.mushafDividerStyle || 'both',
-    mushafLanguage: student?.reportSettings?.mushafLanguage || 'en',
+    mushafLanguage: student?.reportSettings?.mushafLanguage || 'auto',
     mushafPageOffset: student?.reportSettings?.mushafPageOffset ?? 0,
     mushafAutoOpen: student?.reportSettings?.mushafAutoOpen ?? false,
     mushafAutoSendWhatsapp: student?.reportSettings?.mushafAutoSendWhatsapp !== false,

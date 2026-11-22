@@ -5499,11 +5499,13 @@ function App() {
       return null;
     }
 
-    const resolvedLang: 'ar' | 'en' = settings.mushafLanguage === 'ar'
-      ? 'ar'
-      : settings.mushafLanguage === 'auto'
-        ? (options.lang || lastReportLanguage)
-        : 'en';
+    const resolvedLang: 'ar' | 'en' = options.lang
+      ? options.lang
+      : settings.mushafLanguage === 'ar'
+        ? 'ar'
+        : settings.mushafLanguage === 'auto'
+          ? lastReportLanguage
+          : 'en';
 
     try {
       const res = await window.electronAPI.generateCustomMushaf({

@@ -342,6 +342,15 @@ function AudioMushafViewer({ sessionId }: { sessionId: string }) {
 
   const isAr = sessionData.language !== 'en';
   const sections = Array.isArray(sessionData.sections) ? sessionData.sections : [];
+  const AR_MONTHS = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+  const EN_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const formatDisplayDate = (raw: string) => {
+    const m = String(raw || '').trim().match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (!m) return isAr ? toHindiDigits(raw || '') : (raw || '');
+    const y = Number(m[1]), mo = Number(m[2]) - 1, d = Number(m[3]);
+    if (mo < 0 || mo > 11) return isAr ? toHindiDigits(raw || '') : (raw || '');
+    return isAr ? `${toHindiDigits(String(d))} ${AR_MONTHS[mo]} ${toHindiDigits(String(y))}` : `${d} ${EN_MONTHS[mo]} ${y}`;
+  };
   const secAccents: Record<string, { dot: string; activeBg: string }> = {
     rev: { dot: 'bg-blue-400', activeBg: 'bg-blue-500/20 border-blue-400 text-white shadow-lg shadow-blue-500/20' },
     oldRev: { dot: 'bg-amber-400', activeBg: 'bg-amber-500/20 border-amber-400 text-white shadow-lg shadow-amber-500/20' },
@@ -376,9 +385,6 @@ function AudioMushafViewer({ sessionId }: { sessionId: string }) {
       >
         <span className={`w-2.5 h-2.5 rounded-full ${sty.dot}`} />
         <span>{cleanLabel(sec)}</span>
-        <span className="text-xs px-1.5 py-0.5 rounded-full bg-white/10 text-slate-200">
-          {isAr ? `${toHindiDigits(String((sec.pages || []).length))} ص` : `${(sec.pages || []).length}p`}
-        </span>
         {pinsCount > 0 && (
           <span className="text-xs px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300">
             🔊 {isAr ? toHindiDigits(String(pinsCount)) : pinsCount}
@@ -392,16 +398,11 @@ function AudioMushafViewer({ sessionId }: { sessionId: string }) {
     <div className="min-h-screen bg-slate-950 text-slate-100 px-3 py-5 pb-16" dir={isAr ? 'rtl' : 'ltr'}>
       <div className="max-w-3xl mx-auto space-y-5">
         <header className="rounded-2xl bg-slate-900/95 border border-white/10 px-5 py-4 flex flex-wrap items-center justify-between gap-2 shadow-xl">
-          <div>
-            <h1 className="font-acme text-2xl text-emerald-400">
-              {isAr ? `المصحف الصوتي — ${sessionData.studentName}` : `Audio Mushaf — ${sessionData.studentName}`}
-            </h1>
-            <p className="text-sm text-slate-400 mt-1">
-              {isAr ? 'اختر القسم لعرض صفحاته، واضغط على 🔊 للاستماع أو شاهد التظليل الأخضر للحفظ.' : 'Select a section to view its pages, tap 🔊 to listen, or review green memorization highlights.'}
-            </p>
-          </div>
+          <h1 className="font-acme text-2xl text-emerald-400">
+            {isAr ? `المصحف الصوتي — ${sessionData.studentName}` : `Audio Mushaf — ${sessionData.studentName}`}
+          </h1>
           <span className="font-acme px-3 py-1 rounded-full bg-white/10 text-xs text-slate-200">
-            {isAr ? toHindiDigits(sessionData.dateStr || '') : sessionData.dateStr}
+            {formatDisplayDate(sessionData.dateStr || '')}
           </span>
         </header>
 
