@@ -188,3 +188,46 @@ test('buildCustomMushafPlan defaults to homework sections ordered rev -> oldRev 
   });
   assert.deepEqual(filteredPlan.map(s => s.key), ['new', 'rev']);
 });
+
+test('reverse cross-surah ranges (e.g. An-Nas 1 to Al-Bayyinah 8 or Al-Zalzalah 8) include full boundary surahs from ayah 1', () => {
+  const { computePageCropForVerseSpan620 } = require('../audio-mushaf/mushaf-crop-data');
+
+  const revBayyinah = resolveReportSectionPages({
+    mode: 'ayah',
+    isAdvancedAyah: true,
+    surah: 'الناس',
+    toSurah: 'البينة',
+    fromAyah: '١',
+    toAyah: '٨',
+  });
+  assert.deepEqual(revBayyinah.verseSpan, {
+    startSurah: 98,
+    startAyah: 1,
+    endSurah: 114,
+    endAyah: 6,
+  });
+  assert.equal(revBayyinah.startPage, 598);
+  assert.equal(revBayyinah.endPage, 604);
+
+  const crop598 = computePageCropForVerseSpan620(598, revBayyinah.verseSpan, 620, 0);
+  assert.equal(crop598.isCropped, true);
+  assert.ok(crop598.topFrac > 0.5 && crop598.topFrac < 0.56);
+
+  const revZalzalah = resolveReportSectionPages({
+    mode: 'ayah',
+    isAdvancedAyah: true,
+    surah: 'الناس',
+    toSurah: 'الزلزلة',
+    fromAyah: '١',
+    toAyah: '٨',
+  });
+  assert.deepEqual(revZalzalah.verseSpan, {
+    startSurah: 99,
+    startAyah: 1,
+    endSurah: 114,
+    endAyah: 6,
+  });
+  const crop599Z = computePageCropForVerseSpan620(599, revZalzalah.verseSpan, 620, 0);
+  assert.equal(crop599Z.isCropped, true);
+  assert.ok(crop599Z.topFrac > 0.34 && crop599Z.topFrac < 0.37);
+});

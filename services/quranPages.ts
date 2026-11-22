@@ -334,13 +334,34 @@ export function resolveReportSectionPages(
       dispTo = effEndAyah;
     }
 
-    const pageSpan = mushafPageRangeForVerseSpan(s1, effStartAyah, s2, effEndAyah, counts);
+    let vStartSurah: number;
+    let vStartAyah: number;
+    let vEndSurah: number;
+    let vEndAyah: number;
+
+    if (s1 > s2) {
+      // Reverse Surah order (e.g. An-Nas 114 back to Al-Bayyinah 98 or Al-Zalzalah 99):
+      // Include from Ayah 1 of the earlier Surah (s2), and expand full end Surah when starting at Ayah 1.
+      vStartSurah = s2;
+      vStartAyah = 1;
+      vEndSurah = s1;
+      vEndAyah = (!hasFrom || effStartAyah === 1 || effStartAyah >= counts[s1 - 1])
+        ? counts[s1 - 1]
+        : effStartAyah;
+    } else if (s1 === s2 && effStartAyah > effEndAyah) {
+      vStartSurah = s1;
+      vStartAyah = effEndAyah;
+      vEndSurah = s1;
+      vEndAyah = effStartAyah;
+    } else {
+      vStartSurah = s1;
+      vStartAyah = effStartAyah;
+      vEndSurah = s2;
+      vEndAyah = effEndAyah;
+    }
+
+    const pageSpan = mushafPageRangeForVerseSpan(vStartSurah, vStartAyah, vEndSurah, vEndAyah, counts);
     if (!pageSpan) return null;
-    const normInverted = s1 > s2 || (s1 === s2 && effStartAyah > effEndAyah);
-    const vStartSurah = normInverted ? s2 : s1;
-    const vStartAyah = normInverted ? effEndAyah : effStartAyah;
-    const vEndSurah = normInverted ? s1 : s2;
-    const vEndAyah = normInverted ? effStartAyah : effEndAyah;
     return {
       ...pageSpan,
       summaryAr: formatSurahVerseSummary(s1, dispFrom, s2, dispTo, 'ar'),
