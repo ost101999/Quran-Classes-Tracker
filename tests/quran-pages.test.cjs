@@ -231,3 +231,38 @@ test('reverse cross-surah ranges (e.g. An-Nas 1 to Al-Bayyinah 8 or Al-Zalzalah 
   assert.equal(crop599Z.isCropped, true);
   assert.ok(crop599Z.topFrac > 0.34 && crop599Z.topFrac < 0.37);
 });
+
+test('resolveEffectiveReportSettings unifies legacy saved settings to web_link, both sections, and auto language', () => {
+  const { resolveEffectiveReportSettings } = loadTs('services/quranPages.ts');
+
+  // Legacy saved settings (without mushafUnifiedV2) migrate to unified defaults
+  const migrated = resolveEffectiveReportSettings({
+    customMushafEnabled: true,
+    mushafOutputFormat: 'pdf',
+    mushafTargetSection: 'homework',
+    mushafLanguage: 'en',
+    mushafPageOffset: 2,
+    mushafSectionOrder: ['new', 'rev'],
+    mushafIncludedSections: { oldRev: false },
+    mushafAutoSendWhatsapp: false,
+  });
+  assert.equal(migrated.mushafOutputFormat, 'web_link');
+  assert.equal(migrated.mushafTargetSection, 'both');
+  assert.equal(migrated.mushafLanguage, 'auto');
+  assert.equal(migrated.mushafPageOffset, 0);
+  assert.deepEqual(migrated.mushafSectionOrder, ['rev', 'oldRev', 'new', 'tilawa']);
+  assert.equal(migrated.mushafIncludedSections.oldRev, true);
+  assert.equal(migrated.mushafAutoSendWhatsapp, true);
+
+  // Explicit choice saved after unification (mushafUnifiedV2: true) preserves selected output format while keeping fixed rules
+  const explicitPdf = resolveEffectiveReportSettings({
+    customMushafEnabled: true,
+    mushafUnifiedV2: true,
+    mushafOutputFormat: 'pdf',
+    mushafDividerStyle: 'banner',
+    mushafTargetSection: 'reading',
+  });
+  assert.equal(explicitPdf.mushafOutputFormat, 'pdf');
+  assert.equal(explicitPdf.mushafDividerStyle, 'banner');
+  assert.equal(explicitPdf.mushafTargetSection, 'both');
+});

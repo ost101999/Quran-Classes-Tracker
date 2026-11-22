@@ -8540,15 +8540,6 @@ function App() {
             students={students}
             showToast={showToast}
             dayTransitionTime={dayTransitionTime}
-            lastReport={editingStudent ? lastReports[editingStudent.id] : undefined}
-            lastReportLanguage={lastReportLanguage}
-            onGenerateCustomMushafNow={async (draftStudent) => {
-              const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(today.day).padStart(2, '0')}`;
-              await triggerCustomMushafForStudent(draftStudent, lastReports[draftStudent.id], {
-                dateStr,
-                lang: lastReportLanguage,
-              });
-            }}
           />
         )
       }
@@ -16711,13 +16702,13 @@ function App() {
                                 readingExclusionsOverride: arReadingExclusions,
                                 homeworkExclusionsOverride: arHomeworkExclusions,
                                 dateStr: arMushafDateStr,
-                                silentToast: _arMushafStudent?.reportSettings?.mushafAutoSendWhatsapp !== false,
+                                silentToast: true,
                               });
                             // Copy + open link immediately alongside WhatsApp send
                             handleClipboardCopy(_arStudentId, report, () => checkAndOpenLink(_arStudentId));
 
                             showToast('جاري تشغيل واتساب وإرسال التقرير... ⏳', 0);
-                            const arExpectAttachment = Boolean(!arIsWebLinkMode && _arMushafStudent?.reportSettings?.customMushafEnabled && _arMushafStudent.reportSettings.mushafAutoSendWhatsapp !== false);
+                            const arExpectAttachment = Boolean(!arIsWebLinkMode && arEffectiveMushaf.customMushafEnabled);
                             const arAutoSendPromise = window.electronAPI?.sendWhatsAppAuto(finalTarget, report, { expectAttachment: arExpectAttachment });
                             void deliverCustomMushafAfterReport(arMushafPromise, _arMushafStudent, {
                               mode: 'auto',
@@ -16847,7 +16838,7 @@ function App() {
                                 readingExclusionsOverride: arReadingExclusions,
                                 homeworkExclusionsOverride: arHomeworkExclusions,
                                 dateStr: arMushafDateStr,
-                                silentToast: _arMushafStudent?.reportSettings?.mushafAutoSendWhatsapp !== false,
+                                silentToast: true,
                               });
                             handleClipboardCopy(smartReportModal.studentId, report, () => {
                               saveReportForDay(_arCopyStudentId, _arCopyDayNum, report, {
@@ -18315,13 +18306,13 @@ function App() {
                                 readingExclusionsOverride: enReadingExclusions,
                                 homeworkExclusionsOverride: enHomeworkExclusions,
                                 dateStr: enMushafDateStr,
-                                silentToast: _enMushafStudent?.reportSettings?.mushafAutoSendWhatsapp !== false,
+                                silentToast: true,
                               });
                             // Copy + open link immediately alongside WhatsApp send
                             handleClipboardCopy(_engStudentId, report, () => checkAndOpenLink(_engStudentId));
 
                             showToast(`Starting WhatsApp & sending to ${finalTarget}... ⏳`, 0);
-                            const enExpectAttachment = Boolean(!enIsWebLinkMode && _enMushafStudent?.reportSettings?.customMushafEnabled && _enMushafStudent.reportSettings.mushafAutoSendWhatsapp !== false);
+                            const enExpectAttachment = Boolean(!enIsWebLinkMode && enEffectiveMushaf.customMushafEnabled);
                             const enAutoSendPromise = window.electronAPI?.sendWhatsAppAuto(finalTarget, report, { expectAttachment: enExpectAttachment });
                             void deliverCustomMushafAfterReport(enMushafPromise, _enMushafStudent, {
                               mode: 'auto',
@@ -18447,7 +18438,7 @@ function App() {
                                 readingExclusionsOverride: enReadingExclusions,
                                 homeworkExclusionsOverride: enHomeworkExclusions,
                                 dateStr: enMushafDateStr,
-                                silentToast: _enMushafStudent?.reportSettings?.mushafAutoSendWhatsapp !== false,
+                                silentToast: true,
                               });
                             handleClipboardCopy(smartReportModal.studentId, report, () => {
                               saveReportForDay(_engStudentId, _engDayNum, report, {
