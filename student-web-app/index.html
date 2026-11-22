@@ -8,7 +8,7 @@
   <meta name="description" content="بوابة الطالب لمتابعة واجبات التجويد والإرسال والملاحظات" />
 
   <!-- PWA Requirements -->
-  <link rel="apple-touch-icon" href="icon.svg" />
+  <link rel="apple-touch-icon" href="/icon.svg" />
   <meta name="theme-color" content="#0f172a" />
   <meta name="apple-mobile-web-app-title" content="بوابة الطالب" />
   <meta name="mobile-web-app-capable" content="yes" />
@@ -79,7 +79,7 @@
             }
           },
           backgroundImage: {
-            'custom-bg': "url('bg.png')"
+            'custom-bg': "url('/bg.png')"
           }
         }
       }
@@ -6789,7 +6789,11 @@ https://is.gd/oL6gEO`;
       );
     } // End App
 
-    const _mushafParam = new URLSearchParams(window.location.search).get('mushaf');
+    const _mushafPathMatch = window.location.pathname.match(/^\/m\/([^/?#]+)\/?$/i);
+    const _searchParamsRoot = new URLSearchParams(window.location.search);
+    const _mushafParam = _searchParamsRoot.get('mushaf')
+      || _searchParamsRoot.get('m')
+      || (_mushafPathMatch ? decodeURIComponent(_mushafPathMatch[1]) : '');
     const root = ReactDOM.createRoot(document.getElementById('root'));
     root.render(_mushafParam ? <AudioMushafViewer sessionId={_mushafParam} /> : <App />);
   </script>
@@ -6798,7 +6802,7 @@ https://is.gd/oL6gEO`;
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('sw.js')
+        navigator.serviceWorker.register('/sw.js')
           .then(req => console.log('Service Worker Registered!'))
           .catch(err => console.error('Service Worker Registration Failed:', err));
       });

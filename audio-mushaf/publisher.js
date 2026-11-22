@@ -1,3 +1,4 @@
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const https = require('node:https');
 const path = require('node:path');
@@ -6,7 +7,22 @@ const { sanitizeSegment, pruneOldFilesByExtension } = require('./session-store')
 const { MUSHAF_620_FRAME, isSupported620Pdf } = require('./mushaf-crop-data');
 
 const DEFAULT_FIREBASE_URL = 'https://quran-classes-tracker-default-rtdb.firebaseio.com';
-const DEFAULT_WEB_BASE_URL = 'https://project-mw5jh.vercel.app';
+const DEFAULT_WEB_BASE_URL = 'https://qm7.vercel.app';
+const SHORT_ID_ALPHABET = 'abcdefghjkmnpqrstuvwxyz23456789';
+
+function generateShortSessionId(existingIndex = {}) {
+    for (let attempt = 0; attempt < 16; attempt++) {
+        const bytes = crypto.randomBytes(6);
+        let id = '';
+        for (let i = 0; i < 6; i++) {
+            id += SHORT_ID_ALPHABET[bytes[i] % SHORT_ID_ALPHABET.length];
+        }
+        if (!Object.prototype.hasOwnProperty.call(existingIndex, id)) {
+            return id;
+        }
+    }
+    return `${Date.now().toString(36).slice(-4)}${crypto.randomBytes(2).toString('hex').slice(0, 2)}`;
+}
 
 const SECTION_COLORS = {
     rev: { accent: '#60a5fa', strong: '#2563eb', bg: 'rgba(37, 99, 235, 0.16)', border: 'rgba(96, 165, 250, 0.45)', glow: 'rgba(59, 130, 246, 0.28)' },
@@ -950,7 +966,16 @@ async function publishAudioSessionToCloud(sessionPayload, {
 } = {}) {
     const studentKey = sanitizeSegment((sessionPayload.studentId || sessionPayload.studentName || 'student').toLowerCase());
     const createdAt = Number(sessionPayload.createdAt) || Date.now();
-    const sessionId = `${studentKey}_${sanitizeSegment(sessionPayload.dateStr || 'lesson')}_${createdAt.toString(36)}`;
+    const indexUrl = `${firebaseBaseUrl}/audioMushafIndex/${encodeURIComponent(studentKey)}.json`;
+    let existingIndex = {};
+    try {
+        existingIndex = (await httpJsonRequest(indexUrl, { method: 'GET' }, requestImpl)) || {};
+    } catch {
+        existingIndex = {};
+    }
+
+    const hasCustomId = typeof sessionPayload.sessionId === 'string' && sessionPayload.sessionId.trim().length > 0;
+    const sessionId = hasCustomId ? sanitizeSegment(sessionPayload.sessionId) : generateShortSessionId(existingIndex);
 
     const payload = {
         ...sessionPayload,
@@ -964,13 +989,6 @@ async function publishAudioSessionToCloud(sessionPayload, {
         body: payload,
     }, requestImpl);
 
-    const indexUrl = `${firebaseBaseUrl}/audioMushafIndex/${encodeURIComponent(studentKey)}.json`;
-    let existingIndex = {};
-    try {
-        existingIndex = (await httpJsonRequest(indexUrl, { method: 'GET' }, requestImpl)) || {};
-    } catch {
-        existingIndex = {};
-    }
     const nextIndex = { ...existingIndex, [sessionId]: createdAt };
     const entries = Object.entries(nextIndex).sort((a, b) => Number(b[1] || 0) - Number(a[1] || 0));
     const kept = entries.slice(0, maxSessionsPerStudent);
@@ -988,7 +1006,7 @@ async function publishAudioSessionToCloud(sessionPayload, {
     return {
         success: true,
         sessionId,
-        url: `${webBaseUrl}/?mushaf=${encodeURIComponent(sessionId)}`,
+        url: `${String(webBaseUrl).replace(/\/+$/, '')}/m/${encodeURIComponent(sessionId)}`,
         prunedCount: pruned.length,
     };
 }
