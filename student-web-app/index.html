@@ -1332,7 +1332,92 @@
       const [activeTab, setActiveTab] = useState(0);
       const [switchNonce, setSwitchNonce] = useState(0);
       const [nearBottom, setNearBottom] = useState(false);
+      const [adjustedPins, setAdjustedPins] = useState({});
       const audioRef = useRef(null);
+
+      const handlePageImageLoad = (pdfPage, imgEl, markers) => {
+        if (!imgEl || !Array.isArray(markers) || markers.length === 0) return;
+        try {
+          const w = imgEl.naturalWidth || imgEl.width;
+          const h = imgEl.naturalHeight || imgEl.height;
+          if (!w || !h) return;
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d', { willReadFrequently: true });
+          if (!ctx) return;
+          ctx.drawImage(imgEl, 0, 0, w, h);
+          const imgData = ctx.getImageData(0, 0, w, h).data;
+          const isBlackInk = (x, y) => {
+            const idx = (y * w + x) * 4;
+            const r = imgData[idx], g = imgData[idx + 1], b = imgData[idx + 2];
+            return r < 165 && g < 165 && b < 165 && (Math.max(r, g, b) - Math.min(r, g, b)) < 48;
+          };
+          const halfW = Math.max(8, Math.round(w * 0.017));
+          const wideW = Math.max(24, Math.round(w * 0.08));
+          const maxUp = Math.max(36, Math.round(w * 0.088));
+          const maxDown = Math.max(14, Math.round(w * 0.032));
+          const minGapLen = Math.max(4, Math.round(w * 0.010));
+          const updates = {};
+          for (const pin of markers) {
+            if (!pin || pin.id == null) continue;
+            const cx = Math.round((Number(pin.xPercent) / 100) * w);
+            const cy = Math.round((Number(pin.yPercent) / 100) * h);
+            const yMin = Math.max(4, cy - maxUp);
+            const yMax = Math.min(h - 5, cy + maxDown);
+            const localCounts = new Int16Array(yMax - yMin + 1);
+            const wideCounts = new Int16Array(yMax - yMin + 1);
+            const xL0 = Math.max(0, cx - halfW), xL1 = Math.min(w - 1, cx + halfW);
+            const xW0 = Math.max(0, cx - wideW), xW1 = Math.min(w - 1, cx + wideW);
+            for (let y = yMin; y <= yMax; y++) {
+              let lc = 0, wc = 0;
+              for (let x = xL0; x <= xL1; x++) if (isBlackInk(x, y)) lc++;
+              for (let x = xW0; x <= xW1; x += 2) if (isBlackInk(x, y)) wc++;
+              localCounts[y - yMin] = lc;
+              wideCounts[y - yMin] = wc;
+            }
+            const seedTop = Math.max(yMin, cy - Math.round(w * 0.048));
+            const seedBot = Math.min(yMax, cy - Math.round(w * 0.010));
+            let bestInterval = null;
+            let bestScore = -1e9;
+            for (const strict of [true, false]) {
+              const isRowClear = (y) => {
+                const lc = localCounts[y - yMin];
+                const wc = wideCounts[y - yMin];
+                return strict ? (lc === 0 && wc <= 3) : (lc <= 1 && wc <= 5);
+              };
+              let y = yMin;
+              while (y <= yMax) {
+                if (isRowClear(y)) {
+                  const g0 = y;
+                  while (y + 1 <= yMax && isRowClear(y + 1)) y++;
+                  const g1 = y;
+                  const overlap = Math.min(g1, seedBot) - Math.max(g0, seedTop);
+                  if (overlap >= 0) {
+                    const len = g1 - g0 + 1;
+                    const mid = 0.5 * (g0 + g1);
+                    const distPen = Math.abs(mid - (cy - w * 0.030)) * 0.35;
+                    const score = len - distPen;
+                    if (score > bestScore) {
+                      bestScore = score;
+                      bestInterval = [g0, g1];
+                    }
+                  }
+                }
+                y++;
+              }
+              if (bestInterval && (bestInterval[1] - bestInterval[0] + 1) >= minGapLen) break;
+            }
+            const midY = bestInterval
+              ? 0.5 * (bestInterval[0] + bestInterval[1])
+              : cy - w * 0.0265;
+            updates[`${pdfPage}_${pin.id}`] = Number(((midY / h) * 100).toFixed(2));
+          }
+          setAdjustedPins(prev => ({ ...prev, ...updates }));
+        } catch (err) {
+          // Fallback to default CSS offset if canvas read fails
+        }
+      };
 
       useEffect(() => {
         let cancelled = false;
@@ -1638,21 +1723,33 @@
                       </span>
                     </div>
                     <div className="relative w-full rounded-2xl overflow-hidden border border-white/15 bg-white shadow-2xl">
-                      <img src={p.imageDataUrl} alt={`Page ${p.pdfPage}`} className="w-full h-auto block" />
+                      <img
+                        src={p.imageDataUrl}
+                        alt={`Page ${p.pdfPage}`}
+                        className="w-full h-auto block"
+                        onLoad={(e) => handlePageImageLoad(p.pdfPage, e.currentTarget, p.markers)}
+                      />
                       {(p.markers || []).map(pin => {
                         const active = playingId === pin.id;
+                        const adjY = adjustedPins[`${p.pdfPage}_${pin.id}`];
                         return (
                           <button
                             key={pin.id}
                             type="button"
                             onClick={() => togglePin(pin)}
-                            style={{ left: `${pin.xPercent}%`, top: `${pin.yPercent}%`, transform: 'translate(-50%, -85%)' }}
-                            className={`absolute w-8 h-8 md:w-9 md:h-9 rounded-full border-2 border-white flex items-center justify-center shadow-lg transition-transform active:scale-95 ${
-                              active ? 'bg-rose-500 scale-125 ring-4 ring-rose-500/40 z-30 animate-pulse' : 'bg-emerald-500 hover:scale-110 z-20'
+                            style={{
+                              left: `${pin.xPercent}%`,
+                              top: `${adjY != null ? adjY : pin.yPercent}%`,
+                              transform: adjY != null ? 'translate(-50%, -50%)' : 'translate(-50%, -140%)',
+                            }}
+                            className={`absolute w-6 h-6 md:w-7 md:h-7 rounded-full border-[1.5px] flex items-center justify-center transition-all duration-200 active:scale-95 before:absolute before:-inset-2 before:content-[''] ${
+                              active
+                                ? 'bg-rose-500 border-white opacity-100 scale-125 ring-4 ring-rose-500/40 shadow-lg z-30 animate-pulse'
+                                : 'bg-emerald-500/50 hover:bg-emerald-500 focus-visible:bg-emerald-500 border-white/80 hover:border-white opacity-75 hover:opacity-100 focus-visible:opacity-100 hover:scale-115 shadow-sm hover:shadow-lg z-20'
                             }`}
                             title={isAr ? 'استماع للتصحيح' : 'Play correction'}
                           >
-                            <svg viewBox="0 0 24 24" className="w-4 h-4 text-white" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                            <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 text-white drop-shadow-[0_1px_2px_rgba(4,47,46,0.85)]" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                               <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
                               <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
                               <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>

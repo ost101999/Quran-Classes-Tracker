@@ -93,8 +93,13 @@ function rectToPagePercent(rect, cropBox, rotationAngle = 0) {
     const maxY = Math.max(rect[1], rect[3]);
 
     const cx = (minX + maxX) / 2;
-    // Place the marker near the upper edge of the highlighted word so Quran text stays readable
-    const anchorY = minY + (maxY - minY) * 0.85;
+    const cy = (minY + maxY) / 2;
+    const boxH = maxY - minY;
+    // Place marker at a fixed offset above the word center so all lines sit evenly in the white gap
+    // regardless of highlight thickness or circle height (fall back for oversized multi-line boxes)
+    const anchorY = boxH > cropBox.height * 0.08
+        ? (minY + boxH * 0.85)
+        : (cy + cropBox.height * 0.014);
 
     const u = (cx - cropBox.x) / cropBox.width;
     const vFromBottom = (anchorY - cropBox.y) / cropBox.height;

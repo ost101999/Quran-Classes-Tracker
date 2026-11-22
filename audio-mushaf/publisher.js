@@ -670,28 +670,45 @@ function buildInteractiveHtml({
   .page-stage img { display: block; width: 100%; height: auto; }
   .audio-pin {
     position: absolute;
-    transform: translate(-50%, -85%);
-    width: 30px;
-    height: 30px;
+    --pin-ty: -140%;
+    transform: translate(-50%, var(--pin-ty));
+    width: 24px;
+    height: 24px;
     border-radius: 999px;
-    border: 2px solid #ffffff;
-    background: linear-gradient(135deg, #10b981, #059669);
+    border: 1.5px solid rgba(255, 255, 255, 0.80);
+    background: rgba(16, 185, 129, 0.50);
+    opacity: 0.75;
     color: #fff;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 13px;
+    font-size: 11px;
     cursor: pointer;
-    box-shadow: 0 5px 14px rgba(0,0,0,0.45);
-    transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), background 0.2s ease, box-shadow 0.2s ease;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.18);
+    transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), background 0.2s ease, border-color 0.2s ease, opacity 0.2s ease, box-shadow 0.2s ease;
     z-index: 10;
     -webkit-tap-highlight-color: transparent;
   }
+  .audio-pin::after {
+    content: "";
+    position: absolute;
+    inset: -7px;
+  }
   .pin-ring { display: none; }
-  .audio-pin:hover { transform: translate(-50%, -85%) scale(1.18); z-index: 20; }
+  .audio-pin:hover,
+  .audio-pin:focus-visible {
+    opacity: 1;
+    border-color: #ffffff;
+    background: linear-gradient(135deg, #10b981, #059669);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.42);
+    transform: translate(-50%, var(--pin-ty)) scale(1.18);
+    z-index: 20;
+  }
   .audio-pin.playing {
+    opacity: 1;
+    border-color: #ffffff;
     background: linear-gradient(135deg, #ef4444, #dc2626);
-    transform: translate(-50%, -85%) scale(1.28);
+    transform: translate(-50%, var(--pin-ty)) scale(1.28);
     box-shadow: 0 0 0 6px rgba(239,68,68,0.32);
     z-index: 30;
   }
@@ -738,7 +755,7 @@ function buildInteractiveHtml({
     100% { transform: scale(1.65); opacity: 0; }
   }
   @media (min-width: 768px) {
-    .audio-pin { width: 34px; height: 34px; font-size: 15px; }
+    .audio-pin { width: 28px; height: 28px; font-size: 13px; }
   }
 </style>
 </head>
@@ -801,6 +818,100 @@ function buildInteractiveHtml({
     audio.play().catch(function() { btn.classList.remove('playing'); });
     audio.onended = function() { btn.classList.remove('playing'); };
   }
+  function snapStagePinsToWhiteGap(stageEl) {
+    if (!stageEl || stageEl.getAttribute('data-gap-scanned') === '1') return;
+    var imgEl = stageEl.querySelector('img');
+    var pins = stageEl.querySelectorAll('.audio-pin');
+    if (!imgEl || !pins.length) return;
+    var w = imgEl.naturalWidth || imgEl.width;
+    var h = imgEl.naturalHeight || imgEl.height;
+    if (!w || !h) return;
+    stageEl.setAttribute('data-gap-scanned', '1');
+    try {
+      var canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      var ctx = canvas.getContext('2d', { willReadFrequently: true });
+      if (!ctx) return;
+      ctx.drawImage(imgEl, 0, 0, w, h);
+      var imgData = ctx.getImageData(0, 0, w, h).data;
+      function isBlackInk(x, y) {
+        var idx = (y * w + x) * 4;
+        var r = imgData[idx], g = imgData[idx + 1], b = imgData[idx + 2];
+        return r < 165 && g < 165 && b < 165 && (Math.max(r, g, b) - Math.min(r, g, b)) < 48;
+      }
+      var halfW = Math.max(8, Math.round(w * 0.017));
+      var wideW = Math.max(24, Math.round(w * 0.08));
+      var maxUp = Math.max(36, Math.round(w * 0.088));
+      var maxDown = Math.max(14, Math.round(w * 0.032));
+      var minGapLen = Math.max(4, Math.round(w * 0.010));
+      pins.forEach(function(pinEl) {
+        var xPct = parseFloat(pinEl.style.left);
+        var yPct = parseFloat(pinEl.style.top);
+        if (!isFinite(xPct) || !isFinite(yPct)) return;
+        var cx = Math.round((xPct / 100) * w);
+        var cy = Math.round((yPct / 100) * h);
+        var yMin = Math.max(4, cy - maxUp);
+        var yMax = Math.min(h - 5, cy + maxDown);
+        var lenY = yMax - yMin + 1;
+        var localCounts = new Int16Array(lenY);
+        var wideCounts = new Int16Array(lenY);
+        var xL0 = Math.max(0, cx - halfW), xL1 = Math.min(w - 1, cx + halfW);
+        var xW0 = Math.max(0, cx - wideW), xW1 = Math.min(w - 1, cx + wideW);
+        for (var y = yMin; y <= yMax; y++) {
+          var lc = 0, wc = 0;
+          for (var x = xL0; x <= xL1; x++) if (isBlackInk(x, y)) lc++;
+          for (var xw = xW0; xw <= xW1; xw += 2) if (isBlackInk(xw, y)) wc++;
+          localCounts[y - yMin] = lc;
+          wideCounts[y - yMin] = wc;
+        }
+        var seedTop = Math.max(yMin, cy - Math.round(w * 0.048));
+        var seedBot = Math.min(yMax, cy - Math.round(w * 0.010));
+        var bestInterval = null;
+        var bestScore = -1e9;
+        [true, false].some(function(strict) {
+          function isRowClear(ry) {
+            var lc = localCounts[ry - yMin];
+            var wc = wideCounts[ry - yMin];
+            return strict ? (lc === 0 && wc <= 3) : (lc <= 1 && wc <= 5);
+          }
+          var ry = yMin;
+          while (ry <= yMax) {
+            if (isRowClear(ry)) {
+              var g0 = ry;
+              while (ry + 1 <= yMax && isRowClear(ry + 1)) ry++;
+              var g1 = ry;
+              var overlap = Math.min(g1, seedBot) - Math.max(g0, seedTop);
+              if (overlap >= 0) {
+                var segLen = g1 - g0 + 1;
+                var mid = 0.5 * (g0 + g1);
+                var distPen = Math.abs(mid - (cy - w * 0.030)) * 0.35;
+                var score = segLen - distPen;
+                if (score > bestScore) {
+                  bestScore = score;
+                  bestInterval = [g0, g1];
+                }
+              }
+            }
+            ry++;
+          }
+          return !!(bestInterval && (bestInterval[1] - bestInterval[0] + 1) >= minGapLen);
+        });
+        var midY = bestInterval ? 0.5 * (bestInterval[0] + bestInterval[1]) : (cy - w * 0.0265);
+        pinEl.style.top = ((midY / h) * 100).toFixed(2) + '%';
+        pinEl.style.setProperty('--pin-ty', '-50%');
+      });
+    } catch (e) {}
+  }
+  document.querySelectorAll('.page-stage').forEach(function(stageEl) {
+    var imgEl = stageEl.querySelector('img');
+    if (!imgEl) return;
+    if (imgEl.complete && imgEl.naturalWidth) {
+      snapStagePinsToWhiteGap(stageEl);
+    } else {
+      imgEl.addEventListener('load', function() { snapStagePinsToWhiteGap(stageEl); }, { once: true });
+    }
+  });
 </script>
 </body>
 </html>`;
