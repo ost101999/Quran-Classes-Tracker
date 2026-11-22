@@ -7,21 +7,50 @@ const { sanitizeSegment, pruneOldFilesByExtension } = require('./session-store')
 const { MUSHAF_620_FRAME, isSupported620Pdf } = require('./mushaf-crop-data');
 
 const DEFAULT_FIREBASE_URL = 'https://quran-classes-tracker-default-rtdb.firebaseio.com';
-const DEFAULT_WEB_BASE_URL = 'https://qm7.vercel.app';
-const SHORT_ID_ALPHABET = 'abcdefghjkmnpqrstuvwxyz23456789';
+const DEFAULT_WEB_BASE_URL = 'https://o-quran.vercel.app';
+const SHORT_ID_ALPHABET = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const ARABIC_TO_LATIN_MAP = {
+    'ا': 'a', 'أ': 'a', 'إ': 'e', 'آ': 'a', 'ب': 'b', 'ت': 't', 'ث': 'th',
+    'ج': 'j', 'ح': 'h', 'خ': 'kh', 'د': 'd', 'ذ': 'dh', 'ر': 'r', 'ز': 'z',
+    'س': 's', 'ش': 'sh', 'ص': 's', 'ض': 'd', 'ط': 't', 'ظ': 'z', 'ع': 'a',
+    'غ': 'gh', 'ف': 'f', 'ق': 'q', 'ك': 'k', 'ل': 'l', 'م': 'm', 'ن': 'n',
+    'ه': 'h', 'ة': 'a', 'و': 'w', 'ي': 'y', 'ى': 'a', 'ئ': 'e', 'ؤ': 'o',
+};
 
-function generateShortSessionId(existingIndex = {}) {
-    for (let attempt = 0; attempt < 16; attempt++) {
-        const bytes = crypto.randomBytes(6);
-        let id = '';
-        for (let i = 0; i < 6; i++) {
-            id += SHORT_ID_ALPHABET[bytes[i] % SHORT_ID_ALPHABET.length];
-        }
-        if (!Object.prototype.hasOwnProperty.call(existingIndex, id)) {
-            return id;
-        }
+function buildStudentShortSlug(studentName) {
+    let text = String(studentName || '').replace(/[\u064B-\u065F\u0670\u0640]/g, '').toLowerCase().trim();
+    for (const [ar, en] of Object.entries(ARABIC_TO_LATIN_MAP)) {
+        text = text.replace(new RegExp(ar, 'g'), en);
     }
-    return `${Date.now().toString(36).slice(-4)}${crypto.randomBytes(2).toString('hex').slice(0, 2)}`;
+    const words = text.replace(/[^a-z0-9]+/g, ' ').trim().split(/\s+/).filter(Boolean).slice(0, 2);
+    return words.join('-') || 's';
+}
+
+function randomShortCode(len = 2) {
+    const bytes = crypto.randomBytes(len);
+    let out = '';
+    for (let i = 0; i < len; i++) {
+        out += SHORT_ID_ALPHABET[bytes[i] % SHORT_ID_ALPHABET.length];
+    }
+    return out;
+}
+
+async function generateShortStudentSessionId(studentName, existingIndex, firebaseBaseUrl, requestImpl) {
+    const slug = buildStudentShortSlug(studentName);
+    for (let attempt = 0; attempt < 16; attempt++) {
+        const candidate = `${slug}-${randomShortCode(attempt < 12 ? 2 : 3)}`;
+        if (Object.prototype.hasOwnProperty.call(existingIndex, candidate)) continue;
+        try {
+            const taken = await httpJsonRequest(
+                `${firebaseBaseUrl}/audioMushafSessions/${encodeURIComponent(candidate)}.json?shallow=true`,
+                { method: 'GET' },
+                requestImpl
+            );
+            if (taken) continue;
+        } catch { /* proceed if check fails transiently */ }
+        return candidate;
+    }
+    return `${slug}-${randomShortCode(4)}`;
 }
 
 const SECTION_COLORS = {
@@ -975,7 +1004,9 @@ async function publishAudioSessionToCloud(sessionPayload, {
     }
 
     const hasCustomId = typeof sessionPayload.sessionId === 'string' && sessionPayload.sessionId.trim().length > 0;
-    const sessionId = hasCustomId ? sanitizeSegment(sessionPayload.sessionId) : generateShortSessionId(existingIndex);
+    const sessionId = hasCustomId
+        ? sanitizeSegment(sessionPayload.sessionId)
+        : await generateShortStudentSessionId(sessionPayload.studentName || studentKey, existingIndex, firebaseBaseUrl, requestImpl);
 
     const payload = {
         ...sessionPayload,
