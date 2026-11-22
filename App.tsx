@@ -2826,6 +2826,47 @@ function App() {
     isEditMode?: boolean;
   } | null>(null);
 
+  const [smartReportMushafStatus, setSmartReportMushafStatus] = useState<{
+    loading: boolean;
+    mushafFound: boolean;
+    clipsCount: number;
+  }>({ loading: false, mushafFound: false, clipsCount: 0 });
+
+  useEffect(() => {
+    if (!smartReportModal?.isOpen || !smartReportModal.studentId) {
+      setSmartReportMushafStatus({ loading: false, mushafFound: false, clipsCount: 0 });
+      return;
+    }
+    const target = students.find(s => s.id === smartReportModal.studentId);
+    if (!target) {
+      setSmartReportMushafStatus({ loading: false, mushafFound: false, clipsCount: 0 });
+      return;
+    }
+    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(smartReportModal.dayNum).padStart(2, '0')}`;
+    let cancelled = false;
+    setSmartReportMushafStatus(prev => ({ ...prev, loading: true }));
+    Promise.all([
+      window.electronAPI?.resolveStudentMushaf?.({
+        studentName: target.name,
+        shortcutSourceId: target.shortcutSourceId,
+        quranLink: target.quranLink,
+      }).catch(() => null),
+      window.electronAPI?.getStudentAudioSession?.({
+        studentId: target.id,
+        studentName: target.name,
+        dateStr,
+      }).catch(() => null),
+    ]).then(([mushafRes, audioRes]) => {
+      if (cancelled) return;
+      setSmartReportMushafStatus({
+        loading: false,
+        mushafFound: Boolean(mushafRes?.found && mushafRes?.path),
+        clipsCount: Number(audioRes?.clipsCount) || 0,
+      });
+    });
+    return () => { cancelled = true; };
+  }, [smartReportModal?.isOpen, smartReportModal?.studentId, smartReportModal?.dayNum, month, year]);
+
   // Smart Report Modal Section Navigation Shortcuts (A/D)
   useEffect(() => {
     if (!smartReportModal?.isOpen) return;
@@ -15415,6 +15456,98 @@ function App() {
                       )}
                     </div>
                   </div>
+
+                  {/* Subtle Mushaf Attachment Status Pill */}
+                  {reportPath !== 'noor' && (() => {
+                    const srStudent = students.find(s => s.id === smartReportModal.studentId);
+                    if (!srStudent) return null;
+                    const effMushaf = resolveEffectiveReportSettings(srStudent.reportSettings);
+                    const isEnabled = Boolean(effMushaf.customMushafEnabled);
+                    const fmtLabel = effMushaf.mushafOutputFormat === 'html'
+                      ? 'ملف HTML تفاعلي'
+                      : effMushaf.mushafOutputFormat === 'pdf'
+                        ? 'PDF عادي'
+                        : 'رابط مصحف صوتي';
+                    const { loading, mushafFound, clipsCount } = smartReportMushafStatus;
+                    const toggleStudentMushaf = () => {
+                      const nextEnabled = !isEnabled;
+                      setStudents(prev => prev.map(st => st.id === srStudent.id ? {
+                        ...st,
+                        reportSettings: {
+                          ...resolveEffectiveReportSettings(st.reportSettings),
+                          customMushafEnabled: nextEnabled,
+                        },
+                      } : st));
+                    };
+
+                    if (!isEnabled) {
+                      return (
+                        <div className="mt-3 flex justify-center">
+                          <button
+                            type="button"
+                            onClick={toggleStudentMushaf}
+                            title="اضغط لتفعيل إرفاق المصحف لهذا الطالب"
+                            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-gray-50/90 hover:bg-gray-100 border border-gray-200/90 text-xs font-arabic text-gray-500 hover:text-gray-700 transition-all"
+                          >
+                            <span className="w-2 h-2 rounded-full bg-gray-300" />
+                            <span>إرفاق المصحف متوقف</span>
+                            <span className="text-[11px] text-emerald-600 font-semibold">• تفعيل</span>
+                          </button>
+                        </div>
+                      );
+                    }
+
+                    if (loading) {
+                      return (
+                        <div className="mt-3 flex justify-center">
+                          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-gray-50/80 border border-gray-200/80 text-xs font-arabic text-gray-500">
+                            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                            <span>جاري فحص حالة المصحف...</span>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    if (!mushafFound) {
+                      return (
+                        <div className="mt-3 flex justify-center">
+                          <button
+                            type="button"
+                            onClick={toggleStudentMushaf}
+                            title="اضغط لإيقاف إرفاق المصحف مؤقتاً"
+                            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-50/80 hover:bg-amber-100/70 border border-amber-200/80 text-xs font-arabic text-amber-800 transition-all"
+                          >
+                            <span className="w-2 h-2 rounded-full bg-amber-400" />
+                            <span>{`إرفاق المصحف (${fmtLabel}) • لا يوجد ملف مصحف للطالب`}</span>
+                          </button>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="mt-3 flex justify-center">
+                        <button
+                          type="button"
+                          onClick={toggleStudentMushaf}
+                          title="اضغط لإيقاف إرفاق المصحف مؤقتاً لهذا الطالب"
+                          className="group inline-flex items-center flex-wrap justify-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-50/75 hover:bg-emerald-50 border border-emerald-200/80 text-xs font-arabic text-emerald-800 transition-all shadow-sm"
+                        >
+                          <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                          <span className="font-semibold">{`سيُرفق: ${fmtLabel}`}</span>
+                          {clipsCount > 0 ? (
+                            <span className="px-2 py-0.5 rounded-full bg-emerald-100/90 text-emerald-700 font-semibold">
+                              {`🔊 ${toHindiDigits(clipsCount)} تصحيح`}
+                            </span>
+                          ) : effMushaf.mushafOutputFormat !== 'pdf' ? (
+                            <span className="text-emerald-700/75">• صفحات المقرر فقط</span>
+                          ) : null}
+                          <span className="text-[11px] text-gray-400 group-hover:text-rose-500 transition-colors">
+                            • إيقاف
+                          </span>
+                        </button>
+                      </div>
+                    );
+                  })()}
 
                   {/* Actions (Moved outside of Quran Section) */}
                   <div className="space-y-3 mt-5 pb-8">
