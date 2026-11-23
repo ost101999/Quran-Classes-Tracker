@@ -160,3 +160,60 @@ test('620-page Mushaf crop solver scopes Surah Al-Bayyinah (1-8) and mid-surah r
   assert.equal(cropFatiha.drawBotBar, true);
   assert.ok(cropFatiha.botFrac < 0.55);
 });
+
+test('triggerAutoSavePdfViewer saves open PDF on macOS Acrobat and Windows Xodo, and skips when already fresh or closed', async () => {
+  const { triggerAutoSavePdfViewer } = require('../audio-mushaf/session-store');
+
+  let currentMtime = 1000;
+  const mockFs = {
+    existsSync: () => true,
+    statSync: () => ({ mtimeMs: currentMtime }),
+  };
+
+  // Already fresh -> zero exec calls
+  let execCalls = 0;
+  const freshRes = await triggerAutoSavePdfViewer('/tmp/test.pdf', 900, {
+    platform: 'darwin',
+    fsImpl: mockFs,
+    runExec: async () => { execCalls++; return { stdout: 'SAVED' }; },
+  });
+  assert.deepEqual(freshRes, { saved: true, alreadyFresh: true });
+  assert.equal(execCalls, 0);
+
+  // macOS Acrobat saves matching document and detects updated mtime
+  const macRes = await triggerAutoSavePdfViewer('/tmp/Amjad.pdf', 2000, {
+    platform: 'darwin',
+    fsImpl: mockFs,
+    timeoutMs: 300,
+    pollIntervalMs: 10,
+    runExec: async (cmd, args) => {
+      assert.equal(cmd, 'osascript');
+      assert.equal(args[2], 'Amjad.pdf');
+      setTimeout(() => { currentMtime = 2500; }, 20);
+      return { stdout: 'SAVED\n' };
+    },
+  });
+  assert.deepEqual(macRes, { saved: true, alreadyFresh: false });
+
+  // macOS Acrobat closed / document not open -> returns immediately without timeout wait
+  const closedRes = await triggerAutoSavePdfViewer('/tmp/Amjad.pdf', 3000, {
+    platform: 'darwin',
+    fsImpl: mockFs,
+    runExec: async () => ({ stdout: 'NOT_OPEN\n' }),
+  });
+  assert.deepEqual(closedRes, { saved: false, reason: 'NO_VIEWER' });
+
+  // Windows Xodo sends Ctrl+S and detects updated mtime
+  const winRes = await triggerAutoSavePdfViewer('G:\\Moshaf\\Amjad.pdf', 3000, {
+    platform: 'win32',
+    fsImpl: mockFs,
+    timeoutMs: 300,
+    pollIntervalMs: 10,
+    runExec: async (cmd) => {
+      assert.equal(cmd, 'powershell.exe');
+      setTimeout(() => { currentMtime = 3500; }, 20);
+      return { stdout: 'SENT\r\n' };
+    },
+  });
+  assert.deepEqual(winRes, { saved: true, alreadyFresh: false });
+});

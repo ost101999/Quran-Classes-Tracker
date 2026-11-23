@@ -1,3 +1,4 @@
+const { execFile } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -499,6 +500,93 @@ function pruneOldFilesByExtension(dir, maxFilesToKeep, ext = '.html', protectedP
     return deleted;
 }
 
+function defaultRunExec(cmd, args, opts = {}) {
+    return new Promise((resolve) => {
+        execFile(cmd, args, { windowsHide: true, timeout: 5000, ...opts }, (err, stdout, stderr) => {
+            resolve({ err, stdout: String(stdout || ''), stderr: String(stderr || '') });
+        });
+    });
+}
+
+async function triggerAutoSavePdfViewer(sourcePdfPath, lastRecordedAt, {
+    platform = process.platform,
+    runExec = defaultRunExec,
+    fsImpl = fs,
+    timeoutMs = 2600,
+    pollIntervalMs = 200,
+} = {}) {
+    if (!sourcePdfPath || !fsImpl.existsSync(sourcePdfPath)) {
+        return { saved: false, reason: 'NO_FILE' };
+    }
+    const beforeMtime = fsImpl.statSync(sourcePdfPath).mtimeMs;
+    if (lastRecordedAt && beforeMtime >= lastRecordedAt) {
+        return { saved: true, alreadyFresh: true };
+    }
+
+    let triggered = false;
+    if (platform === 'win32') {
+        const psSave = [
+            'Add-Type -AssemblyName System.Windows.Forms',
+            'Add-Type @"',
+            'using System;',
+            'using System.Text;',
+            'using System.Runtime.InteropServices;',
+            'public class WinSave {',
+            '  public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);',
+            '  [DllImport("user32.dll")] public static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);',
+            '  [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hWnd);',
+            '  [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);',
+            '  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);',
+            '  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);',
+            '}',
+            '"@',
+            '$script:target = [IntPtr]::Zero',
+            '$cb = [WinSave+EnumWindowsProc]{ param($h,$l) if ([WinSave]::IsWindowVisible($h)) { $sb = New-Object System.Text.StringBuilder 512; [WinSave]::GetWindowText($h, $sb, 512) | Out-Null; if ($sb.ToString() -match "Xodo") { $script:target = $h; return $false } }; return $true }',
+            '[WinSave]::EnumWindows($cb, [IntPtr]::Zero) | Out-Null',
+            'if ($script:target -ne [IntPtr]::Zero) { [WinSave]::ShowWindow($script:target, 9) | Out-Null; [WinSave]::SetForegroundWindow($script:target) | Out-Null; Start-Sleep -Milliseconds 180; [System.Windows.Forms.SendKeys]::SendWait("^s"); Write-Output "SENT" }',
+        ].join('\n');
+        const { stdout } = await runExec('powershell.exe', ['-NoProfile', '-Command', psSave], { timeout: 5000 });
+        triggered = /\bSENT\b/.test(String(stdout || ''));
+    } else if (platform === 'darwin') {
+        const targetName = path.basename(sourcePdfPath);
+        const script = [
+            'on run argv',
+            '  set targetName to item 1 of argv',
+            '  tell application "System Events"',
+            '    if not (exists (some application process whose name contains "Acrobat")) then return "NO_VIEWER"',
+            '  end tell',
+            '  tell application "Adobe Acrobat"',
+            '    if (count of documents) is 0 then return "NO_DOC"',
+            '    set matchedDocs to (every document whose name is targetName)',
+            '    if (count of matchedDocs) > 0 then',
+            '      save item 1 of matchedDocs',
+            '      return "SAVED"',
+            '    end if',
+            '  end tell',
+            '  return "NOT_OPEN"',
+            'end run',
+        ].join('\n');
+        const { stdout } = await runExec('osascript', ['-e', script, targetName], { timeout: 5000 });
+        triggered = String(stdout || '').trim() === 'SAVED';
+    } else {
+        return { saved: false, reason: 'UNSUPPORTED' };
+    }
+
+    if (!triggered) {
+        return { saved: false, reason: 'NO_VIEWER' };
+    }
+
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+        try {
+            const st = fsImpl.statSync(sourcePdfPath);
+            if (st.mtimeMs > beforeMtime) return { saved: true, alreadyFresh: false };
+        } catch { /* ignore */ }
+        await new Promise(r => setTimeout(r, pollIntervalMs));
+    }
+    return { saved: false, reason: 'TIMEOUT' };
+}
+
 module.exports = {
     SESSIONS_ROOT_DIR,
     HUD_STATE_PATH,
@@ -526,4 +614,5 @@ module.exports = {
     resolveLatestPdfCopyForReading,
     matchWindowTitleToStudent,
     pruneOldFilesByExtension,
+    triggerAutoSavePdfViewer,
 };

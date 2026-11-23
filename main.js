@@ -24,6 +24,7 @@ const {
     findSessionForStudent,
     readClipAudioDataUrl,
     resolveLatestPdfCopyForReading,
+    triggerAutoSavePdfViewer,
 } = require('./audio-mushaf/session-store');
 const {
     renderPdfPagesToImages,
@@ -109,6 +110,7 @@ ipcMain.handle('generate-custom-mushaf', async (_event, payload) => {
         if (outputFormat === 'web_link' || outputFormat === 'html') {
             const audioSession = findSessionForStudent({ studentId, studentName, dateStr: todayStr });
             const hasClips = !!(audioSession && Array.isArray(audioSession.clips) && audioSession.clips.length > 0);
+            await triggerAutoSavePdfViewer(resolved.path, audioSession?.lastRecordedAt || null);
             const readablePdfPath = resolveLatestPdfCopyForReading(resolved.path);
             const sourceBytes = fs.readFileSync(readablePdfPath);
             const sourceDoc = await PDFDocument.load(sourceBytes, { ignoreEncryption: true });
@@ -252,9 +254,14 @@ ipcMain.handle('generate-custom-mushaf', async (_event, payload) => {
             };
         }
 
+        const pdfAudioSession = findSessionForStudent({ studentId, studentName, dateStr: todayStr });
+        if (process.platform === 'darwin' || pdfAudioSession?.lastRecordedAt) {
+            await triggerAutoSavePdfViewer(resolved.path, pdfAudioSession?.lastRecordedAt || null);
+        }
+        const readablePdfForPdf = resolveLatestPdfCopyForReading(resolved.path);
         const result = await generateCustomMushafPdf({
             studentName,
-            sourcePdfPath: resolved.path,
+            sourcePdfPath: readablePdfForPdf,
             sections,
             dividerStyle,
             language,
