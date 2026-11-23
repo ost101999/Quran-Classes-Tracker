@@ -8,6 +8,7 @@ const { pathToFileURL } = require('url');
 
 const FULL_DEV_ENV = 'QCT_DEV_FULL';
 const INSTALLED_APP_ENV = 'QCT_INSTALLED_APP_PATH';
+const DESKTOP_FOLDER = 'desktop-app';
 const ENGINE_FILES = [
     'main.js',
     'preload.js',
@@ -30,7 +31,10 @@ function registerDevMode({ app, ipcMain, dialog, getMainWindow }) {
     let busy = false;
     let snapshot = null;
     let fullDevUrl = null;
-    const installedUrl = pathToFileURL(path.join(app.getAppPath(), 'dist', 'index.html')).href;
+    const appPath = app.getAppPath();
+    const desktopPath = path.join(appPath, DESKTOP_FOLDER);
+    const baselineRoot = fs.existsSync(path.join(desktopPath, 'main.js')) ? desktopPath : appPath;
+    const installedUrl = pathToFileURL(path.join(baselineRoot, 'dist', 'index.html')).href;
     const handoffFile = () => path.join(app.getPath('userData'), 'dev-storage-handoff.json');
 
     const stop = () => {
@@ -47,6 +51,9 @@ function registerDevMode({ app, ipcMain, dialog, getMainWindow }) {
         fs.existsSync(path.join(root, 'vite.config.ts')) &&
         fs.existsSync(path.join(root, 'node_modules', 'vite', 'bin', 'vite.js'));
 
+    const resolveDesktopRoot = (root) =>
+        root && [path.join(root, DESKTOP_FOLDER), root].find(validRoot);
+
     const findRoot = () => {
         const roots = [];
         try {
@@ -58,7 +65,11 @@ function registerDevMode({ app, ipcMain, dialog, getMainWindow }) {
             if (meta?.projectRoot) roots.push(meta.projectRoot);
         } catch { /* ignore */ }
         roots.push(app.getAppPath());
-        return roots.find(validRoot) || null;
+        for (const root of roots) {
+            const desktopRoot = resolveDesktopRoot(root);
+            if (desktopRoot) return desktopRoot;
+        }
+        return null;
     };
 
     const getElectronBinary = (root) => {
@@ -90,7 +101,6 @@ function registerDevMode({ app, ipcMain, dialog, getMainWindow }) {
         }
     };
 
-    const baselineRoot = app.getAppPath();
     const baselineHashes = new Map(
         ENGINE_FILES.map((rel) => [rel, fileHash(path.join(baselineRoot, rel))])
     );
@@ -246,8 +256,8 @@ function registerDevMode({ app, ipcMain, dialog, getMainWindow }) {
             properties: ['openDirectory'],
         });
         if (choice.canceled) return { canceled: true };
-        root = choice.filePaths[0];
-        if (!validRoot(root)) {
+        root = resolveDesktopRoot(choice.filePaths[0]);
+        if (!root) {
             return { error: 'مجلد المشروع غير صالح أو اعتماديات التطوير غير مثبتة.' };
         }
         fs.writeFileSync(path.join(app.getPath('userData'), 'project-root.txt'), root, 'utf8');
@@ -255,7 +265,7 @@ function registerDevMode({ app, ipcMain, dialog, getMainWindow }) {
     };
 
     const clearProjectCache = (root) => {
-        const normalizedRoot = path.resolve(root) + path.sep;
+        const normalizedRoot = fs.realpathSync(root) + path.sep;
         const nmPrefix = path.join(root, 'node_modules') + path.sep;
         for (const cachedKey of Object.keys(require.cache)) {
             if (cachedKey.startsWith(normalizedRoot) && !cachedKey.startsWith(nmPrefix)) {
@@ -278,7 +288,7 @@ function registerDevMode({ app, ipcMain, dialog, getMainWindow }) {
                 } catch { /* fallback to packaged module */ }
             }
         }
-        return require(path.resolve(app.getAppPath(), relPath));
+        return require(path.resolve(baselineRoot, relPath));
     };
 
     const isAvailable = () => app.isPackaged || fullSource;

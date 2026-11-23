@@ -1,0 +1,76 @@
+{
+  "name": "quran-classes-tracker",
+  "private": true,
+  "version": "1.0.0",
+  "type": "commonjs",
+  "main": "main.js",
+  "scripts": {
+    "dev": "vite",
+    "preview": "vite preview",
+    "start": "node start.js",
+    "build": "vite build",
+    "version:current": "node build-with-version.cjs --print-version",
+    "electron:build": "npm run build && node build-with-version.cjs --publish never"
+  },
+  "build": {
+    "appId": "com.quran.tracker",
+    "productName": "Quran Classes Tracker",
+    "directories": {
+      "output": "dist_electron"
+    },
+    "files": [
+      "**/*",
+      "!dist_electron{,/**/*}",
+      "!P A C K - U P{,/**/*}"
+    ],
+    "asarUnpack": [
+      "audio-mushaf/pdf-render-helper.html",
+      "node_modules/pdfjs-dist/**"
+    ],
+    "extraResources": [
+      {
+        "from": "../chrome-tab-extension",
+        "to": "chrome-tab-extension"
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "public/ChatGPT Image 21 يناير 2026، 04_27_04 ص.png  ( 2 ).ico"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "public/ChatGPT Image 21 يناير 2026، 04_27_04 ص.png  ( 2 ).png"
+    },
+    "nsis": {
+      "oneClick": true,
+      "allowToChangeInstallationDirectory": false,
+      "createDesktopShortcut": false,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Quran Classes Tracker"
+    }
+  },
+  "dependencies": {
+    "autoprefixer": "^10.5.0",
+    "html-to-image": "^1.11.13",
+    "lucide-react": "^0.562.0",
+    "node-fetch": "^3.3.2",
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^4.10.38",
+    "postcss": "^8.5.15",
+    "puppeteer": "^24.0.0",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "tailwindcss": "^3.4.19"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "concurrently": "^9.2.1",
+    "electron": "^40.10.2",
+    "electron-builder": "^26.4.0",
+    "electron-is-dev": "^3.0.1",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.0",
+    "wait-on": "^9.0.3"
+  }
+}

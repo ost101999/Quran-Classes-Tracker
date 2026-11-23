@@ -1,4 +1,8 @@
-with open(r'c:\My App\Quran Classes Tracker\App.tsx', 'rb') as f:
+from pathlib import Path
+
+app_file = Path(__file__).with_name('App.tsx')
+
+with open(app_file, 'rb') as f:
     content = f.read()
 
 content = content.replace(
@@ -10,7 +14,7 @@ content = content.replace(
     b"value={lastReport?.readingTilawa?.toSurah || SURAHS[0]}"
 )
 
-with open(r'c:\My App\Quran Classes Tracker\App.tsx', 'wb') as f:
+with open(app_file, 'wb') as f:
     f.write(content)
 
 print("Done!")
