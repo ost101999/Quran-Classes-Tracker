@@ -66,7 +66,7 @@ const getSessionsPlural = (num: number): string => {
 };
 
 const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendance, month: initialMonth, year: initialYear, onClose, onDelete, onUpdate, academyRate, usdRate, paymentStatus, onTogglePayment }) => {
-    const { month, year, changeMonth } = useReportMonth(initialMonth, initialYear, true);
+    const { month, year, changeMonth, futureMonths } = useReportMonth(initialMonth, initialYear, true, 1);
     const reportRef = useRef<HTMLDivElement>(null);
     const [isCopying, setIsCopying] = useState(false);
     const [copySucceeded, setCopySucceeded] = useState(false);
@@ -965,7 +965,7 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
                     </div>
                 </div >
 
-                <ReportMonthNavigation month={month} year={year} changeMonth={changeMonth}
+                <ReportMonthNavigation month={month} year={year} changeMonth={changeMonth} futureMonths={futureMonths}
                     isPaid={!!paymentStatus[`${academyName}_${month}_${year}`]}
                     onTogglePayment={(paymentMonth, paymentYear) => onTogglePayment(academyName, paymentMonth, paymentYear)} />
 

@@ -1,14 +1,21 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Check, ChevronLeft, ChevronRight } from 'lucide-react';
 
-export function useReportMonth(initialMonth: number, initialYear: number, mouseNavigation = false) {
+function getCurrentMonthIndex() {
+    const today = new Date();
+    return today.getFullYear() * 12 + today.getMonth();
+}
+
+export function useReportMonth(initialMonth: number, initialYear: number, mouseNavigation = false, futureMonths = 0) {
     const [period, setPeriod] = useState({ month: initialMonth, year: initialYear });
     const changeMonth = useCallback((offset: number) => {
         setPeriod(current => {
+            const nextIndex = current.year * 12 + current.month + offset;
+            if (offset > 0 && nextIndex > getCurrentMonthIndex() + futureMonths) return current;
             const date = new Date(current.year, current.month + offset, 1);
             return { month: date.getMonth(), year: date.getFullYear() };
         });
-    }, []);
+    }, [futureMonths]);
 
     useEffect(() => {
         if (!mouseNavigation) return;
@@ -19,13 +26,7 @@ export function useReportMonth(initialMonth: number, initialYear: number, mouseN
             if (event.button !== 3 && event.button !== 4) return;
             event.preventDefault();
             event.stopPropagation();
-            const offset = event.button === 3 ? -1 : 1;
-            setPeriod(current => {
-                const today = new Date();
-                if (offset > 0 && current.year * 12 + current.month >= today.getFullYear() * 12 + today.getMonth()) return current;
-                const date = new Date(current.year, current.month + offset, 1);
-                return { month: date.getMonth(), year: date.getFullYear() };
-            });
+            changeMonth(event.button === 3 ? -1 : 1);
         };
         document.addEventListener('mousedown', preventNavigation, true);
         document.addEventListener('auxclick', preventNavigation, true);
@@ -35,20 +36,23 @@ export function useReportMonth(initialMonth: number, initialYear: number, mouseN
             document.removeEventListener('auxclick', preventNavigation, true);
             document.removeEventListener('mouseup', handleMouseUp, true);
         };
-    }, [mouseNavigation]);
-    return { ...period, changeMonth };
+    }, [mouseNavigation, changeMonth]);
+    return { ...period, changeMonth, futureMonths };
 }
 
-export default function ReportMonthNavigation({ month, year, changeMonth, isPaid, onTogglePayment, paymentLabel }: {
+export default function ReportMonthNavigation({ month, year, changeMonth, isPaid, onTogglePayment, paymentLabel, futureMonths = 0 }: {
     month: number;
     year: number;
     changeMonth: (offset: number) => void;
     isPaid?: boolean;
     onTogglePayment?: (month: number, year: number) => void;
     paymentLabel?: string;
+    futureMonths?: number;
 }) {
-    const today = new Date();
-    const isCurrentOrFuture = year * 12 + month >= today.getFullYear() * 12 + today.getMonth();
+    const currentMonthIndex = getCurrentMonthIndex();
+    const monthOffset = year * 12 + month - currentMonthIndex;
+    const isNextMonth = futureMonths > 0 && monthOffset === 1;
+    const forwardDisabled = monthOffset >= futureMonths;
     const label = new Intl.DateTimeFormat('ar-EG-u-ca-gregory', { month: 'long', year: 'numeric' })
         .format(new Date(year, month, 1));
 
@@ -69,8 +73,10 @@ export default function ReportMonthNavigation({ month, year, changeMonth, isPaid
                 className="p-2 rounded-full text-blue-600 hover:bg-blue-50 transition-colors">
                 <ChevronLeft size={20} />
             </button>
-            <span className="min-w-32 text-center text-gray-600 font-semibold" aria-live="polite">{label}</span>
-            <button type="button" onClick={() => changeMonth(1)} disabled={isCurrentOrFuture} aria-label="الشهر التالي" title="الشهر التالي"
+            <span className="min-w-32 text-center text-gray-600 font-semibold" aria-live="polite">{label}
+                {isNextMonth && <span className="block text-xs text-blue-600" dir="rtl">الشهر القادم</span>}
+            </span>
+            <button type="button" onClick={() => changeMonth(1)} disabled={forwardDisabled} aria-label="الشهر التالي" title="الشهر التالي"
                 className="p-2 rounded-full text-blue-600 hover:bg-blue-50 transition-colors disabled:text-gray-300 disabled:cursor-not-allowed disabled:hover:bg-transparent">
                 <ChevronRight size={20} />
             </button>
