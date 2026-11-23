@@ -38,12 +38,30 @@ const {
     transformMarkerForCrop,
 } = require('./audio-mushaf/mushaf-crop-data');
 const { readTargets } = require('./whatsapp-integration');
-const { createCalendarSchedules } = require('./calendar-schedules');
+const { calendarTokenPath, createCalendarSchedules, withCalendarSignIn } = require('./calendar-schedules');
 const { registerAppUpdates } = require('./app-update');
 const { registerDevMode } = require('./dev-mode');
 let devModeController = null;
 const loadLiveModule = (relPath) => devModeController ? devModeController.requireModule(relPath) : require(relPath);
-const getCalendarSchedules = createCalendarSchedules();
+const readCalendarSchedules = createCalendarSchedules();
+const defaultCalendarToken = calendarTokenPath({ override: '' });
+const calendarSupportDir = path.dirname(defaultCalendarToken);
+const calendarPython = path.join(calendarSupportDir, '..', '.venv', 'bin', 'python3');
+const calendarHelper = path.join(calendarSupportDir, 'gcal_engine.py');
+const canOpenCalendarSignIn = process.platform === 'darwin'
+    && path.resolve(calendarTokenPath()) === defaultCalendarToken
+    && fs.existsSync(calendarPython) && fs.existsSync(calendarHelper);
+const calendarSignInController = new AbortController();
+const getCalendarSchedules = canOpenCalendarSignIn ? withCalendarSignIn(readCalendarSchedules, () => new Promise(resolve => {
+    execFile(calendarPython, [calendarHelper, '--reauth'], {
+        cwd: calendarSupportDir, timeout: 310000, signal: calendarSignInController.signal,
+    }, (error, stdout) => {
+        if (error) return resolve(false);
+        try { resolve(JSON.parse(stdout.trim().split('\n').pop()).status === 'success'); }
+        catch { resolve(false); }
+    });
+})) : readCalendarSchedules;
+app.once('will-quit', () => calendarSignInController.abort());
 ipcMain.handle('get-calendar-schedules', (_event, students, force, review, dayTransitionTime) => getCalendarSchedules(students, { force: force === true, review: review === true, dayTransitionTime }));
 const chromeTabBridge = createChromeTabBridge({ onFocus: focusChromeWindow });
 

@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createCalendarSchedules, currentWeek, scheduleFor } = require('../calendar-schedules');
+const { createCalendarSchedules, currentWeek, scheduleFor, withCalendarSignIn } = require('../calendar-schedules');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const ts = require('typescript');
@@ -102,6 +102,40 @@ test('refreshes OAuth in memory and retries a revoked access token once', async 
     assert.equal((await read([{ id: '1', name: 'Bilal' }])).available, true);
     assert.equal(refreshes, 1);
     assert.equal(saved.token, 'test-token');
+});
+
+test('revoked Calendar login opens once, refreshes after sign-in and allows manual retry', async () => {
+    let signedIn = false;
+    let allowSignIn = false;
+    let signIns = 0;
+    let calendarStatus = 200;
+    const read = createCalendarSchedules({
+        now: () => now,
+        readToken: () => signedIn ? authorized() : { refresh_token: 'expired', client_id: 'client', client_secret: 'secret' },
+        fetchImpl: async url => {
+            if (url === 'https://oauth2.googleapis.com/token') return response({ error: 'invalid_grant' }, 400);
+            if (url.includes('/calendarList?')) return response({ items: [{ id: 'calendar', selected: true }] }, calendarStatus);
+            return response({ items: [] });
+        },
+    });
+    const readWithSignIn = withCalendarSignIn(read, async () => {
+        signIns++;
+        signedIn = allowSignIn;
+        return signedIn;
+    });
+    const students = [{ id: '1', name: 'Bilal' }];
+    const outcomes = await Promise.all([readWithSignIn(students), readWithSignIn(students)]);
+    assert.ok(outcomes.every(result => result.requiresSignIn));
+    await readWithSignIn(students);
+    assert.equal(signIns, 1);
+    allowSignIn = true;
+    assert.equal((await readWithSignIn(students, { force: true })).available, true);
+    assert.equal(signIns, 2);
+    calendarStatus = 400;
+    const badRequest = await readWithSignIn(students, { force: true });
+    assert.equal(badRequest.available, false);
+    assert.equal(badRequest.requiresSignIn, undefined);
+    assert.equal(signIns, 2);
 });
 
 test('shared copies are deduplicated and each occurrence retains its own timezone', async () => {

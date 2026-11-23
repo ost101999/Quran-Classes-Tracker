@@ -6,6 +6,7 @@ const identityHash = value => crypto.createHash('sha256').update(JSON.stringify(
 
 const CAIRO = 'Africa/Cairo';
 const API = 'https://www.googleapis.com/calendar/v3/';
+const TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
 const TOKEN_SUFFIX = ['MyAutoScripts', '5- My Programs', '1- Google Calender Magic Opener', 'Support Files', 'token.json'];
 
 function calendarTokenPath({ override = process.env.QURAN_CALENDAR_TOKEN_PATH, home = os.homedir(), systemDrive = process.env.SystemDrive } = {}) {
@@ -13,6 +14,30 @@ function calendarTokenPath({ override = process.env.QURAN_CALENDAR_TOKEN_PATH, h
     const candidates = [path.join(home, ...TOKEN_SUFFIX)];
     if (systemDrive) candidates.push(path.join(`${systemDrive}${path.sep}`, ...TOKEN_SUFFIX));
     return candidates.find(candidate => fs.existsSync(candidate)) || candidates[0];
+}
+
+function calendarSignInError(message) {
+    return Object.assign(new Error(message), { requiresSignIn: true });
+}
+
+function withCalendarSignIn(readSchedules, signIn) {
+    let attempted = false;
+    let pending;
+    return async (students, options = {}) => {
+        const result = await readSchedules(students, options);
+        if (result.available && Object.keys(result.schedules).length) attempted = false;
+        if (!result.requiresSignIn) return result;
+        if (!pending && (!attempted || options.force)) {
+            attempted = true;
+            pending = Promise.resolve().then(signIn).catch(() => false).finally(() => { pending = undefined; });
+        }
+        if (!pending || !await pending) {
+            return { ...result, error: 'تقويم Google يحتاج تسجيل الدخول. اضغط «تحديث» لفتح صفحة جوجل مرة أخرى.' };
+        }
+        const refreshed = await readSchedules(students, { ...options, force: true });
+        if (refreshed.available) attempted = false;
+        return refreshed;
+    };
 }
 
 function dateParts(date, timeZone) {
@@ -91,9 +116,13 @@ function createCalendarSchedules({ fetchImpl = globalThis.fetch, readToken = () 
         try { response = await fetchImpl(url, { ...options, signal: AbortSignal.timeout(20000) }); }
         catch { throw new Error('تعذّر الاتصال بتقويم Google. تحقق من الإنترنت ثم أعد المحاولة.'); }
         if (!response.ok) {
-            const error = new Error(response.status === 401 || response.status === 400
-                ? 'انتهى اتصال Google Calendar. أعد تسجيل الدخول في Google Calendar Magic Opener.'
-                : `تعذّرت قراءة تقويم Google (${response.status}). لم يتم استبدال الجدول المحفوظ.`);
+            if (url === TOKEN_ENDPOINT && response.status === 400) {
+                const details = await response.json().catch(() => null);
+                if (details?.error === 'invalid_grant') {
+                    throw calendarSignInError('انتهى اتصال Google Calendar. أعد تسجيل الدخول في Google Calendar Magic Opener.');
+                }
+            }
+            const error = new Error(`تعذّرت قراءة تقويم Google (${response.status}). لم يتم استبدال الجدول المحفوظ.`);
             error.status = response.status;
             throw error;
         }
@@ -103,13 +132,14 @@ function createCalendarSchedules({ fetchImpl = globalThis.fetch, readToken = () 
         if (!force && access && access.expires > now().getTime() + 60000) return access.value;
         let saved;
         try { saved = readToken(); }
-        catch { throw new Error('اربط Google Calendar من برنامج Google Calendar Magic Opener أولًا.'); }
+        catch { throw calendarSignInError('اربط Google Calendar من برنامج Google Calendar Magic Opener أولًا.'); }
+        if (!saved || typeof saved !== 'object') throw calendarSignInError('اربط Google Calendar من برنامج Google Calendar Magic Opener أولًا.');
         const expiry = saved.expiry ? Date.parse(saved.expiry.endsWith('Z') || /[+-]\d\d:\d\d$/.test(saved.expiry) ? saved.expiry : `${saved.expiry}Z`) : 0;
         if (!force && saved.token && expiry > now().getTime() + 60000) {
             access = { value: saved.token, expires: expiry };
         } else {
-            if (!saved.refresh_token || !saved.client_id || !saved.client_secret) throw new Error('أعد ربط حساب Google Calendar في Google Calendar Magic Opener.');
-            const result = await request('https://oauth2.googleapis.com/token', {
+            if (!saved.refresh_token || !saved.client_id || !saved.client_secret) throw calendarSignInError('أعد ربط حساب Google Calendar في Google Calendar Magic Opener.');
+            const result = await request(TOKEN_ENDPOINT, {
                 method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                 body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: saved.refresh_token, client_id: saved.client_id, client_secret: saved.client_secret }).toString(),
             });
@@ -121,9 +151,11 @@ function createCalendarSchedules({ fetchImpl = globalThis.fetch, readToken = () 
     }
     async function getPage(route, params) {
         const url = `${API}${route}?${new URLSearchParams(params)}`;
-        try { return await request(url, { headers: { Authorization: `Bearer ${await token()}` } }); }
+        const accessToken = await token();
+        try { return await request(url, { headers: { Authorization: `Bearer ${accessToken}` } }); }
         catch (error) {
             if (error.status !== 401) throw error;
+            access = undefined;
             return request(url, { headers: { Authorization: `Bearer ${await token(true)}` } });
         }
     }
@@ -206,7 +238,9 @@ function createCalendarSchedules({ fetchImpl = globalThis.fetch, readToken = () 
             };
         } catch (error) {
             snapshot = undefined;
-            return { available: false, schedules: {}, error: error.message || 'تعذّرت قراءة المواعيد.' };
+            return { available: false, schedules: {}, error: error.message || 'تعذّرت قراءة المواعيد.',
+                ...(error.requiresSignIn ? { requiresSignIn: true } : {}),
+            };
         }
     };
 }
@@ -257,4 +291,4 @@ function reviewFor(name, snapshot, dayTransitionTime = '00:00') {
     };
 }
 
-module.exports = { createCalendarSchedules, calendarTokenPath, currentWeek, scheduleFor, reviewFor };
+module.exports = { createCalendarSchedules, calendarTokenPath, withCalendarSignIn, currentWeek, scheduleFor, reviewFor };
