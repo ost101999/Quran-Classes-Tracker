@@ -41,28 +41,30 @@ const { readTargets } = require('./whatsapp-integration');
 const { createCalendarSchedules } = require('./calendar-schedules');
 const { registerAppUpdates } = require('./app-update');
 const { registerDevMode } = require('./dev-mode');
+let devModeController = null;
+const loadLiveModule = (relPath) => devModeController ? devModeController.requireModule(relPath) : require(relPath);
 const getCalendarSchedules = createCalendarSchedules();
 ipcMain.handle('get-calendar-schedules', (_event, students, force, review, dayTransitionTime) => getCalendarSchedules(students, { force: force === true, review: review === true, dayTransitionTime }));
 const chromeTabBridge = createChromeTabBridge({ onFocus: focusChromeWindow });
 
 ipcMain.handle('get-shortcut-links', (_event, students) => {
     const requests = Array.isArray(students) ? students.filter(s => s && typeof s.id === 'string' && typeof s.name === 'string') : [];
-    return readMatches(requests);
+    return loadLiveModule('./shortcut-links').readMatches(requests);
 });
 
-ipcMain.handle('get-whatsapp-targets', (_event, students) => Array.isArray(students) ? readTargets(students.filter(s => s && typeof s.id === 'string' && typeof s.name === 'string')) : { available: false, matches: {} });
+ipcMain.handle('get-whatsapp-targets', (_event, students) => Array.isArray(students) ? loadLiveModule('./whatsapp-integration').readTargets(students.filter(s => s && typeof s.id === 'string' && typeof s.name === 'string')) : { available: false, matches: {} });
 
 ipcMain.handle('resolve-student-mushaf', (_event, payload) => {
-    const resolved = resolveStudentMushafFile(payload || {});
+    const resolved = loadLiveModule('./shortcut-links').resolveStudentMushafFile(payload || {});
     return {
         ...resolved,
-        outputDir: getDefaultMushafOutputDir(app),
+        outputDir: loadLiveModule('./custom-mushaf').getDefaultMushafOutputDir(app),
     };
 });
 
 ipcMain.handle('get-student-audio-session', (_event, payload) => {
     try {
-        const session = findSessionForStudent(payload || {});
+        const session = loadLiveModule('./audio-mushaf/session-store').findSessionForStudent(payload || {});
         const clips = Array.isArray(session?.clips) ? session.clips : [];
         return {
             hasSession: clips.length > 0,
@@ -77,6 +79,32 @@ ipcMain.handle('get-student-audio-session', (_event, payload) => {
 
 ipcMain.handle('generate-custom-mushaf', async (_event, payload) => {
     try {
+        const { resolveStudentMushafFile: resolveStudentMushafLive } = loadLiveModule('./shortcut-links');
+        const { getDefaultMushafOutputDir: getDefaultOutLive, generateCustomMushafPdf: genPdfLive, mapMushafPagesToPdfPages: mapPagesLive } = loadLiveModule('./custom-mushaf');
+        const {
+            extractPdfAnnotations: extractAnnLive,
+            matchClipsToAnnotations: matchClipsLive,
+            recolorAnnotationsToGreenInPdfBytes: recolorLive,
+            mergeReportAndAudioSections: mergeSecLive,
+        } = loadLiveModule('./audio-mushaf/annotation-matcher');
+        const {
+            findSessionForStudent: findSessLive,
+            readClipAudioDataUrl: readClipLive,
+            resolveLatestPdfCopyForReading: resolvePdfCopyLive,
+            triggerAutoSavePdfViewer: triggerAutoSaveLive,
+        } = loadLiveModule('./audio-mushaf/session-store');
+        const {
+            renderPdfPagesToImages: renderPagesLive,
+            buildInteractiveHtml: buildHtmlLive,
+            saveInteractiveHtmlFile: saveHtmlLive,
+            publishAudioSessionToCloud: publishCloudLive,
+        } = loadLiveModule('./audio-mushaf/publisher');
+        const {
+            resolvePdfPagesForVerseSpan620: resolve620Live,
+            computePageCropForVerseSpan620: computeCrop620Live,
+            transformMarkerForCrop: transformMarkerLive,
+        } = loadLiveModule('./audio-mushaf/mushaf-crop-data');
+
         const {
             studentId,
             studentName,
@@ -91,7 +119,7 @@ ipcMain.handle('generate-custom-mushaf', async (_event, payload) => {
             autoOpen,
         } = payload || {};
 
-        const resolved = resolveStudentMushafFile({
+        const resolved = resolveStudentMushafLive({
             studentName,
             shortcutSourceId,
             quranLink,
@@ -104,48 +132,48 @@ ipcMain.handle('generate-custom-mushaf', async (_event, payload) => {
             };
         }
 
-        const outputDir = getDefaultMushafOutputDir(app);
+        const outputDir = getDefaultOutLive(app);
         const todayStr = dateStr || new Date().toLocaleDateString('en-CA');
 
         if (outputFormat === 'web_link' || outputFormat === 'html') {
-            const audioSession = findSessionForStudent({ studentId, studentName, dateStr: todayStr });
+            const audioSession = findSessLive({ studentId, studentName, dateStr: todayStr });
             const hasClips = !!(audioSession && Array.isArray(audioSession.clips) && audioSession.clips.length > 0);
-            await triggerAutoSavePdfViewer(resolved.path, audioSession?.lastRecordedAt || null);
-            const readablePdfPath = resolveLatestPdfCopyForReading(resolved.path);
+            await triggerAutoSaveLive(resolved.path, audioSession?.lastRecordedAt || null);
+            const readablePdfPath = resolvePdfCopyLive(resolved.path);
             const sourceBytes = fs.readFileSync(readablePdfPath);
             const sourceDoc = await PDFDocument.load(sourceBytes, { ignoreEncryption: true });
             const totalSourcePages = sourceDoc.getPageCount();
             const offsetNum = Number.isFinite(pageOffset) ? Math.trunc(pageOffset) : 0;
 
             const reportSectionsWithPages = (Array.isArray(sections) ? sections : []).map(sec => {
-                const resolved620Pages = resolvePdfPagesForVerseSpan620(sec.verseSpan, totalSourcePages, offsetNum);
+                const resolved620Pages = resolve620Live(sec.verseSpan, totalSourcePages, offsetNum);
                 return {
                     ...sec,
                     pdfPages: (resolved620Pages && resolved620Pages.length > 0)
                         ? resolved620Pages
-                        : mapMushafPagesToPdfPages(sec.startPage, sec.endPage, totalSourcePages, offsetNum),
+                        : mapPagesLive(sec.startPage, sec.endPage, totalSourcePages, offsetNum),
                 };
             });
 
             let markers = [];
             let unmatchedClips = [];
             let unmatchedNewAnnotations = [];
-            const annotations = await extractPdfAnnotations(sourceDoc);
-            const matched = matchClipsToAnnotations(hasClips ? audioSession.clips : [], annotations, {
+            const annotations = await extractAnnLive(sourceDoc);
+            const matched = matchClipsLive(hasClips ? audioSession.clips : [], annotations, {
                 sessionStartedAt: (audioSession && audioSession.startedAt) || (Date.now() - 4 * 3600 * 1000),
             });
             markers = matched.markers;
             unmatchedClips = matched.unmatchedClips;
             unmatchedNewAnnotations = matched.unmatchedNewAnnotations || [];
 
-            const merged = mergeReportAndAudioSections({
+            const merged = mergeSecLive({
                 reportSections: reportSectionsWithPages,
                 markers,
                 unmatchedNewAnnotations,
                 includeExtraPages: reportSectionsWithPages.length === 0,
                 totalSourcePages,
                 pageOffset: offsetNum,
-                mapPagesFn: mapMushafPagesToPdfPages,
+                mapPagesFn: mapPagesLive,
             });
             if (merged.allPdfPages.length === 0) {
                 return { success: false, error: 'لا توجد صفحات محددة في التقرير لتوليد المصحف الصوتي.' };
@@ -153,7 +181,7 @@ ipcMain.handle('generate-custom-mushaf', async (_event, payload) => {
 
             const allowedPageSet = new Set(merged.allPdfPages);
             const filteredRecolor = unmatchedNewAnnotations.filter(a => allowedPageSet.has(a.pdfPage));
-            const renderBytes = await recolorAnnotationsToGreenInPdfBytes(sourceBytes, filteredRecolor);
+            const renderBytes = await recolorLive(sourceBytes, filteredRecolor);
 
             const cropPlanMap = new Map();
             const cropRequests = [];
@@ -161,7 +189,7 @@ ipcMain.handle('generate-custom-mushaf', async (_event, payload) => {
 
             merged.sections.forEach((sec, secIdx) => {
                 (sec.pages || []).forEach(p => {
-                    const crop = computePageCropForVerseSpan620(p.pdfPage, sec.verseSpan, totalSourcePages, offsetNum);
+                    const crop = computeCrop620Live(p.pdfPage, sec.verseSpan, totalSourcePages, offsetNum);
                     const cropKey = crop.isCropped
                         ? `${p.pdfPage}_${crop.topFrac.toFixed(4)}_${crop.botFrac.toFixed(4)}_${crop.drawTopBar ? 1 : 0}${crop.drawBotBar ? 1 : 0}`
                         : String(p.pdfPage);
@@ -173,7 +201,7 @@ ipcMain.handle('generate-custom-mushaf', async (_event, payload) => {
                 });
             });
 
-            const renderedImages = await renderPdfPagesToImages({
+            const renderedImages = await renderPagesLive({
                 BrowserWindow,
                 pdfPath: resolved.path,
                 pdfBytes: renderBytes,
@@ -191,14 +219,14 @@ ipcMain.handle('generate-custom-mushaf', async (_event, payload) => {
                         const rendered = renderedImages[cropKey] || renderedImages[String(p.pdfPage)];
                         const mappedMarkers = p.markers
                             .map(m => {
-                                const transformed = transformMarkerForCrop(m, rendered?.cropApplied ? crop : null, rendered);
+                                const transformed = transformMarkerLive(m, rendered?.cropApplied ? crop : null, rendered);
                                 if (!transformed) return null;
                                 return {
                                     id: transformed.clipId,
                                     xPercent: transformed.xPercent,
                                     yPercent: transformed.yPercent,
                                     durationMs: transformed.durationMs || 0,
-                                    audioDataUrl: readClipAudioDataUrl(audioSession.sessionKey, transformed.audioFileName),
+                                    audioDataUrl: readClipLive(audioSession.sessionKey, transformed.audioFileName),
                                 };
                             })
                             .filter(Boolean);
@@ -211,7 +239,7 @@ ipcMain.handle('generate-custom-mushaf', async (_event, payload) => {
                 }));
 
                 if(outputFormat === 'web_link') {
-                const published = await publishAudioSessionToCloud({
+                const published = await publishCloudLive({
                     studentId: studentId || '',
                     studentName,
                     dateStr: todayStr,
@@ -229,13 +257,13 @@ ipcMain.handle('generate-custom-mushaf', async (_event, payload) => {
                 };
             }
 
-            const html = buildInteractiveHtml({
+            const html = buildHtmlLive({
                 studentName,
                 dateStr: todayStr,
                 language: language || 'ar',
                 sections: enrichedSections,
             });
-            const savedHtml = saveInteractiveHtmlFile({
+            const savedHtml = saveHtmlLive({
                 outputDir,
                 studentName,
                 dateStr: todayStr,
@@ -254,12 +282,12 @@ ipcMain.handle('generate-custom-mushaf', async (_event, payload) => {
             };
         }
 
-        const pdfAudioSession = findSessionForStudent({ studentId, studentName, dateStr: todayStr });
+        const pdfAudioSession = findSessLive({ studentId, studentName, dateStr: todayStr });
         if (process.platform === 'darwin' || pdfAudioSession?.lastRecordedAt) {
-            await triggerAutoSavePdfViewer(resolved.path, pdfAudioSession?.lastRecordedAt || null);
+            await triggerAutoSaveLive(resolved.path, pdfAudioSession?.lastRecordedAt || null);
         }
-        const readablePdfForPdf = resolveLatestPdfCopyForReading(resolved.path);
-        const result = await generateCustomMushafPdf({
+        const readablePdfForPdf = resolvePdfCopyLive(resolved.path);
+        const result = await genPdfLive({
             studentName,
             sourcePdfPath: readablePdfForPdf,
             sections,
@@ -554,7 +582,7 @@ ipcMain.handle('send-whatsapp-auto', async (event, data) => {
         return { success: result.success, error: result.error };
     }
     const { targetName, message } = data || {};
-    return sendWahaMessage(targetName, message);
+    return loadLiveModule('./waha-send').sendWahaMessage(targetName, message);
 });
 
 ipcMain.handle('send-whatsapp-file', async (_event, data) => {
@@ -584,7 +612,7 @@ ipcMain.handle('send-whatsapp-file', async (_event, data) => {
         });
         return { success: result.success, error: result.error };
     }
-    return sendWahaFile(targetName, filePath, caption || '');
+    return loadLiveModule('./waha-send').sendWahaFile(targetName, filePath, caption || '');
 });
 
 ipcMain.handle('release-whatsapp-session', async () => {
@@ -757,14 +785,15 @@ function createWindow() {
         port = parseInt(process.argv[portArgIndex + 1], 10);
     }
 
-    const startUrl = isDev
+    const overrideStartUrl = devModeController?.getOverrideStartUrl?.();
+    const startUrl = overrideStartUrl || (isDev
         ? `http://localhost:${port}`
-        : `file://${path.join(__dirname, 'dist/index.html')}`;
+        : `file://${path.join(__dirname, 'dist/index.html')}`);
 
     mainWindow.maximize();
     mainWindow.loadURL(startUrl);
 
-    if (isDev) {
+    if (isDev && !overrideStartUrl) {
         mainWindow.webContents.openDevTools();
     }
 
@@ -843,9 +872,10 @@ function registerLocalFileProtocol() {
     }
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
     registerAppUpdates({ app, ipcMain, shell, dialog, getMainWindow: () => mainWindow });
-    registerDevMode({ app, ipcMain, dialog, getMainWindow: () => mainWindow });
+    devModeController = registerDevMode({ app, ipcMain, dialog, getMainWindow: () => mainWindow });
+    await devModeController.prepareFullDevUrl();
     chromeTabBridge.start();
     registerLocalFileProtocol();
     createWindow();
