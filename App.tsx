@@ -16770,7 +16770,8 @@ function App() {
                               silentToast: true,
                             });
                             if (linkRes?.success && linkRes.url) {
-                              report += `\n\n🎧 *رابط المصحف الصوتي للحصة:*\n${linkRes.url}`;
+                              const mushafSep = report.endsWith('\n') ? '\n' : '\n\n';
+                              report += `${mushafSep}*ــــــــــــــــــــــــــــــــــــــ*\n\n🎧 *المصحف التفاعلي المسموع:*\n${linkRes.url}`;
                             }
                           }
 
@@ -18367,7 +18368,8 @@ function App() {
                               silentToast: true,
                             });
                             if (linkRes?.success && linkRes.url) {
-                              report += `\n\n🎧 *Audio Mushaf Link:*\n${linkRes.url}`;
+                              const mushafSep = report.endsWith('\n') ? '\n' : '\n\n';
+                              report += `${mushafSep}*ــــــــــــــــــــــــــــــــــــــ*\n\n🎧 *Interactive Quran Audio:*\n${linkRes.url}`;
                             }
                           }
 
