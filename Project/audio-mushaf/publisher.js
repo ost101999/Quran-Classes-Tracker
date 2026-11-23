@@ -68,8 +68,8 @@ function buildAcmeFontCss() {
     const candidates = [
         path.join(__dirname, '..', 'public', 'fonts', 'Acme-Regular.ttf'),
         path.join(__dirname, 'fonts', 'Acme-Regular.ttf'),
-        'C:\\My App\\Quran Classes Tracker\\public\\fonts\\Acme-Regular.ttf',
-        'C:\\My App\\Quran Classes Tracker\\dist\\fonts\\Acme-Regular.ttf',
+        'C:\\My App\\Quran Classes Tracker\\Project\\public\\fonts\\Acme-Regular.ttf',
+        'C:\\My App\\Quran Classes Tracker\\Project\\dist\\fonts\\Acme-Regular.ttf',
     ];
     for (const candidate of candidates) {
         try {

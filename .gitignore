@@ -30,12 +30,24 @@ dist_electron/
 
 # Local application backups
 quran_tracker_backup_*.json
+Project/quran_tracker_backup_*.json
 
 # Written at build time
 project-meta.json
+Project/project-meta.json
 
 # Local backup folder
 P A C K - U P/
+Project/P A C K - U P/
 
 # Sentry native runtime files
 .sentry-native/
+Project/.sentry-native/
+
+# Nested Project build and dependency outputs
+Project/node_modules/
+Project/dist/
+Project/dist_electron/
+Project/*.local
+Project/.vscode/*
+!Project/.vscode/extensions.json

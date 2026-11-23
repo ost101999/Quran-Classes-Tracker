@@ -47,18 +47,27 @@ function registerDevMode({ app, ipcMain, dialog, getMainWindow }) {
         fs.existsSync(path.join(root, 'vite.config.ts')) &&
         fs.existsSync(path.join(root, 'node_modules', 'vite', 'bin', 'vite.js'));
 
+    const resolveCandidate = (base) => {
+        if (!base) return null;
+        return [base, path.join(base, 'Project')].find(validRoot) || null;
+    };
+
     const findRoot = () => {
-        const roots = [];
+        const candidates = [];
         try {
             const saved = fs.readFileSync(path.join(app.getPath('userData'), 'project-root.txt'), 'utf8').trim();
-            if (saved) roots.push(saved);
+            if (saved) candidates.push(saved);
         } catch { /* ignore */ }
         try {
             const meta = JSON.parse(fs.readFileSync(path.join(app.getAppPath(), 'project-meta.json'), 'utf8'));
-            if (meta?.projectRoot) roots.push(meta.projectRoot);
+            if (meta?.projectRoot) candidates.push(meta.projectRoot);
         } catch { /* ignore */ }
-        roots.push(app.getAppPath());
-        return roots.find(validRoot) || null;
+        candidates.push(app.getAppPath());
+        for (const candidate of candidates) {
+            const found = resolveCandidate(candidate);
+            if (found) return found;
+        }
+        return null;
     };
 
     const getElectronBinary = (root) => {
@@ -246,8 +255,8 @@ function registerDevMode({ app, ipcMain, dialog, getMainWindow }) {
             properties: ['openDirectory'],
         });
         if (choice.canceled) return { canceled: true };
-        root = choice.filePaths[0];
-        if (!validRoot(root)) {
+        root = resolveCandidate(choice.filePaths[0]);
+        if (!root) {
             return { error: 'مجلد المشروع غير صالح أو اعتماديات التطوير غير مثبتة.' };
         }
         fs.writeFileSync(path.join(app.getPath('userData'), 'project-root.txt'), root, 'utf8');

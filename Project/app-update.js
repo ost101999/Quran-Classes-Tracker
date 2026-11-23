@@ -83,8 +83,10 @@ function registerAppUpdates({ app, ipcMain, shell, dialog, getMainWindow }) {
         roots.push(app.getAppPath());
 
         for (const root of roots) {
-            const candidate = path.join(root, TOOLS_DIR, scriptName());
-            if (fs.existsSync(candidate)) return candidate;
+            for (const base of [root, path.join(root, 'Project')]) {
+                const candidate = path.join(base, TOOLS_DIR, scriptName());
+                if (fs.existsSync(candidate)) return candidate;
+            }
         }
         return null;
     }
