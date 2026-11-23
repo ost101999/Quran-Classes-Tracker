@@ -1,6 +1,5 @@
 const fs = require('fs');
-const path = require('path');
-const content = fs.readFileSync(path.join(__dirname, 'App.tsx'), 'utf8');
+const content = fs.readFileSync('c:/My App/Quran Classes Tracker/App.tsx', 'utf8');
 const lines = content.split('\n');
 
 let newLines = [];
@@ -62,5 +61,5 @@ for (let i = 0; i < lines.length; i++) {
     }
 }
 
-fs.writeFileSync(path.join(__dirname, 'App.tsx'), newLines.join('\n'), 'utf8');
+fs.writeFileSync('c:/My App/Quran Classes Tracker/App.tsx', newLines.join('\n'), 'utf8');
 console.log('Done. Lines processed:', lines.length, 'New length:', newLines.length);

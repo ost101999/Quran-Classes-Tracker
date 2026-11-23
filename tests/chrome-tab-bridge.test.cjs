@@ -19,7 +19,7 @@ test('Chrome extension finds an existing tab and rejects a different URL', { tim
     const url = `http://127.0.0.1:${site.address().port}/lesson`;
     const extension = fs.mkdtempSync(path.join(os.tmpdir(), 'tracker-extension-test-'));
     for (const file of ['manifest.json', 'background.js']) {
-        const source = fs.readFileSync(path.resolve(__dirname, '../../chrome-tab-extension', file), 'utf8');
+        const source = fs.readFileSync(path.resolve(__dirname, '../chrome-tab-extension', file), 'utf8');
         fs.writeFileSync(path.join(extension, file), source.replaceAll('39271', String(bridgePort)));
     }
     let browser;

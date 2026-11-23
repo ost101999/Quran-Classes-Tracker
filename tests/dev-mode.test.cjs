@@ -9,8 +9,7 @@ test('dev-mode detects engine changes and live-reloads backend modules when full
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'qct-devmode-'));
     try {
         const baselineDir = path.join(tmp, 'baseline');
-        const repoDir = path.join(tmp, 'project');
-        const projectDir = path.join(repoDir, 'desktop-app');
+        const projectDir = path.join(tmp, 'project');
         const userDataDir = path.join(tmp, 'userData');
         fs.mkdirSync(path.join(baselineDir, 'audio-mushaf'), { recursive: true });
         fs.mkdirSync(path.join(projectDir, 'node_modules', 'vite', 'bin'), { recursive: true });
@@ -22,7 +21,7 @@ test('dev-mode detects engine changes and live-reloads backend modules when full
         fs.writeFileSync(path.join(projectDir, 'package.json'), '{}', 'utf8');
         fs.writeFileSync(path.join(projectDir, 'vite.config.ts'), '', 'utf8');
         fs.writeFileSync(path.join(projectDir, 'node_modules', 'vite', 'bin', 'vite.js'), '', 'utf8');
-        fs.writeFileSync(path.join(userDataDir, 'project-root.txt'), repoDir, 'utf8');
+        fs.writeFileSync(path.join(userDataDir, 'project-root.txt'), projectDir, 'utf8');
 
         const helperFile = path.join(projectDir, 'audio-mushaf', 'sample.js');
         fs.writeFileSync(helperFile, 'module.exports = { value: "first" };\n', 'utf8');

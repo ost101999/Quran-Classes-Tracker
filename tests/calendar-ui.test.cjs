@@ -24,7 +24,7 @@ test('student editor fills and refreshes; portal renders current, empty and expi
         createRoot(document.getElementById('root')).render(<StudentModal student={window.student} academies={['Test']} currentMonth={10} currentYear={2026} openStudentWebInitially={true} onSave={s=>window.savedStudent=s} onClose={()=>{}}/>);`,
         resolveDir: root, loader: 'tsx',
     }, bundle: true, write: false, format: 'iife', define: { 'process.env.NODE_ENV': '"test"' } });
-    const portal = fs.readFileSync(path.join(root, '../student-web-app/index.html'), 'utf8');
+    const portal = fs.readFileSync(path.join(root, 'student-web-app/index.html'), 'utf8');
     const server = http.createServer((req, res) => {
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
         if (req.url.startsWith('/editor')) {

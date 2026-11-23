@@ -1,6 +1,5 @@
 const fs = require('fs');
-const path = require('path');
-const content = fs.readFileSync(path.join(__dirname, 'App.tsx'), 'utf8');
+const content = fs.readFileSync('c:/My App/Quran Classes Tracker/App.tsx', 'utf8');
 const lines = content.split('\n');
 
 // 1. Find setPreferredModes in the 'if (smartReportModal...)' block (restore logic)
@@ -133,5 +132,5 @@ if (restoreStart > 0) {
     if (insertAt > 0) newLines.splice(insertAt, 0, "        homeworkOldRev: last.homeworkOldRev?.mode || 'ayah',");
 }
 
-fs.writeFileSync(path.join(__dirname, 'App.tsx'), newLines.join('\n'), 'utf8');
+fs.writeFileSync('c:/My App/Quran Classes Tracker/App.tsx', newLines.join('\n'), 'utf8');
 console.log('Done. New total lines:', newLines.length);

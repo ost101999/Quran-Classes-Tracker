@@ -1,6 +1,6 @@
 {
     "buildCommand": "",
-    "outputDirectory": "desktop-app",
+    "outputDirectory": ".",
     "rewrites": [
         {
             "source": "/manifest.json",

@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const filePath = path.join(__dirname, 'App.tsx');
+const filePath = path.join('C:\\My App\\Quran Classes Tracker', 'App.tsx');
 let content = fs.readFileSync(filePath, 'utf8');
 
 // Match the comment "WhatsApp Toggle & Subscription Counter" and the div
