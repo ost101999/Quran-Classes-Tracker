@@ -2493,9 +2493,10 @@ function App() {
     return refresh ? withStudentPortalRefresh(portalUrl) : portalUrl;
   };
 
-  const appendStudentDashboardLink = (report: string, student: Student) => {
+  const appendStudentDashboardLink = (report: string, student: Student, language: 'ar' | 'en') => {
     if (!student.reportSettings?.includeStudentDashboardLink) return report;
-    return `${report.trimEnd()}\n\n*ــــــــــــــــــــــــــــــــــــــ*\n📊 *Student Dashboard*\n${buildStudentPortalUrl(student, false)}`;
+    const title = language === 'ar' ? 'لوحة الطالب' : 'Student Dashboard';
+    return `${report.trimEnd()}\n\n*ــــــــــــــــــــــــــــــــــــــ*\n📊 *${title}*\n${buildStudentPortalUrl(student, false)}`;
   };
 
   const [linkAnimation, setLinkAnimation] = useState<{
@@ -8373,7 +8374,7 @@ function App() {
                                           report += `${lang === 'ar' ? 'الحالة: غياب' : 'Status: Absent'}\n`;
                                         }
 
-                                        navigator.clipboard.writeText(appendStudentDashboardLink(report, student));
+                                        navigator.clipboard.writeText(appendStudentDashboardLink(report, student, lang));
                                         showToast(lang === 'ar' ? 'تم نسخ التقرير (غياب) 📋' : 'Absent report copied 📋');
 
                                         // Auto-open link when marking absence (always, regardless of report settings)
@@ -15866,7 +15867,7 @@ function App() {
                               report += `\nــــــــــــــــــــــــــــــ\n\n🎧 *للاستماع إلى التوجيهات:*\n${audioLinkVal}`;
                             }
 
-                            report = appendStudentDashboardLink(report, student);
+                            report = appendStudentDashboardLink(report, student, 'ar');
                             setLastReports(prev => ({
                               ...prev,
                               [smartReportModal.studentId]: {
@@ -16026,7 +16027,7 @@ function App() {
                               report += `\nــــــــــــــــــــــــــــــ\n\n🎧 *للاستماع إلى التوجيهات:*\n${audioLinkVal}`;
                             }
 
-                            report = appendStudentDashboardLink(report, student);
+                            report = appendStudentDashboardLink(report, student, 'ar');
                             setLastReports(prev => ({
                               ...prev,
                               [smartReportModal.studentId]: {
@@ -16801,7 +16802,7 @@ function App() {
                             }
                           }
 
-                          report = appendStudentDashboardLink(report, student);
+                          report = appendStudentDashboardLink(report, student, 'ar');
                           setLastReports(prev => ({
                             ...prev,
                             [smartReportModal.studentId]: {
@@ -17248,7 +17249,7 @@ function App() {
                               if (audioLinkVal) {
                                 report += `\nــــــــــــــــــــــــــــــ\n\n🎧 *Audio Corrections:*\n${audioLinkVal}`;
                               }
-                              report = appendStudentDashboardLink(report, student);
+                              report = appendStudentDashboardLink(report, student, 'en');
                               setLastReports(prev => ({
                                 ...prev,
                                 [smartReportModal.studentId]: {
@@ -18401,7 +18402,7 @@ function App() {
                             }
                           }
 
-                          report = appendStudentDashboardLink(report, student);
+                          report = appendStudentDashboardLink(report, student, 'en');
                           setLastReports(prev => ({
                             ...prev,
                             [smartReportModal.studentId]: {
