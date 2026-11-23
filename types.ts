@@ -122,6 +122,7 @@ export interface MonthYear {
 export type MushafSectionKey = 'rev' | 'oldRev' | 'new' | 'tilawa';
 
 export interface StudentReportSettings {
+  includeStudentDashboardLink?: boolean;
   customMushafEnabled?: boolean;
   mushafUnifiedV2?: boolean;
   mushafOutputFormat?: 'pdf' | 'web_link' | 'html';

@@ -49,6 +49,7 @@ const toWesternDigits = (str: string): string => {
 
 const getReportCustomizationItems = (settings: StudentReportSettings): string[] => {
   const items: string[] = [];
+  if (settings.includeStudentDashboardLink) items.push('إرفاق رابط واجهة الطالب');
   if (settings.customMushafEnabled) {
     if (settings.mushafOutputFormat === 'html') items.push('إنشاء مصحف (HTML)');
     else if (settings.mushafOutputFormat === 'pdf') items.push('إنشاء مصحف');
@@ -489,7 +490,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
   }, [duration]);
 
   const buildNormalizedReportSettings = (): StudentReportSettings | undefined => {
-    if (!reportSettings.customMushafEnabled && !student?.reportSettings) return undefined;
+    if (!reportSettings.customMushafEnabled && !reportSettings.includeStudentDashboardLink && !student?.reportSettings) return undefined;
     return {
       ...resolveEffectiveReportSettings(reportSettings),
       customMushafEnabled: !!reportSettings.customMushafEnabled,
@@ -635,7 +636,7 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                   <div
                     role="menu"
                     dir="rtl"
-                    className="absolute right-0 top-full mt-2 w-max min-w-[17rem] max-w-xs rounded-2xl border border-gray-100 bg-white p-1.5 shadow-xl z-30 space-y-1"
+                    className="absolute right-0 top-full mt-2 w-72 max-w-[calc(100vw-2rem)] rounded-2xl border border-gray-100 bg-white p-1.5 shadow-xl z-30 space-y-1"
                   >
                     <button
                       type="button"
@@ -663,17 +664,19 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                       role="menuitem"
                       onClick={() => openSubPanel('reportSettings')}
                       title={reportCustomizationItems.length ? `التعديلات النشطة: ${reportCustomizationItems.join(' · ')}` : 'تعديل التقرير'}
-                      className="w-full flex items-center justify-between gap-2 text-base font-bold text-gray-600 hover:text-emerald-700 hover:bg-emerald-50/80 px-3 py-2.5 rounded-xl transition-colors group whitespace-nowrap"
+                      className="w-full flex items-center justify-between gap-2 text-right text-base font-bold text-gray-600 hover:text-emerald-700 hover:bg-emerald-50/80 px-3 py-2.5 rounded-xl transition-colors group"
                     >
-                      <span className="flex items-center gap-2 font-arabic">
-                        <span>تعديل التقرير</span>
+                      <span className="min-w-0 flex-1 font-arabic">
+                        <span className="flex items-center gap-2">
+                          <span>تعديل التقرير</span>
+                          {reportCustomizationItems.length > 0 && <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />}
+                        </span>
                         {reportCustomizationItems.length > 0 && (
-                          <>
-                            <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-                            <span className="text-base font-normal text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg">
-                              {reportCustomizationItems.join(' · ')}
-                            </span>
-                          </>
+                          <span className="mt-1.5 flex flex-wrap gap-1">
+                            {reportCustomizationItems.map(item => (
+                              <span key={item} className="text-sm font-normal text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg">{item}</span>
+                            ))}
+                          </span>
                         )}
                       </span>
                       <ChevronLeft size={16} className="text-gray-400 group-hover:-translate-x-0.5 transition-transform shrink-0" />
@@ -1071,6 +1074,19 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
               </div>
 
               <div className="report-settings-scroll flex-1 min-h-0 overflow-y-auto overscroll-contain bg-slate-50/70 px-6 py-5 space-y-4 font-arabic">
+                <label className="flex cursor-pointer items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <span className="text-xl font-bold text-slate-800">إرفاق رابط واجهة الطالب</span>
+                  <input
+                    type="checkbox"
+                    role="switch"
+                    checked={!!reportSettings.includeStudentDashboardLink}
+                    onChange={event => {
+                      const checked = event.target.checked;
+                      setReportSettings(prev => ({ ...prev, includeStudentDashboardLink: checked }));
+                    }}
+                    className="h-5 w-5 shrink-0 accent-emerald-600"
+                  />
+                </label>
                 {/* Main Toggle & Student Mushaf Source Card */}
                 <div className={`rounded-2xl border bg-white p-4 shadow-sm transition-colors ${reportSettings.customMushafEnabled ? 'border-emerald-200' : 'border-slate-200'}`}>
                   <button

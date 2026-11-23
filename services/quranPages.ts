@@ -382,6 +382,7 @@ export function resolveReportSectionPages(
     ? (settings.mushafOutputFormat || 'web_link')
     : 'web_link';
   return {
+    includeStudentDashboardLink: !!settings?.includeStudentDashboardLink,
     customMushafEnabled: !!settings?.customMushafEnabled,
     mushafUnifiedV2: true,
     mushafOutputFormat: outputFormat,

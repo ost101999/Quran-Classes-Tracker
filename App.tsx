@@ -2448,6 +2448,14 @@ function App() {
   const [toast, setToast] = useState<{ message: string; show: boolean }>({ message: '', show: false });
 
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [mushafError, setMushafError] = useState('');
+  const mushafErrorTimer = useRef<number | undefined>(undefined);
+  const showMushafError = useCallback((message: string) => {
+    window.clearTimeout(mushafErrorTimer.current);
+    setMushafError(message);
+    mushafErrorTimer.current = window.setTimeout(() => setMushafError(''), 12000);
+  }, []);
+  useEffect(() => () => window.clearTimeout(mushafErrorTimer.current), []);
   const showToast = (msg: string, duration: number = 4500) => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
     setToast({ message: msg, show: true });
@@ -2463,7 +2471,7 @@ function App() {
     setWebModal({ isOpen: true, url, title });
   };
 
-  const buildStudentPortalUrl = (student: Student) => {
+  const buildStudentPortalUrl = (student: Student, refresh = true) => {
     const arabicToLatin: Record<string, string> = {
       'ا': 'a', 'أ': 'a', 'إ': 'e', 'آ': 'a', 'ب': 'b', 'ت': 't', 'ث': 'th',
       'ج': 'j', 'ح': 'h', 'خ': 'kh', 'د': 'd', 'ذ': 'dh', 'ر': 'r', 'ز': 'z',
@@ -2482,7 +2490,12 @@ function App() {
       ? `https://quranreport.vercel.app/${nameSlug}`
       : `https://quranreport.vercel.app/?student=${student.id}`;
 
-    return withStudentPortalRefresh(portalUrl);
+    return refresh ? withStudentPortalRefresh(portalUrl) : portalUrl;
+  };
+
+  const appendStudentDashboardLink = (report: string, student: Student) => {
+    if (!student.reportSettings?.includeStudentDashboardLink) return report;
+    return `${report.trimEnd()}\n\n*ــــــــــــــــــــــــــــــــــــــ*\n📊 *Student Dashboard*\n${buildStudentPortalUrl(student, false)}`;
   };
 
   const [linkAnimation, setLinkAnimation] = useState<{
@@ -5555,7 +5568,7 @@ function App() {
   ): Promise<{ success: boolean; mode?: 'pdf' | 'web_link' | 'html'; url?: string; filePath?: string; fileName?: string; unmatchedCount?: number; error?: string } | null> => {
     if (!targetStudent?.reportSettings?.customMushafEnabled) return null;
     if (!window.electronAPI?.generateCustomMushaf) {
-      if (!options.silentToast) showToast('ميزة إنشاء المصحف المخصص متاحة من تطبيق الكمبيوتر.');
+      showMushafError('ميزة إنشاء المصحف المخصص متاحة من تطبيق الكمبيوتر.');
       return null;
     }
 
@@ -5571,7 +5584,7 @@ function App() {
       settings,
     });
     if (sections.length === 0 && outputFormat === 'pdf') {
-      if (!options.silentToast) showToast('لا توجد صفحات قرآن محددة في التقرير لإنشاء المصحف.');
+      showMushafError('لا توجد صفحات قرآن محددة في التقرير لإنشاء المصحف.');
       return null;
     }
 
@@ -5592,6 +5605,10 @@ function App() {
         autoOpen: false,
       });
 
+      if (res.success && !(outputFormat === 'web_link' ? res.url : res.filePath)) {
+        showMushafError('تعذّر تجهيز رابط أو ملف المصحف لإرفاقه بالتقرير.');
+        return null;
+      }
       if (res.success) {
         if (!options.silentToast) {
           if (res.mode === 'web_link') showToast('تم تجهيز رابط المصحف الصوتي 🔗');
@@ -5602,14 +5619,14 @@ function App() {
           showToast(`⚠️ لم يتم ربط ${res.unmatchedCount} تسجيل بتظليل محفوظ في الملف`);
         }
       } else {
-        showToast(`⚠️ ${res.error || 'تعذّر إنشاء المصحف المخصص.'}`);
+        showMushafError(res.error || 'تعذّر إنشاء المصحف المخصص.');
       }
       return res;
     } catch {
-      showToast('⚠️ حدث خطأ أثناء إنشاء المصحف المخصص.');
+      showMushafError('حدث خطأ أثناء إنشاء المصحف المخصص.');
       return null;
     }
-  }, [lastReportLanguage]);
+  }, [lastReportLanguage, showMushafError]);
 
   const deliverCustomMushafAfterReport = useCallback(async (
     mushafPromise: Promise<{ success: boolean; mode?: 'pdf' | 'web_link' | 'html'; url?: string; filePath?: string; fileName?: string } | null>,
@@ -5633,18 +5650,19 @@ function App() {
       }
       if (!window.electronAPI?.sendWhatsAppFile) {
         void window.electronAPI?.releaseWhatsAppSession?.();
+        showMushafError('تم إرسال التقرير، وتعذّر إرفاق ملف المصحف عبر واتساب.');
         return;
       }
-      const fileRes = await window.electronAPI.sendWhatsAppFile(delivery.target, mushafRes.filePath);
+      const fileRes = await window.electronAPI.sendWhatsAppFile(delivery.target, mushafRes.filePath).catch(() => undefined);
       if (fileRes?.success) {
         const msgLang = lastReportLanguage;
         showToast(msgLang === 'en'
           ? 'Report & custom Mushaf sent via WhatsApp ✅'
           : 'تم إرسال التقرير والمصحف عبر واتساب ✅');
       } else if (fileRes?.unsupported) {
-        showToast('تم إرسال التقرير وحفظ المصحف محلياً 📖');
+        showMushafError('تعذّر إرفاق المصحف عبر واتساب. تم إرسال التقرير وحفظ ملف المصحف على الجهاز.');
       } else {
-        showToast(`تم إرسال التقرير؛ تعذر إرسال المصحف (${fileRes?.error || 'خطأ'})`);
+        showMushafError(`تم إرسال التقرير، وتعذّر إرسال المصحف (${fileRes?.error || 'خطأ'})`);
       }
       return;
     }
@@ -5656,7 +5674,7 @@ function App() {
     ]);
     if (!mushafRes?.success || !mushafRes.filePath) return;
     if (!window.electronAPI?.copyFileToClipboard) {
-      showToast('⚠️ نسخ ملف المصحف للحافظة يتطلب تشغيل أحدث نسخة من تطبيق الكمبيوتر.');
+      showMushafError('نسخ ملف المصحف للحافظة يتطلب تشغيل أحدث نسخة من تطبيق الكمبيوتر.');
       return;
     }
     try {
@@ -5667,12 +5685,12 @@ function App() {
           ? `Custom Mushaf PDF copied to clipboard (${pasteKey}) 📄`
           : `تم نسخ ملف المصحف للحافظة (${pasteKey}) 📄`);
       } else {
-        showToast(`⚠️ تعذّر نسخ ملف المصحف (${clipRes?.error || 'خطأ غير معروف'})`);
+        showMushafError(`تعذّر نسخ ملف المصحف (${clipRes?.error || 'خطأ غير معروف'})`);
       }
     } catch {
-      showToast('⚠️ حدث خطأ أثناء نسخ ملف المصحف للحافظة.');
+      showMushafError('حدث خطأ أثناء نسخ ملف المصحف للحافظة.');
     }
-  }, []);
+  }, [lastReportLanguage, showMushafError]);
 
   const initializeReportDraft = (studentId: string, dayNum: number, currentMonth: number, currentYear: number) => {
     // Check if the current report is already saved (Editing Mode)
@@ -8355,7 +8373,7 @@ function App() {
                                           report += `${lang === 'ar' ? 'الحالة: غياب' : 'Status: Absent'}\n`;
                                         }
 
-                                        navigator.clipboard.writeText(report);
+                                        navigator.clipboard.writeText(appendStudentDashboardLink(report, student));
                                         showToast(lang === 'ar' ? 'تم نسخ التقرير (غياب) 📋' : 'Absent report copied 📋');
 
                                         // Auto-open link when marking absence (always, regardless of report settings)
@@ -9398,6 +9416,12 @@ function App() {
           <span className="font-arabic text-xl font-bold">{toast.message}</span>
         </div>
       </div>
+
+      {mushafError && (
+        <div role="alert" dir="rtl" className="fixed bottom-52 left-1/2 z-[201] w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 break-words rounded-2xl border border-amber-300 px-6 py-3 text-center font-arabic text-xl font-bold text-amber-100 shadow-xl bg-slate-900">
+          {mushafError}
+        </div>
+      )}
 
       {/* Saved Report View Modal */}
       {savedReportViewModal && savedReportViewModal.isOpen && (() => {
@@ -15842,6 +15866,7 @@ function App() {
                               report += `\nــــــــــــــــــــــــــــــ\n\n🎧 *للاستماع إلى التوجيهات:*\n${audioLinkVal}`;
                             }
 
+                            report = appendStudentDashboardLink(report, student);
                             setLastReports(prev => ({
                               ...prev,
                               [smartReportModal.studentId]: {
@@ -16001,6 +16026,7 @@ function App() {
                               report += `\nــــــــــــــــــــــــــــــ\n\n🎧 *للاستماع إلى التوجيهات:*\n${audioLinkVal}`;
                             }
 
+                            report = appendStudentDashboardLink(report, student);
                             setLastReports(prev => ({
                               ...prev,
                               [smartReportModal.studentId]: {
@@ -16775,6 +16801,7 @@ function App() {
                             }
                           }
 
+                          report = appendStudentDashboardLink(report, student);
                           setLastReports(prev => ({
                             ...prev,
                             [smartReportModal.studentId]: {
@@ -17221,6 +17248,7 @@ function App() {
                               if (audioLinkVal) {
                                 report += `\nــــــــــــــــــــــــــــــ\n\n🎧 *Audio Corrections:*\n${audioLinkVal}`;
                               }
+                              report = appendStudentDashboardLink(report, student);
                               setLastReports(prev => ({
                                 ...prev,
                                 [smartReportModal.studentId]: {
@@ -18373,6 +18401,7 @@ function App() {
                             }
                           }
 
+                          report = appendStudentDashboardLink(report, student);
                           setLastReports(prev => ({
                             ...prev,
                             [smartReportModal.studentId]: {

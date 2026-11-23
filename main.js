@@ -158,7 +158,7 @@ ipcMain.handle('generate-custom-mushaf', async (_event, payload) => {
             let markers = [];
             let unmatchedClips = [];
             let unmatchedNewAnnotations = [];
-            const annotations = await extractAnnLive(sourceDoc);
+            const annotations = await extractAnnLive(sourceBytes);
             const matched = matchClipsLive(hasClips ? audioSession.clips : [], annotations, {
                 sessionStartedAt: (audioSession && audioSession.startedAt) || (Date.now() - 4 * 3600 * 1000),
             });
