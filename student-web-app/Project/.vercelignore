@@ -1,0 +1,16 @@
+node_modules
+.vercel
+.icons
+tools
+src
+*.bat
+*.command
+*.vbs
+README.md
+package.json
+package-lock.json
+vite.config.ts
+tsconfig*.json
+eslint.config.js
+postcss.config.js
+tailwind.config.js
