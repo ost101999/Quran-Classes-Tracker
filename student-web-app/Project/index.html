@@ -484,7 +484,7 @@
       'July', 'August', 'September', 'October', 'November', 'December'
     ];
 
-    const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
     const SMART_TAJWEED_REFERENCE = [
       { id: 'tajweed-foundation', ar: 'النون والميم المشددتان', en: 'stressed noon and meem' },
@@ -2501,7 +2501,7 @@ https://is.gd/oL6gEO`;
       const arabicMonthNames = ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"];
       const currentMonthNames = isArabic ? arabicMonthNames : monthNames;
 
-      const arabicWeekDays = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+      const arabicWeekDays = ["الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت", "الأحد"];
       const currentWeekDays = isArabic ? arabicWeekDays : weekDays;
 
       const t = isArabic ? {
@@ -5019,7 +5019,7 @@ https://is.gd/oL6gEO`;
         return config.dayStartDates?.[dow] && date < config.dayStartDates[dow] ? 0 : (config.days || []).filter(value => value === dow).length;
       };
       const daysInMonth = new Date(effectiveYear, effectiveMonth + 1, 0).getDate();
-      const firstDayIndex = new Date(effectiveYear, effectiveMonth, 1).getDay();
+      const firstDayIndex = (new Date(effectiveYear, effectiveMonth, 1).getDay() + 6) % 7;
 
       const paddingDays = Array.from({ length: firstDayIndex }).map((_, i) => null);
       const monthDays = Array.from({ length: daysInMonth }).map((_, i) => i + 1);
