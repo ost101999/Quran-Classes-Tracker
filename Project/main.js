@@ -1104,10 +1104,18 @@ ipcMain.handle('load-zoom', async () => {
     return null;
 });
 
+const savedTajweedBackups = new Map();
+function writeTajweedBackup(file, value) {
+    const serialized = JSON.stringify(value);
+    if (savedTajweedBackups.get(file) === serialized && fs.existsSync(file)) return;
+    writeJsonAtomic(file, value);
+    savedTajweedBackups.set(file, serialized);
+}
+
 function writeLocalData(data) {
     writeJsonAtomic(DATA_PATH, data);
-    if (Object.hasOwn(data, 'tajweedBank')) writeJsonAtomic(TAJWEED_BANK_PATH, data.tajweedBank || {});
-    if (Object.hasOwn(data, 'tajweedSubmissions')) writeJsonAtomic(TAJWEED_SUBMISSIONS_PATH, data.tajweedSubmissions || {});
+    if (Object.hasOwn(data, 'tajweedBank')) writeTajweedBackup(TAJWEED_BANK_PATH, data.tajweedBank || {});
+    if (Object.hasOwn(data, 'tajweedSubmissions')) writeTajweedBackup(TAJWEED_SUBMISSIONS_PATH, data.tajweedSubmissions || {});
 }
 ipcMain.handle('save-data', async (_event, data, skipSync, token) => {
     try {

@@ -2654,7 +2654,6 @@ function App() {
   const [isMonthlyReportShortcutPressed, setIsMonthlyReportShortcutPressed] = useState(false);
   const isMonthlyReportShortcutPressedRef = useRef(false);
   const [isEditReportShortcutPressed, setIsEditReportShortcutPressed] = useState(false);
-  const [hoveredCellKey, setHoveredCellKey] = useState<string | null>(null);
   const longPressTimerRef = React.useRef<NodeJS.Timeout | null>(null);
   const reschedulePressRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const rescheduleHeldRef = React.useRef(false);
@@ -2963,7 +2962,17 @@ function App() {
         badge.remove();
       }
     });
-  }, [lastReports, smartReportModal?.isOpen, smartReportModal?.studentId]);
+  }, [
+    smartReportModal?.isOpen, smartReportModal?.studentId,
+    smartReportModal && lastReports[smartReportModal.studentId]?.readingNew,
+    smartReportModal && lastReports[smartReportModal.studentId]?.readingRev,
+    smartReportModal && lastReports[smartReportModal.studentId]?.readingOldRev,
+    smartReportModal && lastReports[smartReportModal.studentId]?.readingTilawa,
+    smartReportModal && lastReports[smartReportModal.studentId]?.homeworkNew,
+    smartReportModal && lastReports[smartReportModal.studentId]?.homeworkRev,
+    smartReportModal && lastReports[smartReportModal.studentId]?.homeworkOldRev,
+    smartReportModal && lastReports[smartReportModal.studentId]?.homeworkTilawa,
+  ]);
 
   // --- Saved Reports State (for viewing past reports) ---
   const [savedReportViewModal, setSavedReportViewModal] = useState<{
@@ -4242,6 +4251,7 @@ function App() {
   const studentHeaderRef = React.useRef<HTMLTableCellElement>(null);
   const [pendingStudentColumnWidth, setPendingStudentColumnWidth] = useState<number | null>(null);
   const originalTableRef = React.useRef<HTMLTableElement>(null);
+  const attendanceTableCache = React.useRef<React.ReactNode>(null);
   const [showStickyHeader, setShowStickyHeader] = useState(false);
   const [studentWidth, setStudentWidth] = useState<number>(150);
   const [tableWidth, setTableWidth] = useState<number>(0);
@@ -5266,7 +5276,14 @@ function App() {
       if (backup.attendance) setAttendance(backup.attendance);
       if (backup.subscriptionSettings) setSubscriptionSettings(backup.subscriptionSettings);
       if (backup.past) setPast(backup.past);
-      if (backup.lastReports) setLastReports(backup.lastReports);
+      if (backup.reportStudentId) {
+        setLastReports(prev => {
+          const restored = { ...prev };
+          if (backup.hadStudentReport) restored[backup.reportStudentId] = backup.studentReport;
+          else delete restored[backup.reportStudentId];
+          return restored;
+        });
+      }
       if (backup.cancelledInputs) setCancelledInputs(backup.cancelledInputs);
       if (backup.sectionToggles) setSectionToggles(backup.sectionToggles);
       if (backup.reportPath) setReportPath(backup.reportPath === 'tajweed' ? 'quran' : backup.reportPath);
@@ -5418,11 +5435,13 @@ function App() {
   }, [isMultiSelectMode]); // Added dependency on isMultiSelectMode
 
   // --- Shift Logic Helper ---
-  const buildSmartReportUndoSnapshot = useCallback(() => ({
+  const buildSmartReportUndoSnapshot = useCallback((studentId: string) => ({
     attendance: { ...attendance },
     subscriptionSettings: { ...subscriptionSettings },
     past: [...past],
-    lastReports: JSON.parse(JSON.stringify(lastReports || {})),
+    reportStudentId: studentId,
+    hadStudentReport: Object.hasOwn(lastReports, studentId),
+    studentReport: lastReports[studentId] === undefined ? undefined : JSON.parse(JSON.stringify(lastReports[studentId])),
     cancelledInputs: { ...cancelledInputs },
     sectionToggles: { ...sectionToggles },
     reportPath,
@@ -5516,7 +5535,7 @@ function App() {
     }));
 
     const sourceDraft = lastReports[studentId] || {};
-    const currentToggles = buildSmartReportUndoSnapshot();
+    const currentToggles = buildSmartReportUndoSnapshot(studentId);
     const draftSnapshot = {
       ...JSON.parse(JSON.stringify(sourceDraft)),
       ...updatedDraftData,
@@ -5894,7 +5913,7 @@ function App() {
     ) && !isShift && !isAlt;
 
     // DRAFT MODE SNAPSHOT: Capture exact state before marking attendance
-    const undoSnapshot = buildSmartReportUndoSnapshot();
+    const undoSnapshot = buildSmartReportUndoSnapshot(studentId);
 
     let next: AttendanceStatus | undefined;
 
@@ -6676,6 +6695,34 @@ function App() {
     const allStudents = sortedAcademies.flatMap(academy => groupedStudents[academy] || []);
     return sortPendingStudentsByCalendar(allStudents, activePendingDay, month, year, dayTransitionTime);
   }, [activePendingDay, pendingCalendarSort, sortedAcademies, groupedStudents, month, year, dayTransitionTime]);
+
+  const makeupRows = useMemo(() => {
+    const rows = new Map<string, { links: MakeupLink[]; lanes: Map<string, number>; endpoints: Map<number, MakeupLink> }>();
+    for (const link of makeupLinks) {
+      if (link.month !== month || link.year !== year) continue;
+      let row = rows.get(link.studentId);
+      if (!row) {
+        row = { links: [], lanes: new Map(), endpoints: new Map() };
+        rows.set(link.studentId, row);
+      }
+      row.links.push(link);
+      if (!row.endpoints.has(link.missedDay)) row.endpoints.set(link.missedDay, link);
+      if (!row.endpoints.has(link.makeupDay)) row.endpoints.set(link.makeupDay, link);
+    }
+    for (const row of rows.values()) {
+      row.links.sort((a, b) => Math.min(a.missedDay, a.makeupDay) - Math.min(b.missedDay, b.makeupDay));
+      const ends: number[] = [];
+      for (const link of row.links) {
+        const start = Math.min(link.missedDay, link.makeupDay);
+        const end = Math.max(link.missedDay, link.makeupDay);
+        let lane = ends.findIndex(previousEnd => previousEnd < start);
+        if (lane === -1) lane = ends.length;
+        ends[lane] = end;
+        row.lanes.set(`${link.missedDay}-${link.makeupDay}`, lane);
+      }
+    }
+    return rows;
+  }, [makeupLinks, month, year]);
 
   // Fixed widths for sticky columns
   const COL_PAY_WIDTH = "100px";
@@ -7464,7 +7511,7 @@ function App() {
             <div className="h-[60vh] flex items-center justify-center">
               <div className="text-[#ffe05d] animate-pulse font-arabic text-xl">جاري التحديث...</div>
             </div>
-          ) : (
+          ) : smartReportModal?.isOpen && attendanceTableCache.current ? attendanceTableCache.current : (attendanceTableCache.current = (
             <table
               ref={originalTableRef}
               className="w-full border-separate border-spacing-0 text-center min-w-max"
@@ -7987,34 +8034,12 @@ function App() {
                                 const isDaySelected = scheduledOccurrences > 0;
                                 const isDoubleScheduled = scheduledOccurrences === 2;
 
-                                const makeupLinkForDay = makeupLinks.find(l => l.studentId === student.id && (l.missedDay === dayNum || l.makeupDay === dayNum) && l.month === month && l.year === year);
+                                const makeupRow = makeupRows.get(student.id);
+                                const makeupLinkForDay = makeupRow?.endpoints.get(dayNum);
                                 const isMakeupTarget = makeupLinkForDay?.makeupDay === dayNum;
                                 const isMakeupSource = makeupLinkForDay?.missedDay === dayNum;
-
-                                // Compute Stable Lanes for this Student (to handle overlaps without intersection)
-                                const rowLinks = makeupLinks.filter(l => l.studentId === student.id && l.month === month && l.year === year)
-                                  .sort((a, b) => Math.min(a.missedDay, a.makeupDay) - Math.min(b.missedDay, b.makeupDay));
-
-                                const laneMap = new Map<string, number>();
-                                const lanes: number[] = [];
-                                for (const l of rowLinks) {
-                                  const start = Math.min(l.missedDay, l.makeupDay);
-                                  const end = Math.max(l.missedDay, l.makeupDay);
-                                  let assigned = -1;
-                                  // Find first free lane
-                                  for (let i = 0; i < lanes.length; i++) {
-                                    if (lanes[i] < start) { // Lane is free
-                                      assigned = i;
-                                      lanes[i] = end;
-                                      break;
-                                    }
-                                  }
-                                  if (assigned === -1) {
-                                    assigned = lanes.length;
-                                    lanes.push(end);
-                                  }
-                                  laneMap.set(`${l.missedDay}-${l.makeupDay}`, assigned);
-                                }
+                                const rowLinks = makeupRow?.links || [];
+                                const laneMap = makeupRow?.lanes || new Map<string, number>();
 
                                 const activeLinks = rowLinks.filter(l =>
                                   dayNum >= Math.min(l.missedDay, l.makeupDay) &&
@@ -8108,7 +8133,7 @@ function App() {
                                               isOpen: true,
                                               studentId: student.id,
                                               dayNum,
-                                              undoSnapshot: buildSmartReportUndoSnapshot(),
+                                              undoSnapshot: buildSmartReportUndoSnapshot(student.id),
                                               isEditMode: true,
                                             });
                                             return;
@@ -8213,7 +8238,6 @@ function App() {
                                     onMouseEnter={() => {
                                       const key = `${student.id}_${dayNum}_${month}_${year}`;
                                       const currentStatus = attendance[key];
-                                      setHoveredCellKey(key);
 
                                       // Only trigger for green cells
                                       if (currentStatus === AttendanceStatus.PRESENT || currentStatus === AttendanceStatus.DOUBLE_CLASS || currentStatus === AttendanceStatus.TRANSFERRED) {
@@ -8223,7 +8247,6 @@ function App() {
                                       }
                                     }}
                                     onMouseLeave={() => {
-                                      setHoveredCellKey(null);
                                       if (hoverTimerRef.current) {
                                         clearTimeout(hoverTimerRef.current);
                                         hoverTimerRef.current = null;
@@ -8451,10 +8474,10 @@ function App() {
 
                                     <div className={`
                                 w-8 h-8 mx-auto rounded-full flex items-center justify-center text-lg transition-all relative z-10 js-cell-circle
-                                ${visualStatus === AttendanceStatus.PRESENT ? (isEditReportShortcutPressed && hoveredCellKey === key ? 'bg-red-500 scale-110 shadow-lg shadow-red-200' : 'bg-emerald-400 scale-100 shadow-md shadow-emerald-200') + ' text-white font-english' : ''}
+                                ${visualStatus === AttendanceStatus.PRESENT ? (isEditReportShortcutPressed ? 'bg-emerald-400 scale-100 shadow-md shadow-emerald-200 group-hover/cell:!bg-red-500 group-hover/cell:!shadow-red-200' : 'bg-emerald-400 scale-100 shadow-md shadow-emerald-200') + ' text-white font-english' : ''}
                                 ${(visualStatus === AttendanceStatus.TRANSFERRED) ? 'bg-emerald-400 text-white shadow-md shadow-emerald-200 scale-100 font-english' : ''}
                                 ${(visualStatus === AttendanceStatus.TRANSFERRED_ABSENT) ? 'bg-gray-400 text-white shadow-md shadow-gray-200 scale-100 font-english' : ''}
-                                ${visualStatus === AttendanceStatus.DOUBLE_CLASS ? (isEditReportShortcutPressed && hoveredCellKey === key ? 'bg-red-500 scale-110 shadow-lg shadow-red-200' : 'bg-emerald-400 scale-100 shadow-md shadow-emerald-200') + ' text-white font-tajawal font-bold' : ''}
+                                ${visualStatus === AttendanceStatus.DOUBLE_CLASS ? (isEditReportShortcutPressed ? 'bg-emerald-400 scale-100 shadow-md shadow-emerald-200 group-hover/cell:!bg-red-500 group-hover/cell:!shadow-red-200' : 'bg-emerald-400 scale-100 shadow-md shadow-emerald-200') + ' text-white font-tajawal font-bold' : ''}
                                 ${(visualStatus === AttendanceStatus.PAID_ABSENCE || visualStatus === AttendanceStatus.PAID_ABSENCE_DOUBLE) ? 'bg-gray-400 text-white font-english' : ''}
                                 ${visualStatus === AttendanceStatus.POSTPONED ? 'bg-amber-300 text-black font-amiri font-bold text-2xl pb-2' : ''}
                                 ${visualStatus === AttendanceStatus.UNEXCUSED_ABSENCE ? 'bg-red-500 text-white font-english' : ''}
@@ -8539,7 +8562,7 @@ function App() {
 
               </tbody>
             </table>
-          )}
+          ))}
           {/* Decorative Spacer for deep linking */}
           <div className="h-screen relative overflow-hidden bg-gray-50/50">
             {/* 1. Subtle Background Pattern (Geometric) */}

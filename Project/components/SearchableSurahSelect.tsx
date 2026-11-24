@@ -98,15 +98,17 @@ const SearchableSurahSelect: React.FC<SearchableSurahSelectProps> = ({
 
     const isQueryMatchingValue = query === formatDisplay(internalValue);
 
-    const filteredSurahs = React.useMemo(() => surahs.filter(originalSurah => {
-        if (isQueryMatchingValue) return true;
-        if (!query) return true;
-        const normalize = (s: string) => s.toLowerCase().replace(/[٠-٩]/g, d => "0123456789"["٠١٢٣٤٥٦٧٨٩".indexOf(d)]);
-        const q = normalize(query);
-        const s = normalize(originalSurah);
-        const index = surahs.indexOf(originalSurah) + 1;
-        return s.includes(q) || index.toString().includes(q) || toHindiDigits(index).includes(q);
-    }), [surahs, query, isQueryMatchingValue]);
+    const surahSearch = React.useMemo(() => surahs.map((name, index) => ({
+        name,
+        number: String(index + 1),
+        normalized: name.toLowerCase().replace(/[?-?]/g, d => "0123456789"["??????????".indexOf(d)])
+    })), [surahs]);
+    const surahNumbers = React.useMemo(() => new Map(surahSearch.map((item, index) => [item.name, index + 1])), [surahSearch]);
+    const filteredSurahs = React.useMemo(() => {
+        if (isQueryMatchingValue || !query) return surahs;
+        const normalizedQuery = query.toLowerCase().replace(/[?-?]/g, d => "0123456789"["??????????".indexOf(d)]);
+        return surahSearch.filter(item => item.normalized.includes(normalizedQuery) || item.number.includes(normalizedQuery)).map(item => item.name);
+    }, [surahs, surahSearch, query, isQueryMatchingValue]);
 
     // Refs for closure-safe access in event listeners
     const isOpenRef = useRef(isOpen);
@@ -144,6 +146,7 @@ const SearchableSurahSelect: React.FC<SearchableSurahSelectProps> = ({
 
     // Handle outside click
     useEffect(() => {
+        if (!isOpen) return;
         const handleClickOutside = (event: MouseEvent) => {
             if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
                 commitSelection();
@@ -151,7 +154,7 @@ const SearchableSurahSelect: React.FC<SearchableSurahSelectProps> = ({
         };
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [commitSelection]);
+    }, [commitSelection, isOpen]);
 
     const handleBlur = (e: React.FocusEvent) => {
         // If we're clicking inside the container (e.g. on a list item), don't auto-commit
@@ -344,7 +347,7 @@ const SearchableSurahSelect: React.FC<SearchableSurahSelectProps> = ({
                     }}
                 >
                     {filteredSurahs.map((surah, index) => {
-                        const originalIndex = surahs.indexOf(surah);
+                        const originalIndex = (surahNumbers.get(surah) || 1) - 1;
                         const isSelected = internalValue === surah;
                         const isHighlighted = index === highlightedIndex;
                         return (
