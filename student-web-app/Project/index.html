@@ -1804,6 +1804,9 @@
       const [data, setData] = useState(null);
       const [loading, setLoading] = useState(true);
       const [error, setError] = useState('');
+      const [tajweedStatus, setTajweedStatus] = useState('idle');
+      const [tajweedRequested, setTajweedRequested] = useState(false);
+      const [tajweedRetry, setTajweedRetry] = useState(0);
       const [selectedReport, setSelectedReport] = useState(null);
       const [selectedTajweedQuiz, setSelectedTajweedQuiz] = useState(null);
       const [showTajweedRoadmapPage, setShowTajweedRoadmapPage] = useState(false);
@@ -1877,8 +1880,30 @@
           }
 
           try {
-            const response = await axios.get(`${API_BASE}/appState.json`);
-            setData(response.data);
+            const get = (path, options = {}) => axios.get(`${API_BASE}/appState/${path}.json`, { timeout: 30000, ...options });
+            const [studentsResponse, monthResponse, yearResponse] = await Promise.all([
+              get('students'), get('month'), get('year')
+            ]);
+            const students = Array.isArray(studentsResponse.data)
+              ? studentsResponse.data
+              : Object.values(studentsResponse.data || {});
+            const matchedStudent = nameSlug
+              ? students.find(s => toSlug(s?.name) === nameSlug)
+              : students.find(s => String(s?.id) === String(studentId));
+            if (!matchedStudent) {
+              setData({ students, month: monthResponse.data, year: yearResponse.data });
+              return;
+            }
+            const prefix = String(matchedStudent.id) + '_';
+            const params = { orderBy: JSON.stringify('$key'), startAt: JSON.stringify(prefix), endAt: JSON.stringify(prefix + '\uf8ff') };
+            const [attendanceResponse, reportsResponse] = await Promise.all([
+              get('attendance', { params }), get('savedReports', { params })
+            ]);
+            setData({
+              students, month: monthResponse.data, year: yearResponse.data,
+              attendance: attendanceResponse.data || {},
+              savedReports: reportsResponse.data || {},
+            });
           } catch (err) {
             console.error(err);
             setError('Failed to load data. Please try again later.');
@@ -1888,7 +1913,52 @@
         };
 
         fetchData();
-      }, [studentId]);
+      }, [studentId, nameSlug]);
+
+      useEffect(() => {
+        if (!data || !tajweedRequested) return;
+        if (tajweedStatus === 'ready' || tajweedStatus === 'loading') return;
+        const matchedStudent = nameSlug
+          ? data.students?.find(s => toSlug(s?.name) === nameSlug)
+          : data.students?.find(s => String(s?.id) === String(studentId));
+        if (!matchedStudent) return;
+        let cancelled = false;
+        const loadTajweed = async () => {
+          setTajweedStatus('loading');
+          try {
+            const get = (path, options = {}) => axios.get(`${API_BASE}/appState/${path}.json`, { timeout: 60000, ...options });
+            const prefix = String(matchedStudent.id) + '_';
+            const params = { orderBy: JSON.stringify('$key'), startAt: JSON.stringify(prefix), endAt: JSON.stringify(prefix + '\uf8ff') };
+            const [bank, assignments, submissionKeys, scopedSubmissions] = await Promise.all([
+              get('tajweedBank'), get('tajweedAssignments'),
+              get('tajweedSubmissions', { params: { shallow: true } }),
+              get('tajweedSubmissions', { params })
+            ]);
+            const studentAssignments = Object.fromEntries(Object.entries(assignments.data || {}).filter(([, item]) => String(item?.studentId) === String(matchedStudent.id)));
+            const extraKeys = new Set(Object.values(studentAssignments).map(item => item?.submissionId).filter(Boolean));
+            const assignmentPrefixes = Object.keys(studentAssignments).map(key => key + '_sub_');
+            Object.keys(submissionKeys.data || {})
+              .filter(key => !key.startsWith(prefix) && (assignmentPrefixes.some(assignmentPrefix => key.startsWith(assignmentPrefix)) || !key.includes('_sub_')))
+              .forEach(key => extraKeys.add(key));
+            const submissions = { ...(scopedSubmissions.data || {}) };
+            const extra = await Promise.all([...extraKeys].filter(key => !submissions[key]).map(async key => [key, (await get('tajweedSubmissions/' + encodeURIComponent(key))).data]));
+            extra.forEach(([key, value]) => { if (value && String(value.studentId) === String(matchedStudent.id)) submissions[key] = value; });
+            if (cancelled) return;
+            setData(previous => ({
+              ...previous, tajweedBank: bank.data || {},
+              tajweedAssignments: { ...studentAssignments, ...(previous.tajweedAssignments || {}) },
+              tajweedSubmissions: { ...submissions, ...(previous.tajweedSubmissions || {}) }
+            }));
+            setTajweedStatus('ready');
+          } catch (err) {
+            if (!cancelled) { console.error(err); setTajweedStatus('error'); }
+          }
+        };
+        loadTajweed();
+        return () => { cancelled = true; };
+      }, [tajweedRequested, tajweedRetry]);
+
+      useEffect(() => { if (selectedReport && !isTourMode) setTajweedRequested(true); }, [selectedReport, isTourMode]);
 
       // Update tick every minute so countdown re-renders
       useEffect(() => {
@@ -5218,6 +5288,11 @@ https://is.gd/oL6gEO`;
                         <button
                           id={options.quizButtonId && idx === 0 ? options.quizButtonId : undefined}
                           onClick={() => {
+                            if (!isTourMode && tajweedStatus !== 'ready') {
+                              if (tajweedStatus === 'error') { setTajweedStatus('idle'); setTajweedRetry(n => n + 1); }
+                              else setTajweedRequested(true);
+                              return;
+                            }
                             if (options.onOpenQuiz) {
                               options.onOpenQuiz(section, { isReview: isReviewQuizAction });
                             }
@@ -5228,7 +5303,7 @@ https://is.gd/oL6gEO`;
                           className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-teal-400/40 bg-teal-500/20 px-3 py-1.5 text-xs font-bold text-teal-200 hover:bg-teal-500/30 transition-colors"
                         >
                           <i data-lucide="play-circle" className="w-3.5 h-3.5"></i>
-                          {isReviewQuizAction ? t.reviewQuiz : t.openQuiz}
+                          {!isTourMode && tajweedStatus !== 'ready' ? (tajweedStatus === 'error' ? (isArabic ? 'إعادة تحميل التجويد' : 'Retry loading Tajweed') : (isArabic ? 'جارٍ تحميل التجويد...' : 'Loading Tajweed...')) : (isReviewQuizAction ? t.reviewQuiz : t.openQuiz)}
                         </button>
                       )}
                       {section.foundationPage && section.type === 'homework' && (
@@ -5457,11 +5532,11 @@ https://is.gd/oL6gEO`;
             <div className="mb-8 flex justify-center animate-fade delay-[350ms]">
                 <button
                   type="button"
-                  onClick={openLatestTajweedRoadmap}
+                  onClick={() => { if (tajweedStatus === 'ready' || isTourMode) openLatestTajweedRoadmap(); else if (tajweedStatus === 'error') { setTajweedStatus('idle'); setTajweedRetry(n => n + 1); } else setTajweedRequested(true); }}
                   className="inline-flex items-center justify-center gap-3 rounded-2xl border border-teal-300/40 bg-teal-500/20 px-6 py-4 text-sm md:text-base font-bold text-teal-100 hover:bg-teal-500/30 transition-all active:scale-95 shadow-lg shadow-teal-900/20"
                 >
                   <i data-lucide="map" className="w-5 h-5 text-teal-300"></i>
-                  {t.openLatestTajweedRoadmap}
+                  {isTourMode || tajweedStatus === 'ready' || tajweedStatus === 'idle' ? t.openLatestTajweedRoadmap : tajweedStatus === 'error' ? (isArabic ? 'تعذر تحميل التجويد، اضغط لإعادة المحاولة' : 'Could not load Tajweed. Tap to retry') : (isArabic ? 'جارٍ تحميل التجويد...' : 'Loading Tajweed...')}
                 </button>
             </div>
           )}
