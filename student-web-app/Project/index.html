@@ -530,6 +530,7 @@
       let currentContent = [];
 
       const keywords = [
+        { id: 'audio', type: 'audio', match: ['🎧', 'للاستماع', 'audio correction', 'interactive quran audio', 'المصحف التفاعلي المسموع', 'audio', 'صوت'], icon: 'headphones' },
         { id: 'new', type: 'classwork', match: ['new', 'الجديد', 'الحفظ'], icon: 'book-open' },
         { id: 'quran', type: 'classwork', match: ['quran', 'قرآن', 'القرآن', 'recitation'], icon: 'check-circle' },
         { id: 'tajweed', type: 'tajweed', match: ['tajweed', 'التجويد', 'تجويد'], icon: 'graduation-cap' },
@@ -541,8 +542,7 @@
         { id: 'arabic', type: 'classwork', match: ['arabic', 'عربي', 'عربية', 'العربية', 'قاعدة', 'تأسيس', 'foundation'], icon: 'book' },
         { id: 'homework', type: 'homework', match: ['homework', 'واجب', 'الواجب', 'next', 'القادم', 'ما سيتم', 'سيتم'], icon: 'pen-tool' },
         { id: 'feedback', type: 'feedback', match: ['behavior', 'سلوك', 'السلوك'], icon: 'star' },
-        { id: 'note', type: 'feedback', match: ['note', 'ملاحظة', 'ملاحظات'], icon: 'message-square' },
-        { id: 'audio', type: 'audio', match: ['🎧', 'للاستماع', 'audio correction', 'audio', 'صوت'], icon: 'headphones' }
+        { id: 'note', type: 'feedback', match: ['note', 'ملاحظة', 'ملاحظات'], icon: 'message-square' }
       ];
 
       // Track repeated titles: same title twice → second becomes homework
@@ -605,15 +605,19 @@
           continue;
         }
 
-        // Hide redundant header text
+        // Hide redundant header text & self-referencing Student Dashboard links
+        const lowerLine = line.toLowerCase();
         if (
-          line.toLowerCase().includes('(arabic)') ||
-          line.toLowerCase().startsWith('student:') ||
+          lowerLine.includes('(arabic)') ||
+          lowerLine.startsWith('student:') ||
           line.startsWith('الطالب:') ||
-          line.toLowerCase().startsWith('date:') ||
+          lowerLine.startsWith('date:') ||
           line.startsWith('التاريخ:') ||
-          line.toLowerCase().includes('class report') ||
-          line.includes('تقرير الحصة')
+          lowerLine.includes('class report') ||
+          line.includes('تقرير الحصة') ||
+          /^📊\s*(?:student dashboard|لوحة الطالب):?$/i.test(line) ||
+          /^(?:student dashboard|لوحة الطالب):?$/i.test(line) ||
+          /^https?:\/\/quranreport\.vercel\.app\b/i.test(line)
         ) {
           continue;
         }
@@ -5833,7 +5837,9 @@ https://is.gd/oL6gEO`;
                             </h5>
                             <div className="space-y-2">
                               {audio.map((s, idx) => {
-                                const url = s.content?.trim();
+                                const rawContent = s.content?.trim() || '';
+                                const urlMatch = rawContent.match(/https?:\/\/[^\s]+/);
+                                const url = urlMatch ? urlMatch[0] : rawContent;
                                 const label = s.title.replace(/🎧/g, '').trim();
                                 return url ? (
                                   <a
