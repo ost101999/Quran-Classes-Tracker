@@ -3,7 +3,6 @@
   "buildCommand": "",
   "installCommand": "echo skip",
   "outputDirectory": ".",
-  "cleanUrls": true,
   "rewrites": [
     {
       "source": "/manifest.json",
