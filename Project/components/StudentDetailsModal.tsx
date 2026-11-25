@@ -4,7 +4,7 @@ import { copyReportTextToClipboard } from '../services/reportClipboard';
 import { scheduledCount } from '../services/studentSchedule';
 import ReportMonthNavigation, { useReportMonth } from './ReportMonthNavigation';
 import React, { useEffect, useRef, useState } from 'react';
-import { X, Calendar, Clock, Calculator, Copy, Check, DollarSign, Wallet, FileText, AlignLeft, ChevronLeft, ChevronRight, Image as ImageIcon, Link } from 'lucide-react';
+import { X, Calendar, Clock, Calculator, ClipboardList, Check, DollarSign, Wallet, FileText, AlignLeft, ChevronLeft, ChevronRight, Image as ImageIcon, Link } from 'lucide-react';
 import { Student, AttendanceRecord, AttendanceStatus } from '../types';
 import { toBlob } from 'html-to-image';
 
@@ -94,6 +94,7 @@ export default function StudentDetailsModal({ student, attendance, onClose, mont
     const isEnglish = reportLanguage === 'en';
     const isNameEnglish = /[a-zA-Z]/.test(student.name);
     const copyPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const copyMenuContainerRef = useRef<HTMLDivElement>(null);
     const longCopyPress = useRef(false);
     const [noSavedCopy, setNoSavedCopy] = useState(false);
     const [copyShake, setCopyShake] = useState(0);
@@ -102,6 +103,38 @@ export default function StudentDetailsModal({ student, attendance, onClose, mont
         const timer = setTimeout(() => setNoSavedCopy(false), 2500);
         return () => clearTimeout(timer);
     }, [noSavedCopy, copyShake]);
+    useEffect(() => {
+        if (!showCopyMenu) return;
+        const closeMenu = () => {
+            setShowCopyMenu(false);
+            setTextSelectMode(false);
+            setImageSelectMode(false);
+            setPaypalSelectMode(false);
+            setAttendanceDetail(null);
+        };
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                closeMenu();
+            }
+        };
+        const onMouseDown = (e: MouseEvent) => {
+            if (copyMenuContainerRef.current && !copyMenuContainerRef.current.contains(e.target as Node)) {
+                closeMenu();
+                const swallowClick = (ev: MouseEvent) => ev.stopPropagation();
+                document.addEventListener('click', swallowClick, { capture: true, once: true });
+                setTimeout(() => document.removeEventListener('click', swallowClick, true), 400);
+            }
+        };
+        window.addEventListener('keydown', onKeyDown, true);
+        document.addEventListener('mousedown', onMouseDown, true);
+        return () => {
+            window.removeEventListener('keydown', onKeyDown, true);
+            document.removeEventListener('mousedown', onMouseDown, true);
+        };
+    }, [showCopyMenu]);
     useEffect(() => () => { if (copyPressTimer.current) clearTimeout(copyPressTimer.current); }, []);
     const copyPreferenceKey = `student-copy-options:${student.id}`;
     type CopyPreference = { type: 'image' | 'text'; pricing: boolean; paypal?: boolean; detail?: boolean; language: 'ar' | 'en' };
@@ -549,7 +582,7 @@ export default function StudentDetailsModal({ student, attendance, onClose, mont
                 {/* Header */}
                 <div className="relative z-30 px-5 py-5 text-center border-b border-gray-100 bg-gray-50/50">
                     <div className="flex items-center justify-between gap-2">
-                        <div className="relative flex items-center gap-1 shrink-0">
+                        <div ref={copyMenuContainerRef} className="relative flex items-center gap-1 shrink-0">
                         <button
                             onClick={(e) => handleCopyWebLink(e)}
                             className={`p-2 rounded-full transition-all duration-300 ${isCopyingLink ? 'bg-emerald-50 text-emerald-500 scale-110' : 'hover:bg-purple-50 text-purple-600 hover:scale-110 active:scale-95'
@@ -591,7 +624,7 @@ export default function StudentDetailsModal({ student, attendance, onClose, mont
                                 }`}
                             title={isEnglish ? 'Copy Report' : 'نسخ التقرير'}
                         >
-                            <span key={copyShake} className={copyShake ? 'academy-copy-shake block' : 'block'}>{copySucceeded ? <Check size={24} strokeWidth={3} /> : <Copy size={24} strokeWidth={2.5} />}</span>
+                            <span key={copyShake} className={copyShake ? 'academy-copy-shake block' : 'block'}>{copySucceeded ? <Check size={24} strokeWidth={3} /> : <ClipboardList size={24} strokeWidth={2.5} />}</span>
                         </button>
 
                         {noSavedCopy && (
@@ -603,9 +636,7 @@ export default function StudentDetailsModal({ student, attendance, onClose, mont
                         {/* Copy Menu Dropdown */}
                         {/* Copy Menu Dropdown */}
                         {showCopyMenu && (
-                            <>
-                                <div className="fixed inset-0 z-[100]" onClick={() => { setShowCopyMenu(false); setTextSelectMode(false); setImageSelectMode(false); setPaypalSelectMode(false); setAttendanceDetail(null); }} />
-                                <div className="absolute right-0 mt-3 w-64 bg-white backdrop-blur-xl rounded-[24px] shadow-[0_20px_50px_rgba(0,0,0,0.18)] border border-gray-100 p-2 z-[110] animate-in fade-in zoom-in-95 slide-in-from-top-2 duration-200 origin-top-right">
+                            <div className="absolute right-0 top-full mt-2 w-64 bg-white backdrop-blur-xl rounded-[24px] shadow-[0_20px_50px_rgba(0,0,0,0.18)] border border-gray-100 p-2 z-[110] animate-in fade-in zoom-in-95 slide-in-from-top-2 duration-200 origin-top-right">
                                     <div className="flex flex-col gap-1">
 
                                         {!textSelectMode && !imageSelectMode ? (
@@ -796,7 +827,6 @@ export default function StudentDetailsModal({ student, attendance, onClose, mont
 
                                     </div>
                                 </div>
-                            </>
                         )}
                         </div>
 
@@ -817,7 +847,17 @@ export default function StudentDetailsModal({ student, attendance, onClose, mont
 
                         <div className="w-[76px] flex justify-end shrink-0">
                             <button
-                                onClick={onClose}
+                                onClick={() => {
+                                    if (showCopyMenu) {
+                                        setShowCopyMenu(false);
+                                        setTextSelectMode(false);
+                                        setImageSelectMode(false);
+                                        setPaypalSelectMode(false);
+                                        setAttendanceDetail(null);
+                                        return;
+                                    }
+                                    onClose();
+                                }}
                                 className="p-2 hover:bg-red-50 hover:text-red-500 rounded-full text-gray-400 transition-colors"
                             >
                                 <X size={24} />

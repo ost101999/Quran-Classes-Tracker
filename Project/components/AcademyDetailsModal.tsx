@@ -3,7 +3,7 @@ import { getDetailedReportDays } from '../services/academyReportDetails';
 import { copyReportTextToClipboard } from '../services/reportClipboard';
 import ReportMonthNavigation, { useReportMonth } from './ReportMonthNavigation';
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Calendar, Clock, Copy, Check, Wallet, FileText, AlignLeft, DollarSign, ChevronRight, ChevronLeft, Trash2, Edit2, ShieldAlert, ExternalLink, RotateCcw, Users, Image as ImageIcon } from 'lucide-react';
+import { X, Calendar, Clock, ClipboardList, Check, Wallet, FileText, AlignLeft, DollarSign, ChevronRight, ChevronLeft, Trash2, Edit2, ShieldAlert, ExternalLink, RotateCcw, Users, Image as ImageIcon } from 'lucide-react';
 import { Student, AttendanceRecord, AttendanceStatus } from '../types';
 import { toBlob } from 'html-to-image';
 
@@ -94,6 +94,7 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
     const isEnglish = reportLanguage === 'en';
     const isNameEnglish = /[a-zA-Z]/.test(academyName);
     const copyPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const copyMenuContainerRef = useRef<HTMLDivElement>(null);
     const longCopyPress = useRef(false);
     const [noSavedCopy, setNoSavedCopy] = useState(false);
     const [copyShake, setCopyShake] = useState(0);
@@ -102,6 +103,38 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
         const timer = setTimeout(() => setNoSavedCopy(false), 2500);
         return () => clearTimeout(timer);
     }, [noSavedCopy, copyShake]);
+    useEffect(() => {
+        if (!showCopyMenu) return;
+        const closeMenu = () => {
+            setShowCopyMenu(false);
+            setTextSelectMode(false);
+            setImageSelectMode(false);
+            setPaypalSelectMode(false);
+            setAttendanceDetail(null);
+        };
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                closeMenu();
+            }
+        };
+        const onMouseDown = (e: MouseEvent) => {
+            if (copyMenuContainerRef.current && !copyMenuContainerRef.current.contains(e.target as Node)) {
+                closeMenu();
+                const swallowClick = (ev: MouseEvent) => ev.stopPropagation();
+                document.addEventListener('click', swallowClick, { capture: true, once: true });
+                setTimeout(() => document.removeEventListener('click', swallowClick, true), 400);
+            }
+        };
+        window.addEventListener('keydown', onKeyDown, true);
+        document.addEventListener('mousedown', onMouseDown, true);
+        return () => {
+            window.removeEventListener('keydown', onKeyDown, true);
+            document.removeEventListener('mousedown', onMouseDown, true);
+        };
+    }, [showCopyMenu]);
     const copyPreferenceKey = `academy-copy-options:${academyName}`;
     useEffect(() => () => { if (copyPressTimer.current) clearTimeout(copyPressTimer.current); }, []);
 
@@ -705,7 +738,7 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
                         <X size={24} />
                     </button>
 
-                    <div className="absolute right-6 top-1/2 -translate-y-1/2">
+                    <div ref={copyMenuContainerRef} className="absolute right-6 top-1/2 -translate-y-1/2">
                         <button
                             onPointerDown={(e) => {
                                 if (e.button !== 0) return;
@@ -738,7 +771,7 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
                                 }`}
                             title={isEnglish ? 'Copy Academy Report' : 'نسخ تقرير الأكاديمية'}
                         >
-                            <span key={copyShake} className={copyShake ? 'academy-copy-shake block' : 'block'}>{copySucceeded ? <Check size={24} strokeWidth={3} /> : <Copy size={24} strokeWidth={2.5} />}</span>
+                            <span key={copyShake} className={copyShake ? 'academy-copy-shake block' : 'block'}>{copySucceeded ? <Check size={24} strokeWidth={3} /> : <ClipboardList size={24} strokeWidth={2.5} />}</span>
                         </button>
 
                         {noSavedCopy && (
@@ -749,9 +782,7 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
 
                         {/* Copy Menu Dropdown */}
                         {showCopyMenu && (
-                            <>
-                                <div className="fixed inset-0 z-[100]" onClick={() => { setShowCopyMenu(false); setTextSelectMode(false); setImageSelectMode(false); setPaypalSelectMode(false); setAttendanceDetail(null); }} />
-                                <div className="absolute right-0 mt-3 w-64 bg-white backdrop-blur-xl rounded-[24px] shadow-[0_20px_50px_rgba(0,0,0,0.18)] border border-gray-100 p-2 z-[110] animate-in fade-in zoom-in-95 slide-in-from-top-2 duration-200 origin-top-right">
+                            <div className="absolute right-0 top-full mt-2 w-64 bg-white backdrop-blur-xl rounded-[24px] shadow-[0_20px_50px_rgba(0,0,0,0.18)] border border-gray-100 p-2 z-[110] animate-in fade-in zoom-in-95 slide-in-from-top-2 duration-200 origin-top-right">
                                     <div className="flex flex-col gap-1">
 
                                         {!textSelectMode && !imageSelectMode ? (
@@ -957,7 +988,6 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
 
                                     </div>
                                 </div>
-                            </>
                         )}
                     </div>
 
