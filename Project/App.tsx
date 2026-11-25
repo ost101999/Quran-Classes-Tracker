@@ -2425,7 +2425,6 @@ function App() {
     title: '',
     target: '30m'
   });
-  const [isStudentLinkModalOpen, setIsStudentLinkModalOpen] = useState(false);
 
   const [simpleInputModal, setSimpleInputModal] = useState<{
     isOpen: boolean;
@@ -7434,13 +7433,7 @@ function App() {
                   <Clock size={12} strokeWidth={2.5} className="mt-0.5" />
                 </button>
 
-                <button
-                  onClick={() => setIsStudentLinkModalOpen(true)}
-                  className={'w-10 h-10 rounded-xl flex items-center justify-center transition-all active:scale-90 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 shadow-sm border border-emerald-100/50'}
-                  title="رابط المواعيد المتاحة للطلاب (ثابتة / إعادة جدولة)"
-                >
-                  <Clock size={19} strokeWidth={2.2} />
-                </button>
+                <StudentAvailabilityLinkModal onToast={showToast} />
               </div>
             </div>
 
@@ -8996,13 +8989,6 @@ function App() {
             targetField: target === '30m' ? 'link30m_linkVal' : 'link60m_linkVal'
           });
         }}
-      />
-
-      <StudentAvailabilityLinkModal
-        isOpen={isStudentLinkModalOpen}
-        onClose={() => setIsStudentLinkModalOpen(false)}
-        onToast={showToast}
-        onOpenLink={(url) => handleOpenLink(url, 'رابط المواعيد المتاحة')}
       />
 
       <SimpleInputModal

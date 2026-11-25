@@ -1,70 +1,58 @@
-import React, { useEffect, useState } from 'react';
-import { X, Clock, CalendarDays, RefreshCw, Copy, Check, ExternalLink, Settings, MessageCircle } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { CalendarDays, RefreshCw, Clock, Pencil, Check } from 'lucide-react';
 
-const DEFAULT_VIEWER_URL =
-  'https://script.google.com/macros/s/AKfycbxs79eM-EiAo1Nwlkvlh7iaX-Wbgs9cA4MYobfxF_DW6xfQTDPEZY6aiheD7fiPzkODjg/exec';
-const STORAGE_KEY = 'qct_student_availability_link_v1';
+const DEFAULT_SHORT_BASE = 'https://qm7.vercel.app';
+const STORAGE_KEY = 'qct_student_short_links_v3';
 
 interface StoredConfig {
-  secret: string;
-  viewerUrl: string;
-  lang: 'ar' | 'en';
-  expiryDays: 1 | 3 | 7;
+  baseUrl: string;
+  lang: 'en' | 'ar';
 }
 
 interface Props {
-  isOpen: boolean;
-  onClose: () => void;
   onToast: (msg: string) => void;
-  onOpenLink: (url: string) => void;
 }
 
-function toBase64Url(bytes: Uint8Array): string {
-  let binary = '';
-  for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+interface SpringState {
+  x: number;
+  v: number;
+  t: number;
+  k: number;
+  c: number;
 }
 
-async function signStudentLink(params: {
-  viewerUrl: string;
-  secret: string;
-  mode: 'fixed' | 'all';
-  duration: 30 | 45 | 60;
-  lang: 'ar' | 'en';
-  expiryDays: 1 | 3 | 7;
-  studentName: string;
-}): Promise<string> {
-  const idBytes = new Uint8Array(6);
-  crypto.getRandomValues(idBytes);
-  const id = Array.from(idBytes, (b) => b.toString(16).padStart(2, '0')).join('').slice(0, 10);
-
-  const payload = {
-    v: 1,
-    id,
-    exp: Date.now() + params.expiryDays * 86400000,
-    dur: params.duration,
-    p: 7,
-    m: params.mode,
-    l: params.lang,
-    sn: params.studentName.trim().slice(0, 60),
-  };
-
-  const encoder = new TextEncoder();
-  const payloadB64 = toBase64Url(encoder.encode(JSON.stringify(payload)));
-  const key = await crypto.subtle.importKey(
-    'raw',
-    encoder.encode(params.secret),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign']
-  );
-  const sigBuf = await crypto.subtle.sign('HMAC', key, encoder.encode(payloadB64));
-  const sigB64 = toBase64Url(new Uint8Array(sigBuf));
-
-  return `${params.viewerUrl}?t=${encodeURIComponent(`${payloadB64}.${sigB64}`)}`;
+function makeSpring(x: number, k = 400, c = 30): SpringState {
+  return { x, v: 0, t: x, k, c };
 }
+
+function stepSpring(s: SpringState, dt: number) {
+  const a = -s.k * (s.x - s.t) - s.c * s.v;
+  s.v += a * dt;
+  s.x += s.v * dt;
+}
+
+const CALM_STYLES = {
+  fixed: {
+    background: 'linear-gradient(155deg, #f4fbf7 0%, #dfefe6 100%)',
+    color: '#1e6e53',
+  },
+  reschedule: {
+    background: 'linear-gradient(155deg, #fbf7f0 0%, #eee4d4 100%)',
+    color: '#7a5c32',
+  },
+  dur30: {
+    background: 'linear-gradient(155deg, #f3faf6 0%, #dceee4 100%)',
+    color: '#1e6e53',
+  },
+  dur60: {
+    background: 'linear-gradient(155deg, #f2f7fb 0%, #dde9f3 100%)',
+    color: '#2c5878',
+  },
+  custom: {
+    background: 'linear-gradient(155deg, #f7f4fb 0%, #e8e2f2 100%)',
+    color: '#5a4c78',
+  },
+};
 
 function loadConfig(): StoredConfig {
   try {
@@ -72,47 +60,175 @@ function loadConfig(): StoredConfig {
     if (raw) {
       const parsed = JSON.parse(raw);
       return {
-        secret: typeof parsed.secret === 'string' ? parsed.secret : '',
-        viewerUrl:
-          typeof parsed.viewerUrl === 'string' && parsed.viewerUrl.trim()
-            ? parsed.viewerUrl.trim()
-            : DEFAULT_VIEWER_URL,
+        baseUrl:
+          typeof parsed.baseUrl === 'string' && parsed.baseUrl.trim()
+            ? parsed.baseUrl.trim().replace(/\/+$/, '')
+            : DEFAULT_SHORT_BASE,
         lang: parsed.lang === 'ar' ? 'ar' : 'en',
-        expiryDays: [1, 3, 7].includes(Number(parsed.expiryDays)) ? (Number(parsed.expiryDays) as 1 | 3 | 7) : 3,
       };
     }
   } catch {
-    // ignore corrupted storage
+    // ignore
   }
-  return { secret: '', viewerUrl: DEFAULT_VIEWER_URL, lang: 'en', expiryDays: 3 };
+  return { baseUrl: DEFAULT_SHORT_BASE, lang: 'en' };
 }
 
-const StudentAvailabilityLinkModal: React.FC<Props> = ({ isOpen, onClose, onToast, onOpenLink }) => {
-  const [config, setConfig] = useState<StoredConfig>(() => loadConfig());
-  const [mode, setMode] = useState<'fixed' | 'all' | null>(null);
-  const [duration, setDuration] = useState<30 | 45 | 60 | null>(null);
-  const [studentName, setStudentName] = useState('');
-  const [generatedUrl, setGeneratedUrl] = useState('');
-  const [copied, setCopied] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
-  const [secretDraft, setSecretDraft] = useState('');
-  const [viewerUrlDraft, setViewerUrlDraft] = useState(DEFAULT_VIEWER_URL);
+interface FanIconCard {
+  id: string;
+  label: string;
+  pos: number; // + right, 0 center, - left
+  style: React.CSSProperties;
+  icon: React.ReactNode;
+  onClick: () => void;
+}
+
+const AnchoredIconFan: React.FC<{ cards: FanIconCard[]; deckKey: string }> = ({ cards, deckKey }) => {
+  const cardRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const cardSpringsRef = useRef<{ pop: SpringState; fan: SpringState; lift: SpringState; sc: SpringState; delay: number }[]>([]);
 
   useEffect(() => {
-    if (!isOpen) return;
-    const loaded = loadConfig();
-    setConfig(loaded);
-    setSecretDraft(loaded.secret);
-    setViewerUrlDraft(loaded.viewerUrl);
-    setMode(null);
-    setDuration(null);
-    setStudentName('');
-    setGeneratedUrl('');
-    setCopied(false);
-    setShowSettings(!loaded.secret);
-  }, [isOpen]);
+    cardSpringsRef.current = cards.map((_, i) => ({
+      pop: makeSpring(0, 340, 22),
+      fan: makeSpring(0, 240, 19),
+      lift: makeSpring(0, 440, 21),
+      sc: makeSpring(1, 440, 22),
+      delay: i * 0.038,
+    }));
 
-  if (!isOpen) return null;
+    let rafId = 0;
+    let elapsed = 0;
+    let last = performance.now();
+
+    const loop = (now: number) => {
+      const dt = Math.min((now - last) / 1000, 1 / 30);
+      last = now;
+      elapsed += dt;
+
+      const cs = cardSpringsRef.current;
+      for (let i = 0; i < cs.length; i++) {
+        if (elapsed >= cs[i].delay) {
+          cs[i].pop.t = 1;
+          cs[i].fan.t = 1;
+        }
+      }
+
+      for (let sub = 0; sub < 4; sub++) {
+        for (let i = 0; i < cs.length; i++) {
+          stepSpring(cs[i].pop, dt / 4);
+          stepSpring(cs[i].fan, dt / 4);
+          stepSpring(cs[i].lift, dt / 4);
+          stepSpring(cs[i].sc, dt / 4);
+        }
+      }
+
+      const spread = cs.length === 2 ? 48 : 74;
+      for (let i = 0; i < cs.length; i++) {
+        const el = cardRefs.current[i];
+        if (!el) continue;
+        const d = cards[i].pos;
+        const p = cs[i].pop.x;
+        const f = cs[i].fan.x;
+        const x = d * (4 + f * (spread - 4));
+        const r = d * (2 + f * 6.5);
+        const y = (1 - p) * -16 + Math.abs(d) * f * 6 + cs[i].lift.x;
+        const scale = Math.max(0.1, (0.48 + 0.52 * p) * cs[i].sc.x);
+        el.style.transform = `translate(${x.toFixed(2)}px, ${y.toFixed(2)}px) rotate(${r.toFixed(3)}deg) scale(${scale.toFixed(4)})`;
+        el.style.opacity = String(Math.max(0, Math.min(1, p * 1.45)));
+      }
+
+      rafId = requestAnimationFrame(loop);
+    };
+
+    rafId = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(rafId);
+  }, [deckKey, cards.length]);
+
+  const setHot = (idx: number) => {
+    cardSpringsRef.current.forEach((s, i) => {
+      s.lift.t = i === idx ? -12 : 0;
+      s.sc.t = i === idx ? 1.09 : 1;
+      const el = cardRefs.current[i];
+      if (el) el.style.zIndex = String(i === idx ? 12 : cards[i].pos === 0 ? 5 : 4);
+    });
+  };
+
+  return (
+    <div className="relative w-[68px] h-[68px] select-none" onPointerLeave={() => setHot(-1)}>
+      {cards.map((card, i) => (
+        <button
+          key={card.id}
+          ref={(el) => {
+            cardRefs.current[i] = el;
+          }}
+          type="button"
+          title={card.label}
+          aria-label={card.label}
+          onPointerEnter={() => setHot(i)}
+          onFocus={() => setHot(i)}
+          onBlur={() => setHot(-1)}
+          onClick={() => {
+            if (cardSpringsRef.current[i]) {
+              cardSpringsRef.current[i].lift.v = -200;
+            }
+            card.onClick();
+          }}
+          style={{
+            ...card.style,
+            transformOrigin: '50% 0%',
+            willChange: 'transform, opacity',
+            zIndex: card.pos === 0 ? 5 : 4,
+          }}
+          className="absolute inset-0 rounded-[18px] flex items-center justify-center shadow-[0_10px_24px_-6px_rgba(15,23,42,0.16)] border border-white/90 ring-1 ring-slate-200/70 cursor-pointer focus:outline-none"
+        >
+          {card.icon}
+        </button>
+      ))}
+    </div>
+  );
+};
+
+const StudentAvailabilityLinkModal: React.FC<Props> = ({ onToast }) => {
+  const [config, setConfig] = useState<StoredConfig>(() => loadConfig());
+  const [step, setStep] = useState<'closed' | 'mode' | 'duration' | 'custom' | 'copied' | 'settings'>('closed');
+  const [mode, setMode] = useState<'fixed' | 'all' | null>(null);
+  const [customMinutes, setCustomMinutes] = useState('45');
+  const [baseUrlDraft, setBaseUrlDraft] = useState(DEFAULT_SHORT_BASE);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const closeTimerRef = useRef<number | null>(null);
+  const customInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (step === 'closed') return;
+    const onPointerDown = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
+        setStep('closed');
+      }
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setStep('closed');
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [step]);
+
+  useEffect(() => {
+    if (step === 'custom') {
+      setTimeout(() => {
+        customInputRef.current?.focus();
+        customInputRef.current?.select();
+      }, 40);
+    }
+  }, [step]);
+
+  useEffect(() => {
+    return () => {
+      if (closeTimerRef.current) window.clearTimeout(closeTimerRef.current);
+    };
+  }, []);
 
   const persistConfig = (next: StoredConfig) => {
     setConfig(next);
@@ -123,323 +239,225 @@ const StudentAvailabilityLinkModal: React.FC<Props> = ({ isOpen, onClose, onToas
     }
   };
 
-  const handleSaveSettings = () => {
-    const cleanSecret = secretDraft.trim();
-    const cleanUrl = viewerUrlDraft.trim() || DEFAULT_VIEWER_URL;
-    if (!cleanSecret) {
-      onToast('أدخل مفتاح الربط أولاً ⚠️');
+  const openMenu = () => {
+    if (closeTimerRef.current) window.clearTimeout(closeTimerRef.current);
+    if (step !== 'closed') {
+      setStep('closed');
       return;
     }
-    if (!/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec$/.test(cleanUrl)) {
-      onToast('رابط صفحة الطلاب غير صالح ⚠️');
-      return;
-    }
-    persistConfig({ ...config, secret: cleanSecret, viewerUrl: cleanUrl });
-    setShowSettings(false);
-    onToast('تم حفظ مفتاح الربط بنجاح ✅');
+    const loaded = loadConfig();
+    setConfig(loaded);
+    setMode(null);
+    setStep('mode');
   };
 
-  const handleSelectDuration = async (selectedDur: 30 | 45 | 60) => {
-    if (!mode) return;
-    if (!config.secret) {
-      setShowSettings(true);
-      onToast('أدخل مفتاح الربط أولاً لمرة واحدة ⚠️');
-      return;
+  const openSettings = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (closeTimerRef.current) window.clearTimeout(closeTimerRef.current);
+    const loaded = loadConfig();
+    setConfig(loaded);
+    setBaseUrlDraft(loaded.baseUrl);
+    setStep((prev) => (prev === 'settings' ? 'closed' : 'settings'));
+  };
+
+  const buildLink = (selectedMode: 'fixed' | 'all', durMinutes: number): string => {
+    const base = (config.baseUrl || DEFAULT_SHORT_BASE).replace(/\/+$/, '');
+    const code = selectedMode === 'fixed' ? 'f' : 'r';
+    if (base.endsWith('/exec')) {
+      const langPart = config.lang === 'ar' ? '&l=ar' : '';
+      return `${base}?${code}=${durMinutes}${langPart}`;
     }
-    setDuration(selectedDur);
+    const langPart = config.lang === 'ar' ? '?l=ar' : '';
+    return `${base}/${code}${durMinutes}${langPart}`;
+  };
+
+  const copyAndFinish = async (selectedMode: 'fixed' | 'all', durMinutes: number) => {
+    const url = buildLink(selectedMode, durMinutes);
     try {
-      const url = await signStudentLink({
-        viewerUrl: config.viewerUrl || DEFAULT_VIEWER_URL,
-        secret: config.secret,
-        mode,
-        duration: selectedDur,
-        lang: config.lang,
-        expiryDays: config.expiryDays,
-        studentName,
-      });
-      setGeneratedUrl(url);
       await navigator.clipboard.writeText(url);
-      setCopied(true);
-      onToast('تم إنشاء ونسخ رابط المواعيد! 🔗');
-      setTimeout(() => setCopied(false), 2000);
     } catch {
-      onToast('تعذّر إنشاء الرابط ⚠️');
+      // ignore
     }
+    setStep('copied');
+    onToast('تم النسخ ✅');
+    if (closeTimerRef.current) window.clearTimeout(closeTimerRef.current);
+    closeTimerRef.current = window.setTimeout(() => {
+      setStep('closed');
+    }, 950);
   };
 
-  const handleCopyAgain = async () => {
-    if (!generatedUrl) return;
-    await navigator.clipboard.writeText(generatedUrl);
-    setCopied(true);
-    onToast('تم نسخ الرابط! 📋');
-    setTimeout(() => setCopied(false), 2000);
+  const handleCustomSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!mode) return;
+    const n = Math.round(Number(customMinutes));
+    if (!Number.isFinite(n) || n < 15 || n > 180) {
+      onToast('اكتب مدة بين 15 و 180 دقيقة ⚠️');
+      return;
+    }
+    copyAndFinish(mode, n);
   };
 
-  const handleWhatsappShare = () => {
-    if (!generatedUrl) return;
-    const name = studentName.trim();
-    const msg =
-      config.lang === 'ar'
-        ? `${name ? `أهلاً ${name}،\n` : ''}يمكنك الاطلاع على مواعيدي المتاحة (بتوقيتك الحالي) واختيار الموعد المناسب من هذا الرابط:\n${generatedUrl}`
-        : `${name ? `Hi ${name},\n` : ''}You can view my live available times (in your local timezone) and pick a slot here:\n${generatedUrl}`;
-    onOpenLink(`https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`);
+  const handleSaveSettings = () => {
+    const cleanBase = (baseUrlDraft.trim() || DEFAULT_SHORT_BASE).replace(/\/+$/, '');
+    if (!/^https?:\/\//i.test(cleanBase)) {
+      onToast('أدخل رابطاً صحيحاً يبدأ بـ https:// ⚠️');
+      return;
+    }
+    persistConfig({ ...config, baseUrl: cleanBase });
+    setStep('closed');
+    onToast('تم الحفظ ✅');
   };
+
+  // Step 1: Right (+pos) = Fixed, Left (-pos) = Reschedule
+  const modeCards: FanIconCard[] = [
+    {
+      id: 'fixed',
+      label: 'مواعيد ثابتة',
+      pos: 0.9,
+      style: CALM_STYLES.fixed,
+      icon: <CalendarDays size={25} strokeWidth={2} />,
+      onClick: () => {
+        setMode('fixed');
+        setStep('duration');
+      },
+    },
+    {
+      id: 'reschedule',
+      label: 'إعادة جدولة',
+      pos: -0.9,
+      style: CALM_STYLES.reschedule,
+      icon: <RefreshCw size={24} strokeWidth={2} />,
+      onClick: () => {
+        setMode('all');
+        setStep('duration');
+      },
+    },
+  ];
+
+  // Step 2: Right-to-left: 30 (+1), 60 (0), Edit (-1)
+  const durationCards: FanIconCard[] = [
+    {
+      id: '30',
+      label: '30 دقيقة',
+      pos: 1,
+      style: CALM_STYLES.dur30,
+      icon: <span className="font-english text-2xl font-bold leading-none">30</span>,
+      onClick: () => {
+        if (mode) copyAndFinish(mode, 30);
+      },
+    },
+    {
+      id: '60',
+      label: '60 دقيقة',
+      pos: 0,
+      style: CALM_STYLES.dur60,
+      icon: <span className="font-english text-2xl font-bold leading-none">60</span>,
+      onClick: () => {
+        if (mode) copyAndFinish(mode, 60);
+      },
+    },
+    {
+      id: 'custom',
+      label: 'كتابة مدة مخصصة',
+      pos: -1,
+      style: CALM_STYLES.custom,
+      icon: <Pencil size={22} strokeWidth={2} />,
+      onClick: () => setStep('custom'),
+    },
+  ];
+
+  const isCopied = step === 'copied';
 
   return (
-    <div
-      className="fixed inset-0 z-[125] flex items-center justify-center bg-slate-900/40 backdrop-blur-md p-4 font-arabic"
-      dir="rtl"
-      onClick={onClose}
-    >
-      <div
-        className="bg-white rounded-[2.2rem] shadow-[0_20px_70px_-10px_rgba(0,0,0,0.18)] w-full max-w-md overflow-hidden border border-white/50"
-        onClick={(e) => e.stopPropagation()}
+    <div ref={rootRef} className="relative font-arabic" dir="rtl">
+      <button
+        type="button"
+        onClick={openMenu}
+        onContextMenu={openSettings}
+        className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-200 active:scale-90 shadow-sm border ${
+          isCopied
+            ? 'bg-emerald-500 text-white border-emerald-500 scale-105'
+            : step !== 'closed'
+            ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+            : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-100/50'
+        }`}
+        title="رابط المواعيد المتاحة (كليك للاختيار · كليك يمين للإعدادات)"
       >
-        {/* Header */}
-        <div className="relative px-6 py-5 border-b border-slate-100 bg-gradient-to-b from-teal-50/70 to-white flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-teal-500/10 text-teal-700 flex items-center justify-center">
-              <Clock size={19} strokeWidth={2.2} />
-            </div>
-            <div>
-              <h2 className="text-lg font-bold text-slate-800 leading-tight">رابط المواعيد المتاحة</h2>
-              <p className="text-xs text-slate-500">صفحة مباشرة بتوقيت الطالب · صلاحية {config.expiryDays} {config.expiryDays === 1 ? 'يوم' : 'أيام'}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => setShowSettings((prev) => !prev)}
-              className={`p-2 rounded-full transition-all ${showSettings ? 'bg-teal-100 text-teal-700' : 'text-slate-400 hover:bg-slate-100 hover:text-slate-700'}`}
-              title="إعدادات الربط واللغة"
-            >
-              <Settings size={18} />
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="p-2 hover:bg-rose-50 hover:text-rose-500 rounded-full text-slate-400 transition-all"
-            >
-              <X size={19} />
-            </button>
-          </div>
-        </div>
+        {isCopied ? <Check size={19} strokeWidth={2.8} /> : <Clock size={19} strokeWidth={2.2} />}
+      </button>
 
-        {/* Body */}
-        <div className="p-5 space-y-4">
-          {showSettings ? (
-            <div className="space-y-3 bg-slate-50 p-4 rounded-2xl border border-slate-200/80">
-              <p className="text-xs text-slate-600 leading-relaxed">
-                أدخل <strong>مفتاح الربط</strong> مرة واحدة فقط (نفس المفتاح الصادر من دالة <code dir="ltr" className="bg-white px-1 rounded">setupViewer</code> في مشروع عرض المواعيد للطلاب):
-              </p>
+      {step !== 'closed' && (
+        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-3 z-[120] flex flex-col items-center">
+          {step === 'mode' && <AnchoredIconFan deckKey="mode" cards={modeCards} />}
+
+          {step === 'duration' && <AnchoredIconFan deckKey={`dur-${mode}`} cards={durationCards} />}
+
+          {step === 'custom' && (
+            <form
+              onSubmit={handleCustomSubmit}
+              className="flex items-center gap-1.5 bg-white/95 backdrop-blur-md rounded-2xl p-2 shadow-[0_12px_30px_-8px_rgba(15,23,42,0.18)] border border-slate-200/80 animate-in fade-in zoom-in-95 duration-150"
+            >
+              <input
+                ref={customInputRef}
+                type="number"
+                min={15}
+                max={180}
+                value={customMinutes}
+                onChange={(e) => setCustomMinutes(e.target.value)}
+                dir="ltr"
+                aria-label="المدة بالدقائق"
+                className="w-16 text-center font-english text-lg font-bold py-1 bg-slate-50 border border-slate-200 focus:border-emerald-400 rounded-xl outline-none text-slate-700"
+              />
+              <button
+                type="submit"
+                title="نسخ الرابط"
+                className="w-9 h-9 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl flex items-center justify-center transition-all active:scale-95"
+              >
+                <Check size={18} strokeWidth={2.6} />
+              </button>
+            </form>
+          )}
+
+          {step === 'copied' && (
+            <div className="px-3.5 py-1.5 bg-white/95 backdrop-blur-md rounded-full shadow-[0_10px_24px_-6px_rgba(15,23,42,0.16)] border border-emerald-200/80 flex items-center gap-1.5 whitespace-nowrap animate-in fade-in zoom-in-95 duration-150">
+              <span className="text-xs font-bold text-emerald-700">تم النسخ</span>
+            </div>
+          )}
+
+          {step === 'settings' && (
+            <div className="w-[240px] bg-white/95 backdrop-blur-md rounded-2xl p-3 shadow-[0_14px_34px_-10px_rgba(15,23,42,0.2)] border border-slate-200/80 space-y-2.5 animate-in fade-in zoom-in-95 duration-150">
               <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1">مفتاح الربط</label>
-                <input
-                  type="password"
-                  value={secretDraft}
-                  onChange={(e) => setSecretDraft(e.target.value)}
-                  placeholder="الصق مفتاح الربط هنا..."
-                  dir="ltr"
-                  className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-teal-500"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-2.5">
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 mb-1">لغة الصفحة</label>
-                  <select
-                    value={config.lang}
-                    onChange={(e) => persistConfig({ ...config, lang: e.target.value === 'ar' ? 'ar' : 'en' })}
-                    className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-xl"
-                  >
-                    <option value="en">English</option>
-                    <option value="ar">عربي</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 mb-1">صلاحية الرابط</label>
-                  <select
-                    value={config.expiryDays}
-                    onChange={(e) =>
-                      persistConfig({
-                        ...config,
-                        expiryDays: Number(e.target.value) as 1 | 3 | 7,
-                      })
-                    }
-                    className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-xl"
-                  >
-                    <option value={1}>يوم واحد</option>
-                    <option value={3}>3 أيام</option>
-                    <option value={7}>أسبوع</option>
-                  </select>
-                </div>
+                <label className="block text-[11px] font-bold text-slate-500 mb-1">لغة الصفحة</label>
+                <select
+                  value={config.lang}
+                  onChange={(e) => persistConfig({ ...config, lang: e.target.value === 'ar' ? 'ar' : 'en' })}
+                  className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg"
+                >
+                  <option value="en">English</option>
+                  <option value="ar">عربي</option>
+                </select>
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1">رابط صفحة الطلاب</label>
+                <label className="block text-[11px] font-bold text-slate-500 mb-1">الرابط المختصر</label>
                 <input
                   type="text"
-                  value={viewerUrlDraft}
-                  onChange={(e) => setViewerUrlDraft(e.target.value)}
+                  value={baseUrlDraft}
+                  onChange={(e) => setBaseUrlDraft(e.target.value)}
                   dir="ltr"
-                  className="w-full px-3 py-2 text-xs font-mono bg-white border border-slate-200 rounded-xl text-slate-600 focus:outline-none focus:border-teal-500"
+                  className="w-full px-2.5 py-1.5 text-[11px] font-mono bg-slate-50 border border-slate-200 rounded-lg text-slate-600"
                 />
               </div>
               <button
                 type="button"
                 onClick={handleSaveSettings}
-                className="w-full py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold text-sm rounded-xl transition-all"
+                className="w-full py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl"
               >
-                حفظ الإعدادات
+                حفظ
               </button>
             </div>
-          ) : (
-            <>
-              {/* Step 1: Choose Mode */}
-              <div>
-                <div className="text-xs font-bold text-slate-500 mb-2">1. اختر نوع المواعيد:</div>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMode('fixed');
-                      setGeneratedUrl('');
-                      setDuration(null);
-                    }}
-                    className={`flex flex-col items-center justify-center gap-1.5 p-3.5 rounded-2xl border-2 transition-all active:scale-[0.98] ${
-                      mode === 'fixed'
-                        ? 'border-teal-500 bg-teal-50/80 text-teal-800 shadow-sm'
-                        : 'border-slate-100 bg-slate-50/70 text-slate-700 hover:border-teal-200 hover:bg-teal-50/30'
-                    }`}
-                  >
-                    <CalendarDays size={22} className={mode === 'fixed' ? 'text-teal-600' : 'text-slate-400'} />
-                    <span className="font-bold text-base">مواعيد ثابتة</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMode('all');
-                      setGeneratedUrl('');
-                      setDuration(null);
-                    }}
-                    className={`flex flex-col items-center justify-center gap-1.5 p-3.5 rounded-2xl border-2 transition-all active:scale-[0.98] ${
-                      mode === 'all'
-                        ? 'border-emerald-500 bg-emerald-50/80 text-emerald-800 shadow-sm'
-                        : 'border-slate-100 bg-slate-50/70 text-slate-700 hover:border-emerald-200 hover:bg-emerald-50/30'
-                    }`}
-                  >
-                    <RefreshCw size={21} className={mode === 'all' ? 'text-emerald-600' : 'text-slate-400'} />
-                    <span className="font-bold text-base">إعادة جدولة</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Optional student name */}
-              {mode && (
-                <div>
-                  <input
-                    type="text"
-                    value={studentName}
-                    onChange={(e) => setStudentName(e.target.value)}
-                    placeholder="اسم الطالب (اختياري — لو فارغ يكتبه الطالب)"
-                    dir="auto"
-                    className="w-full px-3.5 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-teal-500 focus:bg-white"
-                  />
-                </div>
-              )}
-
-              {/* Step 2: Choose Duration (30 or 60 primary + 45 optional) */}
-              {mode && (
-                <div>
-                  <div className="text-xs font-bold text-slate-500 mb-2">2. كم مدة الحصة؟ (ينسخ الرابط مباشرة)</div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      type="button"
-                      onClick={() => handleSelectDuration(30)}
-                      className={`py-3.5 rounded-2xl border-2 font-bold transition-all active:scale-[0.98] flex flex-col items-center ${
-                        duration === 30
-                          ? 'border-emerald-500 bg-emerald-50 text-emerald-800'
-                          : 'border-slate-100 bg-white hover:border-emerald-300 hover:bg-emerald-50/40 text-slate-800 shadow-sm'
-                      }`}
-                    >
-                      <span className="font-english text-2xl leading-none">30</span>
-                      <span className="text-xs text-slate-500 mt-1">دقيقة</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleSelectDuration(60)}
-                      className={`py-3.5 rounded-2xl border-2 font-bold transition-all active:scale-[0.98] flex flex-col items-center ${
-                        duration === 60
-                          ? 'border-emerald-500 bg-emerald-50 text-emerald-800'
-                          : 'border-slate-100 bg-white hover:border-emerald-300 hover:bg-emerald-50/40 text-slate-800 shadow-sm'
-                      }`}
-                    >
-                      <span className="font-english text-2xl leading-none">60</span>
-                      <span className="text-xs text-slate-500 mt-1">دقيقة</span>
-                    </button>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => handleSelectDuration(45)}
-                    className={`w-full mt-2.5 py-2 rounded-xl border text-xs font-bold transition-all ${
-                      duration === 45
-                        ? 'border-teal-400 bg-teal-50 text-teal-800'
-                        : 'border-slate-200/80 bg-slate-50/70 text-slate-500 hover:text-slate-700 hover:border-slate-300'
-                    }`}
-                  >
-                    أو 45 دقيقة
-                  </button>
-                </div>
-              )}
-
-              {/* Generated Result */}
-              {generatedUrl && (
-                <div className="bg-teal-50/70 border border-teal-200/80 rounded-2xl p-3 space-y-2.5">
-                  <div className="flex items-center justify-between text-xs text-teal-800 font-bold">
-                    <span>✅ الرابط جاهز ومنسوخ في الحافظة</span>
-                    <span className="font-english">{duration} min</span>
-                  </div>
-                  <input
-                    type="text"
-                    readOnly
-                    value={generatedUrl}
-                    dir="ltr"
-                    onClick={(e) => (e.target as HTMLInputElement).select()}
-                    className="w-full px-2.5 py-1.5 text-xs font-mono bg-white border border-teal-100 rounded-lg text-slate-700"
-                  />
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={handleCopyAgain}
-                      className="flex-1 py-2 bg-white hover:bg-teal-100/60 text-teal-800 border border-teal-200 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5"
-                    >
-                      {copied ? <Check size={14} /> : <Copy size={14} />}
-                      <span>{copied ? 'تم النسخ' : 'نسخ'}</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onOpenLink(generatedUrl)}
-                      className="flex-1 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5"
-                    >
-                      <ExternalLink size={14} />
-                      <span>معاينة</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleWhatsappShare}
-                      className="flex-1 py-2 bg-[#25D366] hover:brightness-95 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5"
-                    >
-                      <MessageCircle size={14} />
-                      <span>واتساب</span>
-                    </button>
-                  </div>
-                </div>
-              )}
-            </>
           )}
         </div>
-      </div>
+      )}
     </div>
   );
 };

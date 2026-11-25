@@ -3,6 +3,18 @@
   "buildCommand": "",
   "installCommand": "echo skip",
   "outputDirectory": ".",
+  "redirects": [
+    {
+      "source": "/f:dur(\\d{2,3})",
+      "destination": "https://script.google.com/macros/s/AKfycbxs79eM-EiAo1Nwlkvlh7iaX-Wbgs9cA4MYobfxF_DW6xfQTDPEZY6aiheD7fiPzkODjg/exec?f=:dur",
+      "permanent": false
+    },
+    {
+      "source": "/r:dur(\\d{2,3})",
+      "destination": "https://script.google.com/macros/s/AKfycbxs79eM-EiAo1Nwlkvlh7iaX-Wbgs9cA4MYobfxF_DW6xfQTDPEZY6aiheD7fiPzkODjg/exec?r=:dur",
+      "permanent": false
+    }
+  ],
   "rewrites": [
     {
       "source": "/manifest.json",
