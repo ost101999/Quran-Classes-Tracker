@@ -123,6 +123,7 @@ export type MushafSectionKey = 'rev' | 'oldRev' | 'new' | 'tilawa';
 
 export interface StudentReportSettings {
   includeStudentDashboardLink?: boolean;
+  autoCompleteReport?: boolean;
   customMushafEnabled?: boolean;
   mushafUnifiedV2?: boolean;
   mushafOutputFormat?: 'pdf' | 'web_link' | 'html';

@@ -1,4 +1,6 @@
-import { formatAttendanceDays } from './reportAttendanceDays';
+import { getDetailedReportDays } from '../services/academyReportDetails';
+import { resolveEffectiveReportSettings } from '../services/quranPages';
+import { copyReportTextToClipboard } from '../services/reportClipboard';
 import ReportMonthNavigation, { useReportMonth } from './ReportMonthNavigation';
 import React, { useRef, useState } from 'react';
 import { X, Calendar, Clock, Copy, Check, Wallet, FileText, AlignLeft, DollarSign, ChevronLeft, ChevronRight, Image as ImageIcon } from 'lucide-react';
@@ -184,6 +186,10 @@ const MultiStudentDetailsModal: React.FC<Props> = ({ students, attendance, onClo
         lines.push('');
 
         // Students Breakdown
+        let reportTotalHours = 0;
+        let reportTotalSessions = 0;
+        let reportTotalDueAmount = 0;
+        let reportExtraSessions = 0;
         students.forEach(student => {
             let visitsCount = 0; // Number of distinct sessions attended
             let unitsCount = 0;  // Units for billing/hours calculation
@@ -200,6 +206,15 @@ const MultiStudentDetailsModal: React.FC<Props> = ({ students, attendance, onClo
                 }
             });
 
+            const autoCompleteEnabled = resolveEffectiveReportSettings(student.reportSettings).autoCompleteReport !== false;
+            const details = (attendanceDetail || autoCompleteEnabled)
+                ? getDetailedReportDays(student, attendance, month, year, isEnglish, { autoCompleteReport: autoCompleteEnabled })
+                : null;
+            const extra = autoCompleteEnabled ? (details?.extraSessions || 0) : 0;
+            visitsCount += extra;
+            unitsCount += extra;
+            reportExtraSessions += extra;
+
             const normalizedDuration = toWesternDigits(student.duration);
             const durationMinutes = parseInt(normalizedDuration);
             let durationVal = 0;
@@ -212,6 +227,11 @@ const MultiStudentDetailsModal: React.FC<Props> = ({ students, attendance, onClo
 
             const studentHoursRaw = Math.round(unitsCount * durationVal * 4) / 4;
             const formattedHours = Number.isInteger(studentHoursRaw) ? studentHoursRaw.toString() : parseFloat(studentHoursRaw.toFixed(2)).toString();
+            reportTotalHours += studentHoursRaw;
+            reportTotalSessions += visitsCount;
+            reportTotalDueAmount += (student.paymentBasis === 'بالساعة')
+                ? (unitsCount * durationVal) * student.rate
+                : unitsCount * student.rate;
 
             if (visitsCount > 0) {
                 if (isEnglish) {
@@ -221,7 +241,7 @@ const MultiStudentDetailsModal: React.FC<Props> = ({ students, attendance, onClo
                     lines.push(`🔹 *${student.name.trim()}*`);
                     lines.push(`   ${toHindiDigits(formattedHours)} ${getHoursPlural(studentHoursRaw)}  |  ${toHindiDigits(visitsCount)} ${getSessionsPlural(visitsCount)}`);
                 }
-                if (attendanceDetail) lines.push(`   ${formatAttendanceDays(student, attendance, month, year, isEnglish, undefined)}`);
+                if (attendanceDetail && details) lines.push('', ...details.lines);
                 lines.push('');
             }
         });
@@ -231,12 +251,12 @@ const MultiStudentDetailsModal: React.FC<Props> = ({ students, attendance, onClo
         // Footer (Totals)
         if (isEnglish) {
             lines.push(`*Total:*`);
-            lines.push(`⏱️ ${Number.isInteger(stats.totalHours) ? stats.totalHours : parseFloat(stats.totalHours.toFixed(2))} Hours`);
-            lines.push(`📚 ${stats.totalSessionCount} Sessions`);
+            lines.push(`⏱️ ${Number.isInteger(reportTotalHours) ? reportTotalHours : parseFloat(reportTotalHours.toFixed(2))} Hours`);
+            lines.push(`📚 ${reportTotalSessions} Sessions`);
         } else {
             lines.push(`*الإجمالي:*`);
-            lines.push(`⏱️ ${toHindiDigits(Number.isInteger(stats.totalHours) ? stats.totalHours : parseFloat(stats.totalHours.toFixed(2)))} ${getHoursPlural(stats.totalHours)}`);
-            lines.push(`📚 ${toHindiDigits(stats.totalSessionCount)} ${getSessionsPlural(stats.totalSessionCount)}`);
+            lines.push(`⏱️ ${toHindiDigits(Number.isInteger(reportTotalHours) ? reportTotalHours : parseFloat(reportTotalHours.toFixed(2)))} ${getHoursPlural(reportTotalHours)}`);
+            lines.push(`📚 ${toHindiDigits(reportTotalSessions)} ${getSessionsPlural(reportTotalSessions)}`);
         }
 
         if (withPricing) {
@@ -244,7 +264,7 @@ const MultiStudentDetailsModal: React.FC<Props> = ({ students, attendance, onClo
             lines.push('──────────────');
             lines.push(isEnglish ? '*Payment Details:*' : '*تفاصيل الحساب:*');
 
-            const formattedAmount = stats.totalDueAmount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+            const formattedAmount = reportTotalDueAmount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 
             if (isEnglish) {
                 lines.push(`${formattedAmount} ${currency === 'دولار' ? 'USD' : (currency === 'جنيه' ? 'L.E' : currency)}`);
@@ -260,11 +280,14 @@ const MultiStudentDetailsModal: React.FC<Props> = ({ students, attendance, onClo
         }
 
         try {
-            await navigator.clipboard.writeText(lines.join('\n'));
-            setIsCopying(true);
-            setTimeout(() => setIsCopying(false), 2000);
             setShowCopyMenu(false);
             setTextSelectMode(false); // Close text menu after copy
+            await copyReportTextToClipboard(lines.join('\n'), {
+                includeCompletionNotice: !attendanceDetail && reportExtraSessions > 0,
+                isEnglish,
+            });
+            setIsCopying(true);
+            setTimeout(() => setIsCopying(false), 2000);
         } catch (err) {
             console.error('Failed to copy text:', err);
         }
@@ -670,16 +693,16 @@ const MultiStudentDetailsModal: React.FC<Props> = ({ students, attendance, onClo
                         <div className="space-y-2">
                             {students.map(student => {
                                 let sessionCount = 0;
-                                 Object.entries(attendance).forEach(([key, status]) => {
-                                     const [id, dayStr, keyMonth, keyYear] = key.split('_');
-                                     const dayNum = parseInt(dayStr);
-                                     if (id === student.id && parseInt(keyMonth) === month && parseInt(keyYear) === year) {
-                                         const sessionVal = getStatusSessionValue(status, student, dayNum, month, year);
-                                         if (sessionVal > 0) {
-                                             sessionCount++;
-                                         }
-                                     }
-                                 });
+                                Object.entries(attendance).forEach(([key, status]) => {
+                                    const [id, dayStr, keyMonth, keyYear] = key.split('_');
+                                    const dayNum = parseInt(dayStr);
+                                    if (id === student.id && parseInt(keyMonth) === month && parseInt(keyYear) === year) {
+                                        const sessionVal = getStatusSessionValue(status, student, dayNum, month, year);
+                                        if (sessionVal > 0) {
+                                            sessionCount++;
+                                        }
+                                    }
+                                });
                                 return (
                                     <div key={student.id} className="flex items-center justify-between text-gray-500 text-base">
                                         <span className="font-arabic">{student.name}</span>

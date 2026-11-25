@@ -265,4 +265,9 @@ test('resolveEffectiveReportSettings unifies legacy saved settings to web_link, 
   assert.equal(explicitPdf.mushafOutputFormat, 'pdf');
   assert.equal(explicitPdf.mushafDividerStyle, 'banner');
   assert.equal(explicitPdf.mushafTargetSection, 'both');
+  assert.equal(explicitPdf.autoCompleteReport, true);
+
+  // Default autoCompleteReport is true for undefined/existing students, and respects explicit false
+  assert.equal(resolveEffectiveReportSettings(undefined).autoCompleteReport, true);
+  assert.equal(resolveEffectiveReportSettings({ autoCompleteReport: false }).autoCompleteReport, false);
 });

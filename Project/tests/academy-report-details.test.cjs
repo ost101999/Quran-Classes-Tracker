@@ -8,6 +8,11 @@ require.extensions['.ts'] = (module, filename) => {
   module._compile(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, filename);
 };
 const { getDetailedReportDays } = require('../services/academyReportDetails.ts');
+const {
+  copyReportTextToClipboard,
+  CONCISE_AUTO_COMPLETE_NOTICE_AR,
+  CONCISE_AUTO_COMPLETE_NOTICE_EN,
+} = require('../services/reportClipboard.ts');
 const { AttendanceStatus: S } = require('../types.ts');
 const student = { id: 's', name: 'Student', days: [0, 0, 1], duration: '60' };
 const render = (records, options = {}, today = '2026-11-16') => getDetailedReportDays(student, records, 10, 2026, true, options, today);
@@ -79,4 +84,43 @@ test('formats Arabic labels and the counted sessions', () => {
   assert.match(text, /الغياب \(محسوب\)/);
   assert.match(text, /اعتذار \(غير محسوب\)/);
   assert.match(text, / - الطالب/);
+});
+
+test('counts upcoming extraSessions in both English and Arabic when autoCompleteReport is enabled', () => {
+  const en = render({}, { autoCompleteReport: true, billingStartDay: 25 });
+  assert.equal(en.extraSessions, 3);
+  assert.match(en.lines.join('\n'), /📅 \*Upcoming:\*\n• Sunday, 22 November \(x2\)\n• Monday, 23 November/);
+
+  const ar = getDetailedReportDays(student, {}, 10, 2026, false, { autoCompleteReport: true, billingStartDay: 25 }, '2026-11-16');
+  assert.equal(ar.extraSessions, 3);
+  assert.match(ar.lines.join('\n'), /📅 \*الحصص القادمة:\*/);
+});
+
+test('copyReportTextToClipboard writes completion notice before report in concise mode so report is #1 and notice is #2', async () => {
+  const arWritten = [];
+  await copyReportTextToClipboard('REPORT_AR', {
+    includeCompletionNotice: true,
+    isEnglish: false,
+    delayMs: 5,
+    writeText: async (txt) => { arWritten.push(txt); },
+  });
+  assert.deepEqual(arWritten, [CONCISE_AUTO_COMPLETE_NOTICE_AR, 'REPORT_AR']);
+
+  const enWritten = [];
+  await copyReportTextToClipboard('REPORT_EN', {
+    includeCompletionNotice: true,
+    isEnglish: true,
+    delayMs: 5,
+    writeText: async (txt) => { enWritten.push(txt); },
+  });
+  assert.deepEqual(enWritten, [CONCISE_AUTO_COMPLETE_NOTICE_EN, 'REPORT_EN']);
+
+  const detailedWritten = [];
+  await copyReportTextToClipboard('REPORT_ONLY', {
+    includeCompletionNotice: false,
+    isEnglish: false,
+    delayMs: 5,
+    writeText: async (txt) => { detailedWritten.push(txt); },
+  });
+  assert.deepEqual(detailedWritten, ['REPORT_ONLY']);
 });

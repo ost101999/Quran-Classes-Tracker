@@ -383,6 +383,7 @@ export function resolveReportSectionPages(
     : 'web_link';
   return {
     includeStudentDashboardLink: !!settings?.includeStudentDashboardLink,
+    autoCompleteReport: settings?.autoCompleteReport !== false,
     customMushafEnabled: !!settings?.customMushafEnabled,
     mushafUnifiedV2: true,
     mushafOutputFormat: outputFormat,

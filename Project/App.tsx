@@ -8756,6 +8756,7 @@ function App() {
             usdRate={usdRate}
             onOpenLink={handleOpenLink}
             billingStartDay={academyRates[selectedStudentForDetails.academy]?.billingStartDay || 1}
+            holidays={academyRates[selectedStudentForDetails.academy]?.holidays}
             paymentStatus={paymentStatus}
             onTogglePayment={togglePaymentStatus}
           />

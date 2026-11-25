@@ -50,6 +50,7 @@ const toWesternDigits = (str: string): string => {
 const getReportCustomizationItems = (settings: StudentReportSettings): string[] => {
   const items: string[] = [];
   if (settings.includeStudentDashboardLink) items.push('إرفاق رابط واجهة الطالب');
+  if (settings.autoCompleteReport !== false) items.push('إكمال الحصص القادمة');
   if (settings.customMushafEnabled) {
     if (settings.mushafOutputFormat === 'html') items.push('إنشاء مصحف (HTML)');
     else if (settings.mushafOutputFormat === 'pdf') items.push('إنشاء مصحف');
@@ -60,9 +61,10 @@ const getReportCustomizationItems = (settings: StudentReportSettings): string[] 
 
 const ReportToggleRow: React.FC<{
   label: string;
+  description?: string;
   checked: boolean;
   onToggle: () => void;
-}> = ({ label, checked, onToggle }) => (
+}> = ({ label, description, checked, onToggle }) => (
   <button
     type="button"
     role="switch"
@@ -70,7 +72,12 @@ const ReportToggleRow: React.FC<{
     onClick={onToggle}
     className="w-full flex items-center justify-between gap-4 text-right cursor-pointer"
   >
-    <span className="text-xl font-bold text-slate-800 font-arabic">{label}</span>
+    <span className="min-w-0 flex-1">
+      <span className="block text-xl font-bold text-slate-800 font-arabic">{label}</span>
+      {description && (
+        <span className="block text-base text-slate-500 font-arabic font-normal mt-0.5 leading-snug">{description}</span>
+      )}
+    </span>
     <span
       dir="rtl"
       aria-hidden="true"
@@ -515,9 +522,10 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
   }, [duration]);
 
   const buildNormalizedReportSettings = (): StudentReportSettings | undefined => {
-    if (!reportSettings.customMushafEnabled && !reportSettings.includeStudentDashboardLink && !student?.reportSettings) return undefined;
+    if (!reportSettings.customMushafEnabled && !reportSettings.includeStudentDashboardLink && reportSettings.autoCompleteReport !== false && !student?.reportSettings) return undefined;
     return {
       ...resolveEffectiveReportSettings(reportSettings),
+      autoCompleteReport: reportSettings.autoCompleteReport !== false,
       customMushafEnabled: !!reportSettings.customMushafEnabled,
       mushafUnifiedV2: true,
       mushafOutputFormat: reportSettings.mushafOutputFormat || 'web_link',
@@ -1104,6 +1112,14 @@ const StudentModal: React.FC<Props> = ({ onClose, onSave, onDelete, onEndEnrollm
                     label="إرفاق رابط واجهة الطالب"
                     checked={!!reportSettings.includeStudentDashboardLink}
                     onToggle={() => setReportSettings(prev => ({ ...prev, includeStudentDashboardLink: !prev.includeStudentDashboardLink }))}
+                  />
+                </div>
+                <div className={`rounded-2xl border bg-white p-4 shadow-sm transition-colors ${reportSettings.autoCompleteReport !== false ? 'border-emerald-200' : 'border-slate-200'}`}>
+                  <ReportToggleRow
+                    label="إكمال الحصص القادمة في التقرير"
+                    description="احتساب الحصص المجدولة القادمة في التقرير وإظهارها عند التفصيل."
+                    checked={reportSettings.autoCompleteReport !== false}
+                    onToggle={() => setReportSettings(prev => ({ ...prev, autoCompleteReport: prev.autoCompleteReport === false }))}
                   />
                 </div>
                 {/* Main Toggle, Student Mushaf Source & Output Format Card */}

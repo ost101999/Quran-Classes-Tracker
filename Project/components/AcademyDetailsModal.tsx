@@ -1,5 +1,6 @@
 import { scheduledCount } from '../services/studentSchedule';
 import { getDetailedReportDays } from '../services/academyReportDetails';
+import { copyReportTextToClipboard } from '../services/reportClipboard';
 import ReportMonthNavigation, { useReportMonth } from './ReportMonthNavigation';
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Calendar, Clock, Copy, Check, Wallet, FileText, AlignLeft, DollarSign, ChevronRight, ChevronLeft, Trash2, Edit2, ShieldAlert, ExternalLink, RotateCcw, Users, Image as ImageIcon } from 'lucide-react';
@@ -148,15 +149,15 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
         for (let d = 1; d <= daysInPrevMonth; d++) {
             const key = `${student.id}_${d}_${prevMonth}_${prevYear}`;
             const status = attendance[key];
-            const isTransferred = status === AttendanceStatus.TRANSFERRED || 
-                                  status === AttendanceStatus.TRANSFERRED_ABSENT ||
-                                  (billingStartDay > 1 && d >= billingStartDay && (
-                                      status === AttendanceStatus.PRESENT || 
-                                      status === AttendanceStatus.PAID_ABSENCE || 
-                                      status === AttendanceStatus.PAID_ABSENCE_DOUBLE ||
-                                      status === AttendanceStatus.DOUBLE_CLASS ||
-                                      status === AttendanceStatus.EXTRA_DOUBLE
-                                  ));
+            const isTransferred = status === AttendanceStatus.TRANSFERRED ||
+                status === AttendanceStatus.TRANSFERRED_ABSENT ||
+                (billingStartDay > 1 && d >= billingStartDay && (
+                    status === AttendanceStatus.PRESENT ||
+                    status === AttendanceStatus.PAID_ABSENCE ||
+                    status === AttendanceStatus.PAID_ABSENCE_DOUBLE ||
+                    status === AttendanceStatus.DOUBLE_CLASS ||
+                    status === AttendanceStatus.EXTRA_DOUBLE
+                ));
 
             if (isTransferred) {
                 const count = (status === AttendanceStatus.TRANSFERRED || status === AttendanceStatus.TRANSFERRED_ABSENT)
@@ -214,7 +215,7 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
         const addition = academyRate?.monthlyAdditions?.[monthKey] ?? 0;
         const deductionType = academyRate?.monthlyDeductionTypes?.[monthKey] ?? 'minutes';
         const additionType = academyRate?.monthlyAdditionTypes?.[monthKey] ?? 'minutes';
-        
+
         if (deduction > 0) {
             const academyCurrency = academyRate?.currency || 'جنيه';
             if (!incomeByCurrency[academyCurrency]) incomeByCurrency[academyCurrency] = 0;
@@ -356,14 +357,17 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
         let reportExtraHours = 0;
         let reportedStudents = 0;
         const reportExtraIncome: Record<string, number> = {};
+        const autoCompleteEnabled = academyRate?.autoCompleteReportConfigured ? academyRate.autoCompleteReport !== false : true;
         academyStudents.forEach(student => {
             const base = getStudentStatsForAcademy(student);
-            const details = attendanceDetail ? getDetailedReportDays(student, attendance, month, year, isEnglish, { ...academyRate, autoCompleteReport: academyRate?.autoCompleteReportConfigured ? academyRate.autoCompleteReport !== false : true }) : null;
-            const extra = details?.extraSessions || 0;
+            const details = (attendanceDetail || autoCompleteEnabled)
+                ? getDetailedReportDays(student, attendance, month, year, isEnglish, { ...academyRate, autoCompleteReport: autoCompleteEnabled })
+                : null;
+            const extra = autoCompleteEnabled ? (details?.extraSessions || 0) : 0;
             const studentClasses = base.studentClasses + extra;
             const studentHours = base.studentHours + extra * base.durationVal;
-            const expectedClasses = details && academyRate?.hazemSystem ? base.studentClasses + details.expectedExtraSessions : studentClasses;
-            const expectedHours = details && academyRate?.hazemSystem ? base.studentHours + details.expectedExtraSessions * base.durationVal : studentHours;
+            const expectedClasses = details && attendanceDetail && academyRate?.hazemSystem ? base.studentClasses + details.expectedExtraSessions : studentClasses;
+            const expectedHours = details && attendanceDetail && academyRate?.hazemSystem ? base.studentHours + details.expectedExtraSessions * base.durationVal : studentHours;
             reportExtraClasses += extra;
             reportExtraHours += extra * base.durationVal;
             const currency = student.location || 'جنيه';
@@ -380,7 +384,7 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
                     lines.push(`🔹 *${student.name.trim()}*`);
                     lines.push(detailedReport ? `⏱️ ${toHindiDigits(formattedHours)} ${getHoursPlural(expectedHours)} | 📚 ${toHindiDigits(expectedClasses)} ${getSessionsPlural(expectedClasses)}` : `   ${toHindiDigits(formattedHours)} ${getHoursPlural(expectedHours)}  |  ${toHindiDigits(expectedClasses)} ${getSessionsPlural(expectedClasses)}`);
                 }
-                if (details) lines.push('', ...details.lines);
+                if (detailedReport && details) lines.push('', ...details.lines);
                 lines.push('');
                 if (detailedReport) lines.push('━━━━━━━━━━━━━━', '');
             }
@@ -422,12 +426,15 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
         lines.push('', '──────────────', '', ...studentSection);
 
         try {
-            await navigator.clipboard.writeText(lines.join('\n'));
+            setShowCopyMenu(false);
+            await copyReportTextToClipboard(lines.join('\n'), {
+                includeCompletionNotice: !detail && reportExtraClasses > 0,
+                isEnglish,
+            });
             saveCopyPreference({ type: 'text', pricing: withPricing, paypal: withPaypal, detail: !!attendanceDetail, language });
             setIsCopying(true);
             setCopySucceeded(true);
             setTimeout(() => { setIsCopying(false); setCopySucceeded(false); }, 2000);
-            setShowCopyMenu(false);
         } catch (err) {
             console.error('Failed to copy text:', err);
         }
@@ -1074,7 +1081,7 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
                                             const newMonthlyAdditions = { ...(academyRate?.monthlyAdditions || {}) };
                                             const newMonthlyDeductionTypes = { ...(academyRate?.monthlyDeductionTypes || {}) } as Record<string, 'minutes' | 'currency'>;
                                             const newMonthlyAdditionTypes = { ...(academyRate?.monthlyAdditionTypes || {}) } as Record<string, 'minutes' | 'currency'>;
-                                            
+
                                             onUpdate(academyName, editedName, editedRate, editedCurrency, newMonthlyDeductions, editedBillingStartDay, editedLink, academyRate?.holidays || [], editedDisableReports, newMonthlyAdditions, newMonthlyDeductionTypes, newMonthlyAdditionTypes);
 
                                             // Update history
@@ -1090,7 +1097,7 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
                                         placeholder=""
                                         style={{ direction: 'ltr' }}
                                     />
-                                    <button 
+                                    <button
                                         onClick={() => {
                                             const newType = editedDeductionType === 'minutes' ? 'currency' : 'minutes';
                                             setEditedDeductionType(newType);
@@ -1099,7 +1106,7 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
                                             const newMonthlyDeductionTypes = { ...(academyRate?.monthlyDeductionTypes || {}) } as Record<string, 'minutes' | 'currency'>;
                                             newMonthlyDeductionTypes[`${month}_${year}`] = newType;
                                             const newMonthlyAdditionTypes = { ...(academyRate?.monthlyAdditionTypes || {}) } as Record<string, 'minutes' | 'currency'>;
-                                            
+
                                             onUpdate(academyName, editedName, editedRate, editedCurrency, newMonthlyDeductions, editedBillingStartDay, editedLink, academyRate?.holidays || [], editedDisableReports, newMonthlyAdditions, newMonthlyDeductionTypes, newMonthlyAdditionTypes);
                                         }}
                                         className={`font-tajawal px-2 py-0.5 rounded-lg transition-colors cursor-pointer hover:bg-black/5 ${editedDeduction > 0 ? 'text-red-400' : 'text-gray-400'}`}
@@ -1142,7 +1149,7 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
                                             newMonthlyAdditions[`${month}_${year}`] = val;
                                             const newMonthlyDeductionTypes = { ...(academyRate?.monthlyDeductionTypes || {}) } as Record<string, 'minutes' | 'currency'>;
                                             const newMonthlyAdditionTypes = { ...(academyRate?.monthlyAdditionTypes || {}) } as Record<string, 'minutes' | 'currency'>;
-                                            
+
                                             onUpdate(academyName, editedName, editedRate, editedCurrency, newMonthlyDeductions, editedBillingStartDay, editedLink, academyRate?.holidays || [], editedDisableReports, newMonthlyAdditions, newMonthlyDeductionTypes, newMonthlyAdditionTypes);
 
                                             // Update history
@@ -1158,7 +1165,7 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
                                         placeholder=""
                                         style={{ direction: 'ltr' }}
                                     />
-                                    <button 
+                                    <button
                                         onClick={() => {
                                             const newType = editedAdditionType === 'minutes' ? 'currency' : 'minutes';
                                             setEditedAdditionType(newType);
@@ -1167,7 +1174,7 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
                                             const newMonthlyDeductionTypes = { ...(academyRate?.monthlyDeductionTypes || {}) } as Record<string, 'minutes' | 'currency'>;
                                             const newMonthlyAdditionTypes = { ...(academyRate?.monthlyAdditionTypes || {}) } as Record<string, 'minutes' | 'currency'>;
                                             newMonthlyAdditionTypes[`${month}_${year}`] = newType;
-                                            
+
                                             onUpdate(academyName, editedName, editedRate, editedCurrency, newMonthlyDeductions, editedBillingStartDay, editedLink, academyRate?.holidays || [], editedDisableReports, newMonthlyAdditions, newMonthlyDeductionTypes, newMonthlyAdditionTypes);
                                         }}
                                         className={`font-tajawal px-2 py-0.5 rounded-lg transition-colors cursor-pointer hover:bg-black/5 ${editedAddition > 0 ? 'text-emerald-400' : 'text-gray-400'}`}

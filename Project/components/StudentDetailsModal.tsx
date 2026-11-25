@@ -1,4 +1,6 @@
-import { formatAttendanceDays } from './reportAttendanceDays';
+import { getDetailedReportDays } from '../services/academyReportDetails';
+import { resolveEffectiveReportSettings } from '../services/quranPages';
+import { copyReportTextToClipboard } from '../services/reportClipboard';
 import { scheduledCount } from '../services/studentSchedule';
 import ReportMonthNavigation, { useReportMonth } from './ReportMonthNavigation';
 import React, { useRef, useState } from 'react';
@@ -15,6 +17,7 @@ interface Props {
     usdRate: number;
     onOpenLink?: (url: string, title?: string) => void;
     billingStartDay?: number;
+    holidays?: number[];
     paymentStatus: Record<string, boolean>;
     onTogglePayment: (id: string, month: number, year: number) => void;
 }
@@ -64,7 +67,7 @@ const getSessionsPlural = (num: number): string => {
     return 'حصة';
 };
 
-export default function StudentDetailsModal({ student, attendance, onClose, month: initialMonth, year: initialYear, usdRate, onOpenLink, billingStartDay = 1, paymentStatus, onTogglePayment }: Props) {
+export default function StudentDetailsModal({ student, attendance, onClose, month: initialMonth, year: initialYear, usdRate, onOpenLink, billingStartDay = 1, holidays, paymentStatus, onTogglePayment }: Props) {
     const { month, year, changeMonth } = useReportMonth(initialMonth, initialYear, true);
     const reportRef = useRef<HTMLDivElement>(null);
     const [isCopying, setIsCopying] = useState(false);
@@ -245,9 +248,18 @@ export default function StudentDetailsModal({ student, attendance, onClose, mont
         }
         lines.push('');
 
-        // Use computed student stats
-        const visitsCount = stats.sessionCount;
-        const unitsCount = stats.unitsCount;
+        // Use computed student stats + optional upcoming auto-complete
+        const autoCompleteEnabled = resolveEffectiveReportSettings(student.reportSettings).autoCompleteReport !== false;
+        const details = (attendanceDetail || autoCompleteEnabled)
+            ? getDetailedReportDays(student, attendance, month, year, isEnglish, {
+                billingStartDay,
+                autoCompleteReport: autoCompleteEnabled,
+                holidays,
+            })
+            : null;
+        const extra = autoCompleteEnabled ? (details?.extraSessions || 0) : 0;
+        const visitsCount = stats.sessionCount + extra;
+        const unitsCount = stats.unitsCount + extra;
 
         const normalizedDuration = toWesternDigits(student.duration);
         const durationMinutes = parseInt(normalizedDuration);
@@ -271,9 +283,12 @@ export default function StudentDetailsModal({ student, attendance, onClose, mont
         const studentHours = Math.round(unitsCount * durationVal * 4) / 4;
         const fmtHours = (n: number) => Number.isInteger(n) ? n.toString() : parseFloat(n.toFixed(2)).toString();
 
-        if (attendanceDetail) {
-            lines.push(formatAttendanceDays(student, attendance, month, year, isEnglish, billingStartDay));
-            lines.push('');
+        if (attendanceDetail && details) {
+            const detailLines = details.lines[0] === '' ? details.lines.slice(1) : details.lines;
+            if (detailLines.length) {
+                lines.push(...detailLines);
+                lines.push('');
+            }
         }
 
         lines.push('──────────────');
@@ -317,10 +332,13 @@ export default function StudentDetailsModal({ student, attendance, onClose, mont
         }
 
         try {
-            await navigator.clipboard.writeText(lines.join('\n'));
+            setShowCopyMenu(false);
+            await copyReportTextToClipboard(lines.join('\n'), {
+                includeCompletionNotice: !attendanceDetail && extra > 0,
+                isEnglish,
+            });
             setIsCopying(true);
             setTimeout(() => setIsCopying(false), 2000);
-            setShowCopyMenu(false);
         } catch (err) {
             console.error('Failed to copy text:', err);
         }
