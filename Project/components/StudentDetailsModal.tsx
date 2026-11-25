@@ -3,7 +3,7 @@ import { resolveEffectiveReportSettings } from '../services/quranPages';
 import { copyReportTextToClipboard } from '../services/reportClipboard';
 import { scheduledCount } from '../services/studentSchedule';
 import ReportMonthNavigation, { useReportMonth } from './ReportMonthNavigation';
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { X, Calendar, Clock, Calculator, Copy, Check, DollarSign, Wallet, FileText, AlignLeft, ChevronLeft, ChevronRight, Image as ImageIcon, Link } from 'lucide-react';
 import { Student, AttendanceRecord, AttendanceStatus } from '../types';
 import { toBlob } from 'html-to-image';
@@ -71,9 +71,21 @@ export default function StudentDetailsModal({ student, attendance, onClose, mont
     const { month, year, changeMonth } = useReportMonth(initialMonth, initialYear, true);
     const reportRef = useRef<HTMLDivElement>(null);
     const [isCopying, setIsCopying] = useState(false);
+    const [copySucceeded, setCopySucceeded] = useState(false);
     const [isCopyingLink, setIsCopyingLink] = useState(false);
     const [includePricing, setIncludePricing] = useState(true);
     const [showCopyMenu, setShowCopyMenu] = useState(false);
+    const [showProjection, setShowProjection] = useState(false);
+    const projectionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    useEffect(() => () => { if (projectionTimer.current) clearTimeout(projectionTimer.current); }, []);
+    const startProjection = () => {
+        projectionTimer.current = setTimeout(() => setShowProjection(true), 500);
+    };
+    const stopProjection = () => {
+        if (projectionTimer.current) clearTimeout(projectionTimer.current);
+        projectionTimer.current = null;
+        setShowProjection(false);
+    };
     const [textSelectMode, setTextSelectMode] = useState(false);
     const [attendanceDetail, setAttendanceDetail] = useState<boolean | null>(null);
     const [imageSelectMode, setImageSelectMode] = useState(false);
@@ -81,6 +93,21 @@ export default function StudentDetailsModal({ student, attendance, onClose, mont
     const [reportLanguage, setReportLanguage] = useState<'ar' | 'en'>(/[a-zA-Z]/.test(student.name) ? 'en' : 'ar');
     const isEnglish = reportLanguage === 'en';
     const isNameEnglish = /[a-zA-Z]/.test(student.name);
+    const copyPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const longCopyPress = useRef(false);
+    const [noSavedCopy, setNoSavedCopy] = useState(false);
+    const [copyShake, setCopyShake] = useState(0);
+    useEffect(() => {
+        if (!noSavedCopy) return;
+        const timer = setTimeout(() => setNoSavedCopy(false), 2500);
+        return () => clearTimeout(timer);
+    }, [noSavedCopy, copyShake]);
+    useEffect(() => () => { if (copyPressTimer.current) clearTimeout(copyPressTimer.current); }, []);
+    const copyPreferenceKey = `student-copy-options:${student.id}`;
+    type CopyPreference = { type: 'image' | 'text'; pricing: boolean; paypal?: boolean; detail?: boolean; language: 'ar' | 'en' };
+    const saveCopyPreference = (preference: CopyPreference) => {
+        try { localStorage.setItem(copyPreferenceKey, JSON.stringify(preference)); } catch (err) { console.error('Failed to save copy options:', err); }
+    };
 
     // Calculate stats
     const getStudentStats = () => {
@@ -165,7 +192,7 @@ export default function StudentDetailsModal({ student, attendance, onClose, mont
 
     const stats = getStudentStats();
 
-    const handleCopy = async (withPricing: boolean) => {
+    const handleCopy = async (withPricing: boolean, language = reportLanguage) => {
         if (!reportRef.current || isCopying) return;
 
         setIncludePricing(withPricing);
@@ -190,7 +217,11 @@ export default function StudentDetailsModal({ student, attendance, onClose, mont
                     await navigator.clipboard.write([
                         new ClipboardItem({ 'image/png': blob })
                     ]);
-                    setTimeout(() => setIsCopying(false), 2000);
+                    saveCopyPreference({ type: 'image', pricing: withPricing, language });
+                    setCopySucceeded(true);
+                    setTimeout(() => { setIsCopying(false); setCopySucceeded(false); }, 2000);
+                } else {
+                    setIsCopying(false);
                 }
             } catch (err) {
                 console.error('Failed to copy report:', err);
@@ -234,7 +265,9 @@ export default function StudentDetailsModal({ student, attendance, onClose, mont
         }
     };
 
-    const handleCopyText = async (withPricing: boolean = false, withPaypal: boolean = true) => {
+    const handleCopyText = async (withPricing: boolean = false, withPaypal: boolean = true, detail = attendanceDetail, language = reportLanguage) => {
+        const isEnglish = language === 'en';
+        const attendanceDetail = detail;
         // Use the passed year and month for the report date
         const dateForMonthName = new Date(year, month, 1);
         const currentMonthName = dateForMonthName.toLocaleDateString(isEnglish ? 'en-US' : 'ar-SA', { month: 'long', year: 'numeric' });
@@ -337,11 +370,28 @@ export default function StudentDetailsModal({ student, attendance, onClose, mont
                 includeCompletionNotice: !attendanceDetail && extra > 0,
                 isEnglish,
             });
+            saveCopyPreference({ type: 'text', pricing: withPricing, paypal: withPaypal, detail: !!attendanceDetail, language });
             setIsCopying(true);
-            setTimeout(() => setIsCopying(false), 2000);
+            setCopySucceeded(true);
+            setTimeout(() => { setIsCopying(false); setCopySucceeded(false); }, 2000);
         } catch (err) {
             console.error('Failed to copy text:', err);
         }
+    };
+
+    const repeatLastCopy = () => {
+        try {
+            const raw = localStorage.getItem(copyPreferenceKey);
+            if (!raw) { setNoSavedCopy(true); setShowCopyMenu(false); return; }
+            setNoSavedCopy(false);
+            const preference: CopyPreference = JSON.parse(raw);
+            setReportLanguage(preference.language);
+            if (preference.type === 'text') {
+                void handleCopyText(preference.pricing, !!preference.paypal, !!preference.detail, preference.language);
+            } else {
+                void handleCopy(preference.pricing, preference.language);
+            }
+        } catch (err) { console.error('Failed to restore copy options:', err); setShowCopyMenu(true); }
     };
 
 
@@ -350,6 +400,28 @@ export default function StudentDetailsModal({ student, attendance, onClose, mont
         : stats.unitsCount * student.rate;
 
     const formattedAmount = totalDueAmount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+
+    const projectedExtra = showProjection
+        ? getDetailedReportDays(student, attendance, month, year, isEnglish, {
+            billingStartDay,
+            autoCompleteReport: true,
+            holidays,
+        }).extraSessions
+        : 0;
+    const normalizedDuration = toWesternDigits(student.duration || '');
+    const parsedDurationMinutes = parseInt(normalizedDuration);
+    const displayDurationVal = !isNaN(parsedDurationMinutes)
+        ? parsedDurationMinutes / 60
+        : (student.duration === '٣٠' || student.duration === '30' || student.duration === 'خليط' ? 0.5 : 1);
+    const displaySessionCount = stats.sessionCount + projectedExtra;
+    const displayUnitsCount = stats.unitsCount + projectedExtra;
+    const displayHours = showProjection
+        ? Math.round(displayUnitsCount * displayDurationVal * 4) / 4
+        : stats.hours;
+    const displayDueAmount = (student.paymentBasis === 'بالساعة')
+        ? (displayUnitsCount * (parseInt(toWesternDigits(student.duration || '٣٠')) || 30) / 60) * student.rate
+        : displayUnitsCount * student.rate;
+    const displayFormattedAmount = displayDueAmount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 
     return (
         <div
@@ -494,13 +566,45 @@ export default function StudentDetailsModal({ student, attendance, onClose, mont
                         </button>
 
                         <button
-                            onClick={() => { setShowCopyMenu(!showCopyMenu); setTextSelectMode(false); setImageSelectMode(false); setPaypalSelectMode(false); setAttendanceDetail(null); }}
-                            className={`p-2 rounded-full transition-all duration-300 ${isCopying ? 'bg-emerald-50 text-emerald-500 scale-110' : 'hover:bg-blue-50 text-blue-600 hover:scale-110 active:scale-95'
+                            onPointerDown={(e) => {
+                                if (e.button !== 0) return;
+                                longCopyPress.current = false;
+                                copyPressTimer.current = setTimeout(() => {
+                                    longCopyPress.current = true;
+                                    try {
+                                        if (!localStorage.getItem(copyPreferenceKey)) {
+                                            setCopyShake(value => value + 1);
+                                        } else {
+                                            repeatLastCopy();
+                                        }
+                                    } catch { setCopyShake(value => value + 1); }
+                                }, 600);
+                            }}
+                            onPointerUp={() => {
+                                if (copyPressTimer.current) clearTimeout(copyPressTimer.current);
+                                copyPressTimer.current = null;
+                                if (longCopyPress.current) {
+                                    try {
+                                        if (!localStorage.getItem(copyPreferenceKey)) repeatLastCopy();
+                                    } catch { repeatLastCopy(); }
+                                }
+                            }}
+                            onPointerLeave={() => { if (copyPressTimer.current) clearTimeout(copyPressTimer.current); copyPressTimer.current = null; longCopyPress.current = false; }}
+                            onPointerCancel={() => { if (copyPressTimer.current) clearTimeout(copyPressTimer.current); copyPressTimer.current = null; longCopyPress.current = false; }}
+                            onContextMenu={(e) => e.preventDefault()}
+                            onClick={() => { if (longCopyPress.current) { longCopyPress.current = false; return; } setNoSavedCopy(false); setShowCopyMenu(!showCopyMenu); setTextSelectMode(false); setImageSelectMode(false); setPaypalSelectMode(false); setAttendanceDetail(null); }}
+                            className={`p-2 rounded-full transition-all duration-300 ${copySucceeded ? 'bg-emerald-50 text-emerald-500 scale-110' : 'hover:bg-blue-50 text-blue-600 hover:scale-110 active:scale-95'
                                 }`}
                             title={isEnglish ? 'Copy Report' : 'نسخ التقرير'}
                         >
-                            {isCopying ? <Check size={24} strokeWidth={3} /> : <Copy size={24} strokeWidth={2.5} />}
+                            <span key={copyShake} className={copyShake ? 'academy-copy-shake block' : 'block'}>{copySucceeded ? <Check size={24} strokeWidth={3} /> : <Copy size={24} strokeWidth={2.5} />}</span>
                         </button>
+
+                        {noSavedCopy && (
+                            <div role="status" className="absolute right-0 top-full mt-2 z-[120] whitespace-nowrap rounded-xl bg-gray-800 px-3 py-2 text-sm text-white shadow-lg font-arabic">
+                                لا يوجد تقديرات محفوظة
+                            </div>
+                        )}
 
                         {/* Copy Menu Dropdown */}
                         {/* Copy Menu Dropdown */}
@@ -728,12 +832,12 @@ export default function StudentDetailsModal({ student, attendance, onClose, mont
                     {/* Stats Cards */}
                     <div className="grid grid-cols-2 gap-4">
                         {/* Sessions Count */}
-                        <div className="bg-blue-50/50 p-6 rounded-2xl border border-blue-100 text-center space-y-2">
-                            <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <div onMouseEnter={startProjection} onMouseLeave={stopProjection} className={`p-6 rounded-2xl border text-center space-y-2 transition-colors duration-200 ${showProjection ? 'bg-emerald-50/70 border-emerald-200' : 'bg-blue-50/50 border-blue-100'}`}>
+                            <div className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3 transition-colors duration-200 ${showProjection ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-100 text-blue-600'}`}>
                                 <Calendar size={24} />
                             </div>
-                            <div className="text-4xl font-bold text-gray-800 font-amiri flex items-center justify-center gap-2">
-                                {toHindiDigits(stats.sessionCount)}
+                            <div key={String(showProjection)} className={`monthly-stats-overlay text-4xl font-bold font-amiri flex items-center justify-center gap-2 ${showProjection ? 'text-emerald-700' : 'text-gray-800'}`}>
+                                {toHindiDigits(displaySessionCount)}
                                 {stats.transferredCount > 0 && (
                                     <span className="text-sm text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100 font-normal self-center" title="حصص مرحلة من الشهر السابق">
                                         +{toHindiDigits(stats.transferredCount)} ↩
@@ -744,34 +848,34 @@ export default function StudentDetailsModal({ student, attendance, onClose, mont
                         </div>
 
                         {/* Hours Count */}
-                        <div className="bg-amber-50/50 p-6 rounded-2xl border border-amber-100 text-center space-y-2">
-                            <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <div onMouseEnter={startProjection} onMouseLeave={stopProjection} className={`p-6 rounded-2xl border text-center space-y-2 transition-colors duration-200 ${showProjection ? 'bg-emerald-50/70 border-emerald-200' : 'bg-amber-50/50 border-amber-100'}`}>
+                            <div className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3 transition-colors duration-200 ${showProjection ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
                                 <Clock size={24} />
                             </div>
-                            <div className="text-4xl font-bold text-gray-800 font-amiri">
-                                {toHindiDigits(Number.isInteger(stats.hours) ? stats.hours : parseFloat(stats.hours.toFixed(2)))}
+                            <div key={String(showProjection)} className={`monthly-stats-overlay text-4xl font-bold font-amiri ${showProjection ? 'text-emerald-700' : 'text-gray-800'}`}>
+                                {toHindiDigits(Number.isInteger(displayHours) ? displayHours : parseFloat(displayHours.toFixed(2)))}
                             </div>
                             <div className="text-lg text-gray-500 font-medium font-amiri">عدد الساعات</div>
                         </div>
                     </div>
 
                     {/* Info Section */}
-                    <div className="bg-gray-50 rounded-2xl p-6 border border-gray-100">
+                    <div onMouseEnter={startProjection} onMouseLeave={stopProjection} className={`rounded-2xl p-6 border transition-colors duration-200 ${showProjection ? 'bg-emerald-50/60 border-emerald-200' : 'bg-gray-50 border-gray-100'}`}>
                         {/* Main Amount Row - Label RIGHT, Amount LEFT */}
                         <div className="flex items-center justify-between">
                             <div className="text-gray-600 font-bold text-xl font-arabic">
                                 إجمالي المستحق
                             </div>
-                            <div className="text-3xl font-bold text-[#d4af37] font-amiri">
-                                {toHindiDigits(formattedAmount)} {student.location}
+                            <div key={String(showProjection)} className={`monthly-stats-overlay text-3xl font-bold font-amiri ${showProjection ? 'text-emerald-600' : 'text-[#d4af37]'}`}>
+                                {toHindiDigits(displayFormattedAmount)} {student.location}
                             </div>
                         </div>
 
                         {student.location === 'دولار' && usdRate > 0 && (
                             <div className="text-center pt-6 mt-6 border-t border-dashed border-gray-200">
-                                <div className="inline-flex items-center gap-2 px-6 py-3 bg-green-50 rounded-xl">
-                                    <span className="text-3xl font-bold text-green-600 font-amiri">
-                                        {toHindiDigits((totalDueAmount * usdRate).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 }))} جنيه
+                                <div className={`inline-flex items-center gap-2 px-6 py-3 rounded-xl transition-colors duration-200 ${showProjection ? 'bg-emerald-100/80' : 'bg-green-50'}`}>
+                                    <span key={String(showProjection)} className={`monthly-stats-overlay text-3xl font-bold font-amiri ${showProjection ? 'text-emerald-700' : 'text-green-600'}`}>
+                                        {toHindiDigits((displayDueAmount * usdRate).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 }))} جنيه
                                     </span>
                                 </div>
                             </div>
