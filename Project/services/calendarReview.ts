@@ -41,13 +41,29 @@ const fingerprint = (event: CalendarOccurrence) => JSON.stringify([event.start, 
 const sameDays = (a: number[], b: number[]) => JSON.stringify([...a].sort()) === JSON.stringify([...b].sort());
 export const attendanceLabels: Record<string, string> = { '': 'بدون تسجيل', e: 'حصة مجدولة — دائرة زرقاء', ed: 'حصتان مجدولتان', exempt: 'إلغاء طلب الحصة لهذا اليوم', r: 'اعتذار الطالب', '!': 'غياب الطالب — تُحسب حصة', '!2': 'غياب الطالب — تُحسب حصتان', x: 'اعتذار المعلم', 'م': 'مؤجلة للتعويض', '1': 'حضور', '2': 'حضور حصتين', t: 'حصة منقولة', ta: 'غياب منقول' };
 
-// Red only identifies a category, not which kind of absence. A matching
-// recorded status resolves it only when there is no ambiguity between classes.
 export function visibleCalendarProposals(student: Student, attendance: AttendanceRecord, dayTransitionTime = '00:00'): CalendarProposal[] {
   if (student.calendarReview?.name !== student.name.trim()) return [];
-  return (student.calendarReview.pending || []).filter(proposal => {
-    if (proposal.kind !== 'red' || !proposal.event || !Number.isFinite(Date.parse(proposal.event.start))) return true;
+  const pending = student.calendarReview.pending || [];
+  const proposalDates = new Map<string, string>();
+  const scheduledDates = new Set<string>();
+  const redDates = new Set<string>();
+
+  for (const proposal of pending) {
+    if (proposal.kind !== 'red' && proposal.kind !== 'scheduled') continue;
+    if (!proposal.event || !Number.isFinite(Date.parse(proposal.event.start))) continue;
     const date = cairoDate(proposal.event.start, dayTransitionTime);
+    proposalDates.set(proposal.id, date);
+    if (proposal.kind === 'scheduled') scheduledDates.add(date);
+    else redDates.add(date);
+  }
+
+  return pending.filter(proposal => {
+    const date = proposalDates.get(proposal.id);
+    if (!date) return true;
+    // A scheduled and a red proposal offset each other in the same attendance cell.
+    if (scheduledDates.has(date) && redDates.has(date)) return false;
+    if (proposal.kind !== 'red') return true;
+    // A recorded red outcome resolves the proposal only for an unambiguous day.
     const { key, day, month, year } = dateKey(student.id, date);
     const status = attendance[key];
     if (![AttendanceStatus.ABSENCE_RED, AttendanceStatus.UNEXCUSED_ABSENCE, AttendanceStatus.PAID_ABSENCE, AttendanceStatus.PAID_ABSENCE_DOUBLE].includes(status)) return true;

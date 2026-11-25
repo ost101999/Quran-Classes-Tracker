@@ -40,6 +40,21 @@ test('red proposals follow recorded attendance and remain visible for ambiguous 
     assert.equal(visibleCalendarProposals(ambiguous, { [key]: 'r' }, '07:00').length, 1);
 });
 
+test('same-day scheduled and red proposals cancel each other using the attendance day boundary', () => {
+    const green = occurrence({ id: 'green', start: '2026-11-26T13:15:00Z', end: '2026-11-26T13:45:00Z' });
+    const red = occurrence({ id: 'red', start: '2026-11-26T20:30:00Z', end: '2026-11-26T21:00:00Z', colorId: '11' });
+    const [sameDay] = ingest([student()], [green, red]);
+    assert.equal(visibleCalendarProposals(sameDay, {}, '07:00').length, 0);
+
+    const overnightRed = { ...red, start: '2026-11-26T23:30:00Z', end: '2026-11-27T00:00:00Z' };
+    const [overnight] = ingest([student()], [overnightRed, green]);
+    assert.equal(visibleCalendarProposals(overnight, {}, '07:00').length, 0);
+    assert.deepEqual(json(visibleCalendarProposals(overnight, {}, '00:00').map(p => p.kind)), ['red', 'scheduled']);
+
+    const [redRemoved] = ingest([sameDay], [green]);
+    assert.deepEqual(json(visibleCalendarProposals(redRemoved, {}, '07:00').map(p => p.kind)), ['scheduled']);
+});
+
 test('detection only creates proposals and does not modify days, attendance or input data', () => {
     const students = [student()]; const before = JSON.stringify(students);
     const updated = ingest(students, [occurrence()]);
