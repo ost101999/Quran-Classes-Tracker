@@ -547,15 +547,9 @@ export default function StudentDetailsModal({ student, attendance, onClose, mont
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Header */}
-                <div className="relative z-30 p-6 text-center border-b border-gray-100 bg-gray-50/50">
-                    <button
-                        onClick={onClose}
-                        className="absolute left-6 top-1/2 -translate-y-1/2 p-2 hover:bg-red-50 hover:text-red-500 rounded-full text-gray-400 transition-colors"
-                    >
-                        <X size={24} />
-                    </button>
-
-                    <div className="absolute right-6 top-1/2 -translate-y-1/2 flex gap-2">
+                <div className="relative z-30 px-5 py-5 text-center border-b border-gray-100 bg-gray-50/50">
+                    <div className="flex items-center justify-between gap-2">
+                        <div className="relative flex items-center gap-1 shrink-0">
                         <button
                             onClick={(e) => handleCopyWebLink(e)}
                             className={`p-2 rounded-full transition-all duration-300 ${isCopyingLink ? 'bg-emerald-50 text-emerald-500 scale-110' : 'hover:bg-purple-50 text-purple-600 hover:scale-110 active:scale-95'
@@ -804,20 +798,32 @@ export default function StudentDetailsModal({ student, attendance, onClose, mont
                                 </div>
                             </>
                         )}
-                    </div>
+                        </div>
 
-                    <h2
-                        className={`font-bold text-gray-800 pt-2 px-20 break-words ${isNameEnglish ? 'text-2xl font-english' : 'text-3xl font-arabic'}`}
-                        onClick={(e) => {
-                            if (e.ctrlKey || e.metaKey) {
-                                handleCopyWebLink(e);
-                            }
-                        }}
-                        title={isEnglish ? 'Ctrl+Click to open student portal' : 'Ctrl+Click لفتح واجهة الطالب'}
-                    >
-                        {student.name}
-                    </h2>
-                    <p className={`text-gray-500 text-lg mt-1 ${isNameEnglish ? 'font-english' : 'font-arabic'}`}>{student.academy}</p>
+                        <div className="min-w-0 flex-1 text-center px-1">
+                            <h2
+                                className={`font-bold text-gray-800 break-words leading-snug line-clamp-2 ${isNameEnglish ? 'text-xl font-english' : 'text-2xl font-arabic'}`}
+                                onClick={(e) => {
+                                    if (e.ctrlKey || e.metaKey) {
+                                        handleCopyWebLink(e);
+                                    }
+                                }}
+                                title={`${student.name} — ${isEnglish ? 'Ctrl+Click to open student portal' : 'Ctrl+Click لفتح واجهة الطالب'}`}
+                            >
+                                {student.name}
+                            </h2>
+                            <p className={`text-gray-500 text-base mt-1 truncate ${isNameEnglish ? 'font-english' : 'font-arabic'}`}>{student.academy}</p>
+                        </div>
+
+                        <div className="w-[76px] flex justify-end shrink-0">
+                            <button
+                                onClick={onClose}
+                                className="p-2 hover:bg-red-50 hover:text-red-500 rounded-full text-gray-400 transition-colors"
+                            >
+                                <X size={24} />
+                            </button>
+                        </div>
+                    </div>
                 </div>
 
                 <ReportMonthNavigation month={month} year={year} changeMonth={changeMonth}
