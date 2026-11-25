@@ -30,10 +30,22 @@ function registerDevMode({ app, ipcMain, dialog, getMainWindow }) {
     let busy = false;
     let snapshot = null;
     let fullDevUrl = null;
+    let activeRoot = null;
+    let stopping = false;
+    let restarting = false;
+    let restartTimer = null;
+    let restartAttempts = 0;
+    let lastRestartAt = 0;
+    const watchedWindows = new WeakSet();
     const installedUrl = pathToFileURL(path.join(app.getAppPath(), 'dist', 'index.html')).href;
     const handoffFile = () => path.join(app.getPath('userData'), 'dev-storage-handoff.json');
 
     const stop = () => {
+        stopping = true;
+        if (restartTimer) {
+            clearTimeout(restartTimer);
+            restartTimer = null;
+        }
         if (child) {
             try { child.kill(); } catch { /* ignore */ }
             child = null;
@@ -169,10 +181,53 @@ function registerDevMode({ app, ipcMain, dialog, getMainWindow }) {
         poll();
     });
 
+    const attachWindowRecovery = (win) => {
+        if (!win || !win.webContents || watchedWindows.has(win)) return;
+        watchedWindows.add(win);
+        win.webContents.on('did-fail-load', (_event, errorCode, _desc, validatedURL) => {
+            if (!active || stopping || restarting) return;
+            // -102 = ERR_CONNECTION_REFUSED
+            if (errorCode === -102 && typeof validatedURL === 'string' && validatedURL.startsWith('http://127.0.0.1:')) {
+                scheduleViteRecovery();
+            }
+        });
+    };
+
+    const scheduleViteRecovery = () => {
+        if (stopping || !active || restarting || !activeRoot) return;
+        const now = Date.now();
+        if (now - lastRestartAt > 30000) restartAttempts = 0;
+        if (restartAttempts >= 5) return;
+        restartAttempts++;
+        lastRestartAt = now;
+        const delayMs = Math.min(3000, 400 * restartAttempts);
+        if (restartTimer) clearTimeout(restartTimer);
+        restartTimer = setTimeout(async () => {
+            restartTimer = null;
+            if (stopping || !active || restarting || !activeRoot) return;
+            restarting = true;
+            try {
+                const newUrl = await startViteServer(activeRoot);
+                fullDevUrl = newUrl;
+                const win = getMainWindow();
+                if (win && !win.isDestroyed() && active && !stopping) {
+                    attachWindowRecovery(win);
+                    await win.loadURL(newUrl);
+                }
+            } catch {
+                // Retry on next failure window if still active
+            } finally {
+                restarting = false;
+            }
+        }, delayMs);
+    };
+
     const startViteServer = async (root) => {
         stop();
+        stopping = false;
+        activeRoot = root;
         const port = await freePort();
-        child = spawn(
+        const spawned = spawn(
             process.execPath,
             [path.join(root, 'node_modules', 'vite', 'bin', 'vite.js'), '--host', '127.0.0.1', '--port', String(port), '--strictPort'],
             {
@@ -182,8 +237,17 @@ function registerDevMode({ app, ipcMain, dialog, getMainWindow }) {
                 windowsHide: true,
             }
         );
-        child.on('error', () => { /* ignore */ });
-        await waitForServer(port, child);
+        child = spawned;
+        spawned.on('error', () => { /* ignore */ });
+        spawned.once('exit', () => {
+            if (child === spawned) {
+                child = null;
+                scheduleViteRecovery();
+            }
+        });
+        await waitForServer(port, spawned);
+        const win = getMainWindow();
+        if (win) attachWindowRecovery(win);
         return `http://127.0.0.1:${port}/`;
     };
 
@@ -353,6 +417,7 @@ function registerDevMode({ app, ipcMain, dialog, getMainWindow }) {
             setImmediate(async () => {
                 try {
                     active = entering;
+                    if (entering) attachWindowRecovery(win);
                     await win.loadURL(target);
                     if (!entering) stop();
                 } catch {
