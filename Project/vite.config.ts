@@ -9,6 +9,12 @@ export default defineConfig(({ mode }) => {
       port: Number(process.env.PORT) || 5173,
       strictPort: true,
       host: '0.0.0.0',
+      watch: {
+        ignored: ['**/dist_electron/**', '**/dist/**', '**/build/**', '**/.git/**', /\.asar([/\\]|$)/],
+      },
+    },
+    optimizeDeps: {
+      entries: ['index.html'],
     },
     plugins: [react()],
     define: {
