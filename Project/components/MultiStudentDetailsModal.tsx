@@ -4,7 +4,7 @@ import { copyReportTextToClipboard } from '../services/reportClipboard';
 import ReportMonthNavigation, { useReportMonth } from './ReportMonthNavigation';
 import React, { useRef, useState } from 'react';
 import { X, Calendar, Clock, Copy, Check, Wallet, FileText, AlignLeft, DollarSign, ChevronLeft, ChevronRight, Image as ImageIcon } from 'lucide-react';
-import { Student, AttendanceRecord, AttendanceStatus } from '../types';
+import { Student, AttendanceRecord, AttendanceStatus, MakeupLink } from '../types';
 import { toBlob } from 'html-to-image';
 
 interface Props {
@@ -14,6 +14,8 @@ interface Props {
     month: number;
     year: number;
     usdRate: number;
+    dayTransitionTime?: string;
+    makeupLinks?: MakeupLink[];
 }
 
 // Helper to convert Hindi digits to Western
@@ -67,7 +69,7 @@ const getSessionsPlural = (num: number): string => {
     return 'حصة';
 };
 
-const MultiStudentDetailsModal: React.FC<Props> = ({ students, attendance, onClose, month: initialMonth, year: initialYear, usdRate }) => {
+const MultiStudentDetailsModal: React.FC<Props> = ({ students, attendance, onClose, month: initialMonth, year: initialYear, usdRate, dayTransitionTime, makeupLinks }) => {
     const { month, year, changeMonth } = useReportMonth(initialMonth, initialYear);
     const reportRef = useRef<HTMLDivElement>(null);
     const [isCopying, setIsCopying] = useState(false);
@@ -208,7 +210,7 @@ const MultiStudentDetailsModal: React.FC<Props> = ({ students, attendance, onClo
 
             const autoCompleteEnabled = resolveEffectiveReportSettings(student.reportSettings).autoCompleteReport !== false;
             const details = (attendanceDetail || autoCompleteEnabled)
-                ? getDetailedReportDays(student, attendance, month, year, isEnglish, { autoCompleteReport: autoCompleteEnabled })
+                ? getDetailedReportDays(student, attendance, month, year, isEnglish, { autoCompleteReport: autoCompleteEnabled, dayTransitionTime, makeupLinks })
                 : null;
             const extra = autoCompleteEnabled ? (details?.extraSessions || 0) : 0;
             visitsCount += extra;

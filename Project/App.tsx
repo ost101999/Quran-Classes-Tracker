@@ -8647,6 +8647,8 @@ function App() {
             }
             academyRate={academyRates[selectedAcademyForDetails]}
             usdRate={usdRate}
+            dayTransitionTime={dayTransitionTime}
+            makeupLinks={makeupLinks}
             paymentStatus={paymentStatus}
             onTogglePayment={togglePaymentStatus}
           />
@@ -8757,6 +8759,8 @@ function App() {
             onOpenLink={handleOpenLink}
             billingStartDay={academyRates[selectedStudentForDetails.academy]?.billingStartDay || 1}
             holidays={academyRates[selectedStudentForDetails.academy]?.holidays}
+            dayTransitionTime={dayTransitionTime}
+            makeupLinks={makeupLinks}
             paymentStatus={paymentStatus}
             onTogglePayment={togglePaymentStatus}
           />
@@ -8806,6 +8810,8 @@ function App() {
             year={year}
             onClose={() => setSelectedStudentsForCombinedReport(null)}
             usdRate={usdRate}
+            dayTransitionTime={dayTransitionTime}
+            makeupLinks={makeupLinks}
           />
         )
       }
@@ -18963,6 +18969,8 @@ function App() {
           month={month}
           year={year}
           usdRate={usdRate}
+          dayTransitionTime={dayTransitionTime}
+          makeupLinks={makeupLinks}
         />
       )}
 

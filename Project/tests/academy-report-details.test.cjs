@@ -45,28 +45,47 @@ test('Hazem separates all expected sessions from counted sessions', () => {
   const hidden = render(records, { hazemSystem: true });
   const shown = render(records, { hazemSystem: true, autoCompleteReport: true });
   assert.equal(hidden.extraSessions, 0);
-  assert.equal(shown.extraSessions, 6);
+  assert.equal(shown.extraSessions, 7);
   assert.equal(hidden.expectedExtraSessions, 12);
   assert.equal(shown.expectedExtraSessions, 12);
-  assert.match(shown.lines.join('\n'), /Counted sessions \(9\)/);
+  assert.match(shown.lines.join('\n'), /Counted sessions \(10\)/);
+  assert.match(shown.lines.join('\n'), /16 November/);
   assert.match(shown.lines.join('\n'), /22 November/);
-  assert.match(shown.lines.join('\n'), /Upcoming:\*\n• Sunday, 22 November/);
+  assert.match(shown.lines.join('\n'), /Upcoming:\*\n• Monday, 16 November/);
   assert.doesNotMatch(shown.lines.join('\n'), /Active days coming/);
   assert.ok(shown.lines.findIndex(line => line.includes('Upcoming')) < shown.lines.findIndex(line => line.includes('Apology')));
   assert.doesNotMatch(hidden.lines.join('\n'), /Active days coming/);
 });
 
-test('projects only future unrecorded scheduled sessions, respecting double days, holidays and billing cutoff', () => {
+test('projects today and future unrecorded scheduled sessions, respecting double days, holidays, extra days, makeups, inactive students and billing cutoff', () => {
   const result = render({ s_22_10_2026: S.EXEMPT }, { autoCompleteReport: true, billingStartDay: 25 });
   const text = result.lines.join('\n');
   assert.match(text, /Upcoming/);
+  assert.match(text, /16 November/);
   assert.match(text, /23 November/);
-  assert.doesNotMatch(text, /22 November|29 November|16 November/);
-  assert.equal(result.extraSessions, 1);
+  assert.doesNotMatch(text, /15 November|22 November|29 November/);
+  assert.equal(result.extraSessions, 2);
   const holidays = render({}, { autoCompleteReport: true, billingStartDay: 25, holidays: [1] });
   assert.match(holidays.lines.join('\n'), /22 November \(x2\)/);
-  assert.doesNotMatch(holidays.lines.join('\n'), /23 November 2026/);
+  assert.doesNotMatch(holidays.lines.join('\n'), /16 November|23 November/);
   assert.equal(holidays.extraSessions, 2);
+
+  // Extra day, extra double, and makeup target on non-scheduled days
+  const extras = render(
+    { s_17_10_2026: S.EXTRA_DAY, s_18_10_2026: S.EXTRA_DOUBLE },
+    {
+      autoCompleteReport: true,
+      billingStartDay: 20,
+      makeupLinks: [{ studentId: 's', missedDay: 8, makeupDay: 19, month: 10, year: 2026 }],
+    }
+  );
+  // 16 Nov (1 scheduled) + 17 Nov (1 extra) + 18 Nov (2 extra double) + 19 Nov (1 makeup) = 5
+  assert.equal(extras.extraSessions, 5);
+
+  // Archived academy or deleted student should not project upcoming classes
+  assert.equal(render({}, { autoCompleteReport: true, isArchived: true }).extraSessions, 0);
+  const deletedResult = getDetailedReportDays({ ...student, deletedAt: { month: 10, year: 2026 } }, {}, 10, 2026, true, { autoCompleteReport: true }, '2026-11-16');
+  assert.equal(deletedResult.extraSessions, 0);
 });
 
 test('uses the billing period across a year boundary and preserves transferred absence', () => {
@@ -88,11 +107,11 @@ test('formats Arabic labels and the counted sessions', () => {
 
 test('counts upcoming extraSessions in both English and Arabic when autoCompleteReport is enabled', () => {
   const en = render({}, { autoCompleteReport: true, billingStartDay: 25 });
-  assert.equal(en.extraSessions, 3);
-  assert.match(en.lines.join('\n'), /📅 \*Upcoming:\*\n• Sunday, 22 November \(x2\)\n• Monday, 23 November/);
+  assert.equal(en.extraSessions, 4);
+  assert.match(en.lines.join('\n'), /📅 \*Upcoming:\*\n• Monday, 16 November\n• Sunday, 22 November \(x2\)\n• Monday, 23 November/);
 
   const ar = getDetailedReportDays(student, {}, 10, 2026, false, { autoCompleteReport: true, billingStartDay: 25 }, '2026-11-16');
-  assert.equal(ar.extraSessions, 3);
+  assert.equal(ar.extraSessions, 4);
   assert.match(ar.lines.join('\n'), /📅 \*الحصص القادمة:\*/);
 });
 

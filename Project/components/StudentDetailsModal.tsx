@@ -5,7 +5,7 @@ import { scheduledCount } from '../services/studentSchedule';
 import ReportMonthNavigation, { useReportMonth } from './ReportMonthNavigation';
 import React, { useEffect, useRef, useState } from 'react';
 import { X, Calendar, Clock, Calculator, ClipboardList, Check, DollarSign, Wallet, FileText, AlignLeft, ChevronLeft, ChevronRight, Image as ImageIcon, Link } from 'lucide-react';
-import { Student, AttendanceRecord, AttendanceStatus } from '../types';
+import { Student, AttendanceRecord, AttendanceStatus, MakeupLink } from '../types';
 import { toBlob } from 'html-to-image';
 
 interface Props {
@@ -18,6 +18,8 @@ interface Props {
     onOpenLink?: (url: string, title?: string) => void;
     billingStartDay?: number;
     holidays?: number[];
+    dayTransitionTime?: string;
+    makeupLinks?: MakeupLink[];
     paymentStatus: Record<string, boolean>;
     onTogglePayment: (id: string, month: number, year: number) => void;
 }
@@ -67,7 +69,7 @@ const getSessionsPlural = (num: number): string => {
     return 'حصة';
 };
 
-export default function StudentDetailsModal({ student, attendance, onClose, month: initialMonth, year: initialYear, usdRate, onOpenLink, billingStartDay = 1, holidays, paymentStatus, onTogglePayment }: Props) {
+export default function StudentDetailsModal({ student, attendance, onClose, month: initialMonth, year: initialYear, usdRate, onOpenLink, billingStartDay = 1, holidays, dayTransitionTime, makeupLinks, paymentStatus, onTogglePayment }: Props) {
     const { month, year, changeMonth } = useReportMonth(initialMonth, initialYear, true);
     const reportRef = useRef<HTMLDivElement>(null);
     const [isCopying, setIsCopying] = useState(false);
@@ -321,6 +323,8 @@ export default function StudentDetailsModal({ student, attendance, onClose, mont
                 billingStartDay,
                 autoCompleteReport: autoCompleteEnabled,
                 holidays,
+                dayTransitionTime,
+                makeupLinks,
             })
             : null;
         const extra = autoCompleteEnabled ? (details?.extraSessions || 0) : 0;
@@ -439,6 +443,8 @@ export default function StudentDetailsModal({ student, attendance, onClose, mont
             billingStartDay,
             autoCompleteReport: true,
             holidays,
+            dayTransitionTime,
+            makeupLinks,
         }).extraSessions
         : 0;
     const normalizedDuration = toWesternDigits(student.duration || '');

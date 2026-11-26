@@ -4,7 +4,7 @@ import { copyReportTextToClipboard } from '../services/reportClipboard';
 import ReportMonthNavigation, { useReportMonth } from './ReportMonthNavigation';
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Calendar, Clock, ClipboardList, Check, Wallet, FileText, AlignLeft, DollarSign, ChevronRight, ChevronLeft, Trash2, Edit2, ShieldAlert, ExternalLink, RotateCcw, Users, Image as ImageIcon } from 'lucide-react';
-import { Student, AttendanceRecord, AttendanceStatus } from '../types';
+import { Student, AttendanceRecord, AttendanceStatus, MakeupLink } from '../types';
 import { toBlob } from 'html-to-image';
 
 interface Props {
@@ -15,9 +15,11 @@ interface Props {
     onClose: () => void;
     onDelete: () => void;
     onUpdate: (oldName: string, newName: string, rate: number, currency: string, monthlyDeductions: Record<string, number>, billingStartDay: number, externalLink: string, holidays: number[], disableReports?: boolean, monthlyAdditions?: Record<string, number>, monthlyDeductionTypes?: Record<string, 'minutes' | 'currency'>, monthlyAdditionTypes?: Record<string, 'minutes' | 'currency'>) => void;
-    academyRate?: { rate: number; currency: string; deductedMinutes?: number; monthlyDeductions?: Record<string, number>; monthlyAdditions?: Record<string, number>; monthlyDeductionTypes?: Record<string, 'minutes' | 'currency'>; monthlyAdditionTypes?: Record<string, 'minutes' | 'currency'>; billingStartDay?: number; externalLink?: string; holidays?: number[], disableReports?: boolean; autoCompleteReport?: boolean; autoCompleteReportConfigured?: boolean; hazemSystem?: boolean };
+    academyRate?: { rate: number; currency: string; isArchived?: boolean; deductedMinutes?: number; monthlyDeductions?: Record<string, number>; monthlyAdditions?: Record<string, number>; monthlyDeductionTypes?: Record<string, 'minutes' | 'currency'>; monthlyAdditionTypes?: Record<string, 'minutes' | 'currency'>; billingStartDay?: number; externalLink?: string; holidays?: number[], disableReports?: boolean; autoCompleteReport?: boolean; autoCompleteReportConfigured?: boolean; hazemSystem?: boolean };
     year: number;
     usdRate: number;
+    dayTransitionTime?: string;
+    makeupLinks?: MakeupLink[];
     paymentStatus: Record<string, boolean>;
     onTogglePayment: (id: string, month: number, year: number) => void;
 }
@@ -66,7 +68,7 @@ const getSessionsPlural = (num: number): string => {
     return 'حصة';
 };
 
-const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendance, month: initialMonth, year: initialYear, onClose, onDelete, onUpdate, academyRate, usdRate, paymentStatus, onTogglePayment }) => {
+const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendance, month: initialMonth, year: initialYear, onClose, onDelete, onUpdate, academyRate, usdRate, dayTransitionTime, makeupLinks, paymentStatus, onTogglePayment }) => {
     const { month, year, changeMonth, futureMonths } = useReportMonth(initialMonth, initialYear, true, 1);
     const reportRef = useRef<HTMLDivElement>(null);
     const [isCopying, setIsCopying] = useState(false);
@@ -283,7 +285,7 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
     const displayStats = { ...stats, incomeByCurrency: { ...stats.incomeByCurrency } };
     if (showProjection) {
         activeStudents.forEach(student => {
-            const extra = getDetailedReportDays(student, attendance, month, year, isEnglish, { ...academyRate, autoCompleteReport: true }).extraSessions;
+            const extra = getDetailedReportDays(student, attendance, month, year, isEnglish, { ...academyRate, autoCompleteReport: true, dayTransitionTime, makeupLinks }).extraSessions;
             const { durationVal } = getStudentStatsForAcademy(student);
             displayStats.totalClasses += extra;
             displayStats.totalHours += extra * durationVal;
@@ -394,7 +396,7 @@ const AcademyDetailsModal: React.FC<Props> = ({ academyName, students, attendanc
         academyStudents.forEach(student => {
             const base = getStudentStatsForAcademy(student);
             const details = (attendanceDetail || autoCompleteEnabled)
-                ? getDetailedReportDays(student, attendance, month, year, isEnglish, { ...academyRate, autoCompleteReport: autoCompleteEnabled })
+                ? getDetailedReportDays(student, attendance, month, year, isEnglish, { ...academyRate, autoCompleteReport: autoCompleteEnabled, dayTransitionTime, makeupLinks })
                 : null;
             const extra = autoCompleteEnabled ? (details?.extraSessions || 0) : 0;
             const studentClasses = base.studentClasses + extra;

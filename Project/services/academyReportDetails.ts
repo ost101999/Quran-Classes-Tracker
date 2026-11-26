@@ -1,10 +1,27 @@
-import { AttendanceStatus, type AttendanceRecord, type Student } from '../types';
+import { AttendanceStatus, type AttendanceRecord, type MakeupLink, type Student } from '../types';
 import { cairoDate, scheduledCount } from './studentSchedule';
+import { isStudentInactiveInMonth } from './studentVisibility';
 
-type ReportOptions = { billingStartDay?: number; autoCompleteReport?: boolean; hazemSystem?: boolean; holidays?: number[] };
+type ReportOptions = {
+    billingStartDay?: number;
+    autoCompleteReport?: boolean;
+    hazemSystem?: boolean;
+    holidays?: number[];
+    isArchived?: boolean;
+    dayTransitionTime?: string;
+    makeupLinks?: MakeupLink[];
+};
 const toHindiDigits = (num: number): string => String(num).replace(/\d/g, d => '٠١٢٣٤٥٦٧٨٩'[Number(d)]);
 
-export function getDetailedReportDays(student: Student, attendance: AttendanceRecord, month: number, year: number, isEnglish: boolean, academyRate: ReportOptions = {}, today = cairoDate()) {
+export function getDetailedReportDays(
+    student: Student,
+    attendance: AttendanceRecord,
+    month: number,
+    year: number,
+    isEnglish: boolean,
+    academyRate: ReportOptions = {},
+    today = cairoDate(new Date(), academyRate?.dayTransitionTime)
+) {
         const active: { date: Date; absent: boolean; sessions: number }[] = [];
         const missing: { date: Date; teacher: boolean; sessions: number }[] = [];
         const coming: { date: Date; sessions: number }[] = [];
@@ -39,9 +56,26 @@ export function getDetailedReportDays(student: Student, attendance: AttendanceRe
                     if (academyRate?.hazemSystem) {
                         missing.push({ date, teacher: status === AttendanceStatus.UNEXCUSED_ABSENCE, sessions: Math.max(1, scheduled) });
                     }
-                } else if (!status && academyRate?.autoCompleteReport && dateKey > today && eligibleScheduled > 0) {
-                    coming.push({ date, sessions: scheduled });
-                    extraSessions += eligibleScheduled;
+                } else if (
+                    academyRate?.autoCompleteReport
+                    && inBillingPeriod
+                    && dateKey >= today
+                    && !academyRate.isArchived
+                    && !isStudentInactiveInMonth(student, period.m, period.y)
+                    && (!status || status === AttendanceStatus.EXTRA_DAY || status === AttendanceStatus.EXTRA_DOUBLE)
+                ) {
+                    const isMakeupTarget = !!academyRate.makeupLinks?.some(
+                        l => l.studentId === student.id && l.makeupDay === day && l.month === period.m && l.year === period.y
+                    );
+                    const projectedSessions = status === AttendanceStatus.EXTRA_DOUBLE
+                        ? 2
+                        : (status === AttendanceStatus.EXTRA_DAY || eligibleScheduled > 0 || isMakeupTarget)
+                            ? Math.max(1, eligibleScheduled)
+                            : 0;
+                    if (projectedSessions > 0) {
+                        coming.push({ date, sessions: projectedSessions });
+                        extraSessions += projectedSessions;
+                    }
                 }
             }
         }
