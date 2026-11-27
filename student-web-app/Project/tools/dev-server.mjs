@@ -3,6 +3,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { getRealStudentPath } from './real-student.mjs';
+import handleStudentPortal from '../api/student-portal.mjs';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const PORT = Number(process.env.PORT) || 5174;
@@ -50,6 +51,8 @@ try {
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url || '/', `http://${HOST}:${PORT}`);
   const pathname = decodeURIComponent(url.pathname);
+
+  if (pathname === '/api/student-portal') return handleStudentPortal(req, res);
 
   if (pathname === '/__health') {
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });

@@ -3,6 +3,7 @@ node_modules
 .icons
 tools
 src
+api/*.d.mts
 *.bat
 *.command
 *.vbs

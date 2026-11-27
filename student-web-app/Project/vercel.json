@@ -33,7 +33,7 @@
       "destination": "/bg.png"
     },
     {
-      "source": "/(.*)",
+      "source": "/:path((?!api/).*)",
       "destination": "/index.html"
     }
   ]

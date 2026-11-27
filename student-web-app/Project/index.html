@@ -463,6 +463,17 @@
 
   <div id="root"></div>
 
+  <script>
+    try {
+      for (let index = localStorage.length - 1; index >= 0; index--) {
+        const key = localStorage.key(index);
+        if (key?.startsWith('student_cache_')) localStorage.removeItem(key);
+      }
+    } catch {
+      // The portal also works when the browser blocks local storage.
+    }
+  </script>
+
   <script type="text/babel">
     const { useState, useEffect, useMemo, useRef } = React;
 
@@ -1866,96 +1877,76 @@
 
       const searchParams = new URLSearchParams(window.location.search);
       const studentId = searchParams.get('student');
-      // Name-based routing: /ahmed-hassan takes priority over ?student=ID
+      // Preserve existing name links and the ?student= fallback.
       const nameSlug = window.location.pathname.replace(/^\//, '').toLowerCase().trim();
-
-      const [studentList, setStudentList] = useState(null);
+      const studentLink = nameSlug ? { slug: nameSlug } : { student: studentId };
+      const getPortalData = (section, signal, resolvedStudentId) => axios.get('/api/student-portal', {
+        params: { ...studentLink, ...(resolvedStudentId ? { student: resolvedStudentId } : {}), section },
+        timeout: 30000, signal,
+      });
 
       useEffect(() => {
-        const fetchData = async () => {
-          if (!studentId && !nameSlug) {
-            setError('Invalid student link. Please check the URL.');
-            setLoading(false);
-            return;
-          }
+        if (!studentId && !nameSlug) {
+          setError('Invalid student link. Please check the URL.');
+          setLoading(false);
+          return;
+        }
 
+        const controller = new AbortController();
+        const loadOverview = async () => {
           try {
-            const get = (path, options = {}) => axios.get(`${API_BASE}/appState/${path}.json`, { timeout: 30000, ...options });
-            const [studentsResponse, monthResponse, yearResponse] = await Promise.all([
-              get('students'), get('month'), get('year')
-            ]);
-            const students = Array.isArray(studentsResponse.data)
-              ? studentsResponse.data
-              : Object.values(studentsResponse.data || {});
-            const matchedStudent = nameSlug
-              ? students.find(s => toSlug(s?.name) === nameSlug)
-              : students.find(s => String(s?.id) === String(studentId));
-            if (!matchedStudent) {
-              setData({ students, month: monthResponse.data, year: yearResponse.data });
-              return;
-            }
-            const prefix = String(matchedStudent.id) + '_';
-            const params = { orderBy: JSON.stringify('$key'), startAt: JSON.stringify(prefix), endAt: JSON.stringify(prefix + '\uf8ff') };
-            const [attendanceResponse, reportsResponse] = await Promise.all([
-              get('attendance', { params }), get('savedReports', { params })
-            ]);
-            setData({
-              students, month: monthResponse.data, year: yearResponse.data,
-              attendance: attendanceResponse.data || {},
-              savedReports: reportsResponse.data || {},
-            });
+            const { data: { student, ...overview } } = await getPortalData('overview', controller.signal);
+            if (!controller.signal.aborted) setData({ ...overview, students: [student] });
           } catch (err) {
-            console.error(err);
-            setError('Failed to load data. Please try again later.');
+            if (!controller.signal.aborted) {
+              setError(err.response?.status === 404
+                ? 'Student link not found. Please check the URL.'
+                : 'Failed to load data. Please try again later.');
+            }
           } finally {
-            setLoading(false);
+            if (!controller.signal.aborted) setLoading(false);
           }
         };
 
-        fetchData();
+        void loadOverview();
+        return () => controller.abort();
       }, [studentId, nameSlug]);
 
       useEffect(() => {
         if (!data || !tajweedRequested) return;
         if (tajweedStatus === 'ready' || tajweedStatus === 'loading') return;
-        const matchedStudent = nameSlug
-          ? data.students?.find(s => toSlug(s?.name) === nameSlug)
-          : data.students?.find(s => String(s?.id) === String(studentId));
+        const matchedStudent = data.students?.[0];
         if (!matchedStudent) return;
-        let cancelled = false;
+
+        const controller = new AbortController();
         const loadTajweed = async () => {
           setTajweedStatus('loading');
           try {
-            const get = (path, options = {}) => axios.get(`${API_BASE}/appState/${path}.json`, { timeout: 60000, ...options });
-            const prefix = String(matchedStudent.id) + '_';
-            const params = { orderBy: JSON.stringify('$key'), startAt: JSON.stringify(prefix), endAt: JSON.stringify(prefix + '\uf8ff') };
-            const [bank, assignments, submissionKeys, scopedSubmissions] = await Promise.all([
-              get('tajweedBank'), get('tajweedAssignments'),
-              get('tajweedSubmissions', { params: { shallow: true } }),
-              get('tajweedSubmissions', { params })
-            ]);
-            const studentAssignments = Object.fromEntries(Object.entries(assignments.data || {}).filter(([, item]) => String(item?.studentId) === String(matchedStudent.id)));
-            const extraKeys = new Set(Object.values(studentAssignments).map(item => item?.submissionId).filter(Boolean));
-            const assignmentPrefixes = Object.keys(studentAssignments).map(key => key + '_sub_');
-            Object.keys(submissionKeys.data || {})
-              .filter(key => !key.startsWith(prefix) && (assignmentPrefixes.some(assignmentPrefix => key.startsWith(assignmentPrefix)) || !key.includes('_sub_')))
-              .forEach(key => extraKeys.add(key));
-            const submissions = { ...(scopedSubmissions.data || {}) };
-            const extra = await Promise.all([...extraKeys].filter(key => !submissions[key]).map(async key => [key, (await get('tajweedSubmissions/' + encodeURIComponent(key))).data]));
-            extra.forEach(([key, value]) => { if (value && String(value.studentId) === String(matchedStudent.id)) submissions[key] = value; });
-            if (cancelled) return;
+            const { data: { tajweedBank, tajweedAssignments, submissionIds } } = await getPortalData('tajweed', controller.signal, matchedStudent.id);
+            // Individual Firebase reads preserve support for large audio recordings.
+            const entries = await Promise.all(submissionIds.map(async id => {
+              const { data: submission } = await axios.get(
+                `${API_BASE}/appState/tajweedSubmissions/${encodeURIComponent(id)}.json`,
+                { timeout: 60000, signal: controller.signal }
+              );
+              return [id, submission];
+            }));
+            const submissions = Object.fromEntries(entries.filter(([, submission]) =>
+              String(submission?.studentId) === String(matchedStudent.id)
+            ));
+            if (controller.signal.aborted) return;
             setData(previous => ({
-              ...previous, tajweedBank: bank.data || {},
-              tajweedAssignments: { ...studentAssignments, ...(previous.tajweedAssignments || {}) },
-              tajweedSubmissions: { ...submissions, ...(previous.tajweedSubmissions || {}) }
+              ...previous, tajweedBank,
+              tajweedAssignments: { ...tajweedAssignments, ...(previous.tajweedAssignments || {}) },
+              tajweedSubmissions: { ...submissions, ...(previous.tajweedSubmissions || {}) },
             }));
             setTajweedStatus('ready');
-          } catch (err) {
-            if (!cancelled) { console.error(err); setTajweedStatus('error'); }
+          } catch {
+            if (!controller.signal.aborted) setTajweedStatus('error');
           }
         };
-        loadTajweed();
-        return () => { cancelled = true; };
+        void loadTajweed();
+        return () => controller.abort();
       }, [tajweedRequested, tajweedRetry]);
 
       useEffect(() => { if (selectedReport && !isTourMode) setTajweedRequested(true); }, [selectedReport, isTourMode]);
@@ -2004,79 +1995,47 @@
         return () => window.removeEventListener('keydown', handleKeyDown);
       }, [selectedReport, selectedTajweedQuiz, showSchedule]);
 
-      const toSlug = (name) => {
-        if (!name) return '';
-        const arabicToLatin = {
-          'ا': 'a', 'أ': 'a', 'إ': 'e', 'آ': 'a', 'ب': 'b', 'ت': 't', 'ث': 'th',
-          'ج': 'j', 'ح': 'h', 'خ': 'kh', 'د': 'd', 'ذ': 'dh', 'ر': 'r', 'ز': 'z',
-          'س': 's', 'ش': 'sh', 'ص': 's', 'ض': 'd', 'ط': 't', 'ظ': 'z', 'ع': 'a',
-          'غ': 'gh', 'ف': 'f', 'ق': 'q', 'ك': 'k', 'ل': 'l', 'م': 'm', 'ن': 'n',
-          'ه': 'h', 'ة': 'a', 'و': 'w', 'ي': 'y', 'ى': 'a', 'ئ': 'e', 'ؤ': 'o'
-        };
-        let transliterated = name.toLowerCase().trim();
-        for (const [ar, en] of Object.entries(arabicToLatin)) {
-          transliterated = transliterated.replace(new RegExp(ar, 'g'), en);
-        }
-        return transliterated.replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-      };
+      const urlStudent = data?.students?.[0] || null;
 
-      // First, determine the actual student from URL/ID to know the language
-      const urlStudent = data?.students ? (nameSlug
-        ? data.students.find(s => toSlug(s?.name) === nameSlug)
-        : data.students.find(s => String(s.id) === String(studentId))) : null;
-
-      // Poll only this student's record, preserving in-progress homework and reports.
-      const scheduleStudentIndex = data?.students?.findIndex(s => s?.id === urlStudent?.id) ?? -1;
+      // Refresh only the schedule while keeping the current report or homework open.
       useEffect(() => {
-        if (!urlStudent || scheduleStudentIndex < 0 || isTourMode) return;
-        let cancelled = false;
+        if (!urlStudent || isTourMode) return;
         let running = false;
-        let recordIndex = scheduleStudentIndex;
         const controller = new AbortController();
         const refreshSchedule = async () => {
           if (running || document.hidden) return;
           running = true;
           try {
-            const response = await axios.get(`${API_BASE}/appState/students/${recordIndex}.json`, {
-              params: { refresh: Date.now() }, timeout: 20000, signal: controller.signal,
-            });
-            let latest = response.data;
-            if (cancelled) return;
-            // Student array indexes can move after an edit on the teacher's device.
-            if (!latest || latest.id !== urlStudent.id) {
-              const collection = await axios.get(`${API_BASE}/appState/students.json`, { params: { refresh: Date.now() }, timeout: 20000, signal: controller.signal });
-              if (cancelled) return;
-              const entry = Object.entries(collection.data || {}).find(([, item]) => item?.id === urlStudent.id);
-              if (entry) { recordIndex = entry[0]; latest = entry[1]; }
-            }
-            if (!latest || latest.id !== urlStudent.id || latest.name !== urlStudent.name) {
+            const { data: latest } = await getPortalData('schedule', controller.signal, urlStudent.id);
+            if (controller.signal.aborted) return;
+            if (latest.id !== urlStudent.id || latest.name !== urlStudent.name) {
               setScheduleRefreshError(true);
               return;
             }
             setScheduleRefreshError(false);
             setData(previous => {
-              const current = previous?.students?.find(s => s?.id === latest.id);
-              if (!current || current.name !== latest.name || (current.scheduleMessage === latest.scheduleMessage && JSON.stringify(current.calendarSchedule) === JSON.stringify(latest.calendarSchedule))) return previous;
-              return { ...previous, students: previous.students.map(s => s?.id === latest.id
-                ? { ...s, scheduleMessage: latest.scheduleMessage, calendarSchedule: latest.calendarSchedule } : s) };
+              const current = previous?.students?.[0];
+              if (current?.id !== latest.id || current.name !== latest.name || (current.scheduleMessage === latest.scheduleMessage && JSON.stringify(current.calendarSchedule) === JSON.stringify(latest.calendarSchedule))) return previous;
+              return { ...previous, students: [{ ...current, scheduleMessage: latest.scheduleMessage, calendarSchedule: latest.calendarSchedule }] };
             });
-          } catch { if (!cancelled) setScheduleRefreshError(true); }
-          finally { running = false; }
+          } catch {
+            if (!controller.signal.aborted) setScheduleRefreshError(true);
+          } finally {
+            running = false;
+          }
         };
-        void refreshSchedule();
         const interval = window.setInterval(refreshSchedule, 60000);
         window.addEventListener('focus', refreshSchedule);
         window.addEventListener('online', refreshSchedule);
         document.addEventListener('visibilitychange', refreshSchedule);
         return () => {
-          cancelled = true;
           controller.abort();
           clearInterval(interval);
           window.removeEventListener('focus', refreshSchedule);
           window.removeEventListener('online', refreshSchedule);
           document.removeEventListener('visibilitychange', refreshSchedule);
         };
-      }, [urlStudent?.id, urlStudent?.name, scheduleStudentIndex, isTourMode]);
+      }, [urlStudent?.id, urlStudent?.name, isTourMode]);
 
       const detectPrimaryNameLanguage = (name) => {
         const fullValue = String(name || '').trim();
